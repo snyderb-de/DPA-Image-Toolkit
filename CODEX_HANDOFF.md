@@ -158,3 +158,15 @@ Suggested entry format:
   Follow-up verification should use import smoke tests and launcher checks against the new root-level layout.
 - Follow-up:
   Keep the app-root layout consistent in future docs and packaging work.
+
+## 2026-03-31 - Documented scripts deployment and dependencies
+- What changed:
+  Added a Windows Scripts deployment section to `README.md` with the exact folder layout and explicit dependency install command.
+- Why:
+  The user wanted clear guidance on what belongs in the scripts folder and which packages must be installed.
+- Files:
+  `README.md`
+- Verification:
+  Documentation-only update.
+- Follow-up:
+  Keep the dependency list in sync with `requirements.txt`.

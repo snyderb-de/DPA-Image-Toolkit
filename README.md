@@ -19,6 +19,54 @@ python dpa-image-toolkit.py
 
 ---
 
+## Windows Scripts Deployment
+
+Recommended deployment folder:
+
+```text
+C:\Users\[user]\Scripts\dpa-img-tk\
+├─ image-toolkit.bat
+├─ dpa-image-toolkit.py
+├─ main.py
+├─ gui\
+├─ modules\
+└─ utils\
+```
+
+Files required to run the app from that folder:
+- `image-toolkit.bat`
+- `dpa-image-toolkit.py`
+- `main.py`
+- `gui\`
+- `modules\`
+- `utils\`
+
+Not required just to launch the app:
+- `tests\`
+- `merged-repos\`
+- `project-dashboard\`
+- `README.md`, `PROJECT.md`, `TODO.md`
+
+Dependencies to install:
+
+```bash
+pip install customtkinter pillow opencv-python numpy
+```
+
+Launch with either:
+
+```batch
+image-toolkit.bat
+```
+
+or
+
+```bash
+python dpa-image-toolkit.py
+```
+
+---
+
 ## Tools
 
 ### Auto-Crop
