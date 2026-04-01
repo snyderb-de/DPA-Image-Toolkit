@@ -1,0 +1,39 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ── Build / distribution ───────────────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.spec
+*.exe
+
+# ── Test-generated output (generated, not source) ─────────────────────────────
+tests/crop_output/
+tests/crop_output_near_white/
+tests/tiff_merge_output/
+
+# ── OS / editor artifacts ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Claude Code internal ──────────────────────────────────────────────────────
+.claude/
+**/.claude/

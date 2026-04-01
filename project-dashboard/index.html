@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPA Image Toolkit - Project Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>DPA Image Toolkit</h1>
+            <p class="subtitle">Unified Application Project Dashboard</p>
+        </header>
+
+        <!-- Project Status Overview -->
+        <section class="section project-status">
+            <h2>Project Status</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <h3>Current Phase</h3>
+                    <p class="phase-name" id="currentPhase">Phase 1: Setup</p>
+                    <p class="phase-progress" id="phaseProgress">0%</p>
+                </div>
+                <div class="status-card">
+                    <h3>Overall Progress</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="overallProgress" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="progressText">0% Complete</p>
+                </div>
+                <div class="status-card">
+                    <h3>Timeline</h3>
+                    <p class="timeline-info">6-10 weeks estimated</p>
+                    <p class="timeline-info" id="statusDate">Start Date: TBD</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Merged Repositories Status -->
+        <section class="section repositories">
+            <h2>Source Repositories</h2>
+            <div class="repo-grid">
+                <div class="repo-card">
+                    <div class="repo-header">
+                        <h3>Repository 1</h3>
+                        <span class="status-badge pending">Not Configured</span>
+                    </div>
+                    <div class="repo-info">
+                        <p><strong>URL:</strong> <span id="repo1-url">Not provided</span></p>
+                        <p><strong>Status:</strong> <span id="repo1-status">Awaiting URL</span></p>
+                        <p><strong>Integration:</strong> <span id="repo1-integration">Pending</span></p>
+                    </div>
+                </div>
+
+                <div class="repo-card">
+                    <div class="repo-header">
+                        <h3>Repository 2</h3>
+                        <span class="status-badge pending">Not Configured</span>
+                    </div>
+                    <div class="repo-info">
+                        <p><strong>URL:</strong> <span id="repo2-url">Not provided</span></p>
+                        <p><strong>Status:</strong> <span id="repo2-status">Awaiting URL</span></p>
+                        <p><strong>Integration:</strong> <span id="repo2-integration">Pending</span></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Project Phases -->
+        <section class="section phases">
+            <h2>Project Phases</h2>
+            <div class="phases-list">
+                <div class="phase-item" id="phase-1">
+                    <div class="phase-marker">1</div>
+                    <div class="phase-details">
+                        <h4>Setup & Repository Integration</h4>
+                        <p class="phase-duration">1-2 weeks</p>
+                        <p class="phase-description">Create base structure, import repos, remove .git folders</p>
+                    </div>
+                    <div class="phase-status pending">Pending</div>
+                </div>
+
+                <div class="phase-item" id="phase-2">
+                    <div class="phase-marker">2</div>
+                    <div class="phase-details">
+                        <h4>Analysis & Architecture Design</h4>
+                        <p class="phase-duration">1 week</p>
+                        <p class="phase-description">Analyze functionality, design unified architecture</p>
+                    </div>
+                    <div class="phase-status pending">Pending</div>
+                </div>
+
+                <div class="phase-item" id="phase-3">
+                    <div class="phase-marker">3</div>
+                    <div class="phase-details">
+                        <h4>GUI Development & Integration</h4>
+                        <p class="phase-duration">2-3 weeks</p>
+                        <p class="phase-description">Develop main GUI, integrate functionality, create modules</p>
+                    </div>
+                    <div class="phase-status pending">Pending</div>
+                </div>
+
+                <div class="phase-item" id="phase-4">
+                    <div class="phase-marker">4</div>
+                    <div class="phase-details">
+                        <h4>Testing & Refinement</h4>
+                        <p class="phase-duration">1-2 weeks</p>
+                        <p class="phase-description">Functional testing, bug fixes, optimization</p>
+                    </div>
+                    <div class="phase-status pending">Pending</div>
+                </div>
+
+                <div class="phase-item" id="phase-5">
+                    <div class="phase-marker">5</div>
+                    <div class="phase-details">
+                        <h4>Documentation & Deployment</h4>
+                        <p class="phase-duration">1 week</p>
+                        <p class="phase-description">Complete docs, create deployment package</p>
+                    </div>
+                    <div class="phase-status pending">Pending</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Links -->
+        <section class="section quick-links">
+            <h2>Resources</h2>
+            <div class="links-grid">
+                <a href="../PROJECT_PLAN.md" class="link-card">
+                    <h3>📋 Project Plan</h3>
+                    <p>Detailed project phases and timeline</p>
+                </a>
+                <a href="../README.md" class="link-card">
+                    <h3>📖 README</h3>
+                    <p>Project setup and usage instructions</p>
+                </a>
+                <a href="../merged-repos/" class="link-card">
+                    <h3>📁 Merged Repositories</h3>
+                    <p>Integrated source code</p>
+                </a>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>DPA Image Toolkit Project Dashboard</p>
+            <p class="last-updated">Last Updated: <span id="lastUpdated">Loading...</span></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

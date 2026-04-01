@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "status": "production-ready",
+  "repositories": [
+    {
+      "id": "auto-cropping",
+      "url": "https://github.com/dpa-snyder/auto-cropping",
+      "status": "integrated",
+      "integration": "Complete"
+    },
+    {
+      "id": "tiff-combine",
+      "url": "https://github.com/dpa-snyder/tiff-combine",
+      "status": "integrated",
+      "integration": "Complete"
+    }
+  ],
+  "phases": [
+    { "id": 1, "name": "Setup & Repository Integration", "progress": 100, "status": "complete" },
+    { "id": 2, "name": "Analysis & Architecture Design",  "progress": 100, "status": "complete" },
+    { "id": 3, "name": "GUI Development & Integration",   "progress": 100, "status": "complete" },
+    { "id": 4, "name": "Auto-Crop Implementation",        "progress": 100, "status": "complete" },
+    { "id": 5, "name": "TIFF Merge Implementation",       "progress": 100, "status": "complete" }
+  ]
+}
