@@ -6,8 +6,8 @@ Folder selection, naming validation with spot-check, progress tracking, live log
 
 import customtkinter as ctk
 from pathlib import Path
-from ..utils.file_handler import pick_folder, validate_tif_files, create_error_folder
-from ..modules.tiff_combine.naming import validate_naming_convention
+from utils.file_handler import pick_folder, validate_tif_files, create_error_folder
+from modules.tiff_combine.naming import validate_naming_convention
 from .styles import get_theme, get_font
 
 
@@ -347,7 +347,7 @@ class TiffMergePanel:
         output_folder.mkdir(parents=True, exist_ok=True)
 
         # Initialize worker with threading
-        from ..utils.worker import TiffMergeWorker
+        from utils.worker import TiffMergeWorker
 
         self.worker = TiffMergeWorker(
             self.selected_folder,

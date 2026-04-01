@@ -134,3 +134,15 @@ Suggested entry format:
   Searched the `src/` tree for other `sticky="center"` usages and found only this one.
 - Follow-up:
   If there are more launch issues, continue treating them as startup blockers before deeper feature work.
+
+## 2026-03-31 - Fixed flat-package import layout for app launch
+- What changed:
+  Replaced cross-package parent-relative imports with absolute imports in `src/gui/auto_crop_panel.py`, `src/gui/tiff_merge_panel.py`, and `src/utils/worker.py`.
+- Why:
+  The app is launched from `src` with `gui`, `utils`, and `modules` as top-level packages. Parent-relative imports like `..utils` fail in that layout and caused panel imports to crash at runtime.
+- Files:
+  `src/gui/auto_crop_panel.py`, `src/gui/tiff_merge_panel.py`, `src/utils/worker.py`
+- Verification:
+  Import smoke tests should now succeed for `gui.auto_crop_panel` and `gui.tiff_merge_panel` when `src` is on `sys.path`.
+- Follow-up:
+  Keep cross-package imports absolute unless the whole repo is restructured under a single package root.

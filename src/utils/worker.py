@@ -114,7 +114,7 @@ class AutoCropWorker(OperationWorker):
 
     def run(self):
         """Execute auto-crop operation."""
-        from ..modules.auto_cropping.core import crop_image
+        from modules.auto_cropping.core import crop_image
         import shutil
 
         try:
@@ -223,7 +223,7 @@ class TiffMergeWorker(OperationWorker):
 
     def run(self):
         """Execute TIFF merge operation."""
-        from ..modules.tiff_combine.core import merge_tiff_group
+        from modules.tiff_combine.core import merge_tiff_group
         import shutil
 
         try:

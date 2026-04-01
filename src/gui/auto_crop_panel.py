@@ -6,8 +6,8 @@ Folder selection, progress tracking, live logging, background processing.
 
 import customtkinter as ctk
 from pathlib import Path
-from ..utils.file_handler import pick_folder, validate_image_files, create_error_folder
-from ..utils.worker import AutoCropWorker
+from utils.file_handler import pick_folder, validate_image_files, create_error_folder
+from utils.worker import AutoCropWorker
 from .styles import get_theme, get_font
 
 
