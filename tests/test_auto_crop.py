@@ -7,8 +7,8 @@ Tests the core cropping algorithm on both single-object and multi-object test im
 from pathlib import Path
 import sys
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add app root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modules.auto_cropping.core import crop_image, get_crop_stats
 

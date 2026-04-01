@@ -1,6 +1,6 @@
 @echo off
 REM DPA Image Toolkit Launcher
-REM Place this file on your Desktop or in your Scripts folder
+REM Place this file in your Scripts folder or app folder
 REM Double-click to launch the application
 
 setlocal enabledelayedexpansion
@@ -29,7 +29,7 @@ if %errorlevel% neq 0 (
 )
 
 REM Launch the application
-python src/main.py
+python dpa-image-toolkit.py
 
 if %errorlevel% neq 0 (
     echo.

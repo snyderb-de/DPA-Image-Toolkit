@@ -7,14 +7,14 @@
 ## Quick Start
 
 ```batch
-launch.bat
+image-toolkit.bat
 ```
 
 Or manually:
 
 ```bash
 pip install -r requirements.txt
-cd src && python main.py
+python dpa-image-toolkit.py
 ```
 
 ---

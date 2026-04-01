@@ -7,7 +7,7 @@ Unified GUI application for auto-cropping and TIFF merging operations.
 import sys
 from pathlib import Path
 
-# Add src directory to path for imports
+# Add app root to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.dependencies import check_dependencies
@@ -50,4 +50,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

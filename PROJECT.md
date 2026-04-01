@@ -17,27 +17,28 @@ Typical workflow: scan images → auto-crop → merge pages into multi-page TIFF
 
 ## Architecture
 
-```
-src/
-├── main.py                         Entry point; dependency check, then launch GUI
-├── gui/
-│   ├── main_window.py              Main window, panel navigation, theme toggle
-│   ├── auto_crop_panel.py          Auto-crop UI: folder pick → progress → output
-│   ├── tiff_merge_panel.py         TIFF merge UI: validate → spot-check → progress
-│   └── styles.py                   Light/dark palette, orange accent (#ff8800)
-├── modules/
-│   ├── auto_cropping/
-│   │   └── core.py                 crop_image(), get_crop_stats() — OpenCV + Pillow
-│   └── tiff_combine/
-│       ├── core.py                 merge_tiff_group(), mode conversion, DPI handling
-│       ├── naming.py               Group detection, naming validation, sequence sort
-│       └── error_handler.py        Quarantine failed files, generate error reports
-└── utils/
-    ├── worker.py                   OperationWorker base; AutoCropWorker, TiffMergeWorker
-    ├── dependencies.py             Startup dependency checker with install instructions
-    ├── file_handler.py             Folder picker, format validation, output folder creation
-    ├── log_utils.py                ToolkitLogger, get_logger(), log_message()
-    └── progress.py                 ProgressTracker, create_progress_callback()
+```text
+main.py                             Entry point; dependency check, then launch GUI
+dpa-image-toolkit.py                Wrapper script for user-level launch
+image-toolkit.bat                   Windows batch launcher
+gui/
+├── main_window.py                  Main window, panel navigation, theme toggle
+├── auto_crop_panel.py              Auto-crop UI: folder pick → progress → output
+├── tiff_merge_panel.py             TIFF merge UI: validate → spot-check → progress
+└── styles.py                       Light/dark palette, orange accent (#ff8800)
+modules/
+├── auto_cropping/
+│   └── core.py                     crop_image(), get_crop_stats() — OpenCV + Pillow
+└── tiff_combine/
+    ├── core.py                     merge_tiff_group(), mode conversion, DPI handling
+    ├── naming.py                   Group detection, naming validation, sequence sort
+    └── error_handler.py            Quarantine failed files, generate error reports
+utils/
+├── worker.py                       OperationWorker base; AutoCropWorker, TiffMergeWorker
+├── dependencies.py                 Startup dependency checker with install instructions
+├── file_handler.py                 Folder picker, format validation, output folder creation
+├── log_utils.py                    ToolkitLogger, get_logger(), log_message()
+└── progress.py                     ProgressTracker, create_progress_callback()
 ```
 
 Both tools share the same threading pattern: a daemon `OperationWorker` thread runs the operation and fires progress/status/error callbacks back to the GUI. The UI never blocks.
@@ -100,7 +101,7 @@ The `cropped/` folder output from Auto-Crop preserves original filenames, so fil
 - **DPI from first file** — All pages in a merged TIFF share the first file's DPI
 - **RGBA transparency** — Flattened to white background on merge
 - **Max 999 pages** per merged TIFF (3-digit sequence limit); keep under 100–200 for practical use
-- **Windows launcher only** — `launch.bat` is Windows-specific; the Python app itself runs cross-platform
+- **Windows launcher only** — `image-toolkit.bat` is Windows-specific; the Python app itself runs cross-platform
 - **No undo** — Operations cannot be reversed from within the app
 
 ---
@@ -122,7 +123,7 @@ pip install -r requirements.txt
 
 ## Source Repos (Reference)
 
-The two original repositories are preserved unchanged in `merged-repos/` for reference. The integrated `src/` code is the live implementation.
+The two original repositories are preserved unchanged in `merged-repos/` for reference. The top-level app code is the live implementation.
 
 - `merged-repos/auto-cropping/` — original auto-cropping app
 - `merged-repos/tiff-combine/` — original tiff-combine scripts (Pillow, IrfanView, PowerShell variants)

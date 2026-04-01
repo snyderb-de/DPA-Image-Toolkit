@@ -146,3 +146,15 @@ Suggested entry format:
   Import smoke tests should now succeed for `gui.auto_crop_panel` and `gui.tiff_merge_panel` when `src` is on `sys.path`.
 - Follow-up:
   Keep cross-package imports absolute unless the whole repo is restructured under a single package root.
+
+## 2026-03-31 - Flattened app layout for scripts deployment
+- What changed:
+  Moved `main.py`, `gui/`, `modules/`, and `utils/` to the repo root, added `dpa-image-toolkit.py`, renamed the Windows launcher to `image-toolkit.bat`, and updated tests/docs to use the new flat app-root layout.
+- Why:
+  The intended deployment target is a single app folder such as `Scripts\\dpa-img-tk\\`, with all runnable code living together instead of under `src/`.
+- Files:
+  `main.py`, `gui/`, `modules/`, `utils/`, `dpa-image-toolkit.py`, `image-toolkit.bat`, `README.md`, `PROJECT.md`, `tests/test_auto_crop.py`, `tests/test_tiff_merge.py`
+- Verification:
+  Follow-up verification should use import smoke tests and launcher checks against the new root-level layout.
+- Follow-up:
+  Keep the app-root layout consistent in future docs and packaging work.

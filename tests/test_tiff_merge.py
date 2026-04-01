@@ -7,8 +7,8 @@ Tests the merge_tiff_group function with various group configurations.
 from pathlib import Path
 import sys
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add app root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modules.tiff_combine.core import merge_tiff_group, get_merge_stats
 from modules.tiff_combine.naming import validate_naming_convention
