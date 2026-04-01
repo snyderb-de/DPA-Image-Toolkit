@@ -122,3 +122,15 @@ Suggested entry format:
   Ran `python3 tests/test_auto_crop.py` successfully. Result: 35 cropped, 1 skipped, 0 errors across 36 JPEGs.
 - Follow-up:
   This is still a manual/script-style test runner; the next step remains converting these checks into true pytest assertions.
+
+## 2026-03-31 - Fixed main menu launch crash on Tk grid
+- What changed:
+  Removed the invalid `sticky="center"` argument from the main menu panel grid call in `src/gui/main_window.py`.
+- Why:
+  Tk grid only accepts combinations of `n`, `e`, `s`, and `w`; using `center` caused the app to crash during startup.
+- Files:
+  `src/gui/main_window.py`
+- Verification:
+  Searched the `src/` tree for other `sticky="center"` usages and found only this one.
+- Follow-up:
+  If there are more launch issues, continue treating them as startup blockers before deeper feature work.

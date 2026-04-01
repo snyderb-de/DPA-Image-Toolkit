@@ -155,7 +155,7 @@ class MainWindow(ctk.CTk):
             fg_color=self.current_theme["bg_secondary"],
             corner_radius=12,
         )
-        menu_panel.grid(row=0, column=0, sticky="center", padx=40, pady=40)
+        menu_panel.grid(row=0, column=0, padx=40, pady=40)
         menu_panel.grid_columnconfigure(0, minsize=300)
 
         # Title
