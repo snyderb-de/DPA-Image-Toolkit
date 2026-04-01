@@ -98,3 +98,27 @@ Suggested entry format:
   Code compiles. Logic now unions contour bounding boxes before padding.
 - Follow-up:
   Add focused automated tests for multi-object pages and evaluate whether the contour filter should be refined further to ignore scanner dust near the page edge.
+
+## 2026-03-31 - Added multi-object image fixtures
+- What changed:
+  Added a deterministic fixture generator at `tests/create_multi_object_test_images.py` and generated 10 JPEGs in `tests/test_images_multi_object/`.
+- Why:
+  We needed a small batch of multi-object scans to validate the new combined-bounds crop behavior, including near-white content and dust-like noise.
+- Files:
+  `tests/create_multi_object_test_images.py`, `tests/test_images_multi_object/*.jpg`
+- Verification:
+  Ran the generator and confirmed all 10 JPEGs were created.
+- Follow-up:
+  The next useful step is wiring these fixtures into real automated assertions instead of manual inspection only.
+
+## 2026-03-31 - Expanded auto-crop test runner to both datasets
+- What changed:
+  Updated `tests/test_auto_crop.py` so one run now processes both `tests/test_images/` and `tests/test_images_multi_object/`, with separate output folders under `tests/crop_output/`.
+- Why:
+  The user wanted the auto-crop test flow to exercise both single-object and multi-object fixtures together.
+- Files:
+  `tests/test_auto_crop.py`
+- Verification:
+  Ran `python3 tests/test_auto_crop.py` successfully. Result: 35 cropped, 1 skipped, 0 errors across 36 JPEGs.
+- Follow-up:
+  This is still a manual/script-style test runner; the next step remains converting these checks into true pytest assertions.

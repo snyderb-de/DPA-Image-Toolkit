@@ -1,7 +1,7 @@
 """
 Test auto-crop functionality.
 
-Tests the core cropping algorithm on test images.
+Tests the core cropping algorithm on both single-object and multi-object test images.
 """
 
 from pathlib import Path
@@ -13,21 +13,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from modules.auto_cropping.core import crop_image, get_crop_stats
 
 
-def test_auto_crop():
-    """Test auto-crop on all test images."""
-    test_dir = Path(__file__).parent / "test_images"
-    output_dir = Path(__file__).parent / "crop_output"
+def run_dataset(label, test_dir, output_dir):
+    """Run auto-crop checks for one image dataset."""
     error_dir = output_dir / "errors"
 
     if not test_dir.exists():
-        print("❌ Test images not found. Run: python create_test_images.py")
-        return
+        print(f"❌ {label}: test images not found at {test_dir}")
+        return 0, 0, 0, 0
 
-    # Get all test images
     test_images = sorted(test_dir.glob("*.jpg"))
-    print(f"\n📊 Testing {len(test_images)} images\n")
+    print(f"\n📊 {label}: testing {len(test_images)} images")
+    print(f"   Source: {test_dir}")
+    print(f"   Output: {output_dir}\n")
 
-    # Run crops
     success_count = 0
     skip_count = 0
     error_count = 0
@@ -57,21 +55,59 @@ def test_auto_crop():
 
         print()
 
-    # Summary
-    print("=" * 60)
-    print(f"✅ Cropped:  {success_count}")
-    print(f"⚠️ Skipped:  {skip_count}")
-    print(f"❌ Errors:   {error_count}")
-    print(f"Total:  {len(test_images)}")
-    print("=" * 60)
-
-    print(f"\n📁 Output: {output_dir}")
+    print(f"📁 Output: {output_dir}")
     print(f"📁 Errors: {error_dir}")
 
-    # Show cropped images
     if output_dir.exists():
         cropped = list(output_dir.glob("*.jpg"))
-        print(f"\n📊 Cropped images created: {len(cropped)}")
+        print(f"📊 Cropped images created: {len(cropped)}")
+
+    return len(test_images), success_count, skip_count, error_count
+
+
+def test_auto_crop():
+    """Test auto-crop on both single-object and multi-object image sets."""
+    base_dir = Path(__file__).parent
+    datasets = [
+        (
+            "Single-object dataset",
+            base_dir / "test_images",
+            base_dir / "crop_output" / "single_object",
+        ),
+        (
+            "Multi-object dataset",
+            base_dir / "test_images_multi_object",
+            base_dir / "crop_output" / "multi_object",
+        ),
+    ]
+
+    totals = {
+        "images": 0,
+        "success": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    for label, test_dir, output_dir in datasets:
+        image_count, success_count, skip_count, error_count = run_dataset(
+            label,
+            test_dir,
+            output_dir,
+        )
+        totals["images"] += image_count
+        totals["success"] += success_count
+        totals["skipped"] += skip_count
+        totals["errors"] += error_count
+
+    # Summary
+    print("=" * 60)
+    print("AUTO-CROP TEST SUMMARY")
+    print("=" * 60)
+    print(f"✅ Cropped:  {totals['success']}")
+    print(f"⚠️ Skipped:  {totals['skipped']}")
+    print(f"❌ Errors:   {totals['errors']}")
+    print(f"Total:       {totals['images']}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
