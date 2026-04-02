@@ -86,6 +86,9 @@ class MainWindow(ctk.CTk):
         )
         title_lbl.pack(anchor="w", pady=(10, 0))
 
+        for widget in (brand_inner, icon_badge, title_lbl):
+            widget.bind("<Button-1>", lambda _event: self._on_home())
+
         # Divider
         self._sidebar_divider()
 
@@ -103,7 +106,6 @@ class MainWindow(ctk.CTk):
 
         self._nav_items = {}
         nav_defs = [
-            ("menu",      "⌂",  "Home"),
             ("auto_crop", "✂",  "Auto Crop"),
             ("tiff_merge","⊞",  "Merge TIFFs"),
             ("tiff_split","⇵",  "Split TIFFs"),
@@ -203,9 +205,7 @@ class MainWindow(ctk.CTk):
         return btn
 
     def _nav_click(self, key):
-        if key == "menu":
-            self._on_home()
-        elif key == "auto_crop":
+        if key == "auto_crop":
             self._show_auto_crop_panel()
         elif key == "tiff_merge":
             self._show_tiff_merge_panel()
@@ -292,7 +292,7 @@ class MainWindow(ctk.CTk):
             bar,
             fg_color=t["progress_track"],
             progress_color=t["accent"],
-            height=PROGRESS["height_thin"],
+            height=PROGRESS["height_normal"],
             corner_radius=0,
         )
         self.progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
@@ -335,7 +335,9 @@ class MainWindow(ctk.CTk):
 
         # Outer centering frame
         outer = ctk.CTkFrame(self.panel_container, fg_color="transparent")
-        outer.grid(row=0, column=0)
+        outer.grid(row=0, column=0, sticky="nsew", padx=24, pady=24)
+        outer.grid_rowconfigure(0, weight=1)
+        outer.grid_columnconfigure(0, weight=1)
 
         # Hero card
         card = ctk.CTkFrame(
@@ -345,8 +347,8 @@ class MainWindow(ctk.CTk):
             border_width=1,
             border_color=t["border"],
         )
-        card.pack(padx=40, pady=60, ipadx=20, ipady=10)
-        card.grid_columnconfigure(0, minsize=360)
+        card.grid(row=0, column=0)
+        card.grid_columnconfigure(0, weight=1, minsize=780)
 
         # Logo + title
         logo = ctk.CTkLabel(
@@ -378,7 +380,9 @@ class MainWindow(ctk.CTk):
 
         # Tool buttons
         tools_frame = ctk.CTkFrame(card, fg_color="transparent")
-        tools_frame.grid(row=4, column=0, padx=32, pady=28)
+        tools_frame.grid(row=4, column=0, padx=32, pady=28, sticky="nsew")
+        tools_frame.grid_columnconfigure(0, weight=1, uniform="tool")
+        tools_frame.grid_columnconfigure(1, weight=1, uniform="tool")
 
         self._make_tool_card(
             tools_frame,
@@ -387,6 +391,7 @@ class MainWindow(ctk.CTk):
             desc="Automatically detect and crop objects\nfrom image backgrounds",
             command=self._show_auto_crop_panel,
             row=0,
+            column=0,
         )
 
         self._make_tool_card(
@@ -395,7 +400,8 @@ class MainWindow(ctk.CTk):
             title="Merge TIFF Files",
             desc="Combine multi-page TIFF sequences\ninto single multi-frame files",
             command=self._show_tiff_merge_panel,
-            row=1,
+            row=0,
+            column=1,
         )
 
         self._make_tool_card(
@@ -404,7 +410,8 @@ class MainWindow(ctk.CTk):
             title="Split Multi-Page TIFFs",
             desc="Extract multi-page TIFF files\ninto single-page TIFF files",
             command=self._show_tiff_split_panel,
-            row=2,
+            row=1,
+            column=0,
         )
 
         self._make_tool_card(
@@ -413,10 +420,11 @@ class MainWindow(ctk.CTk):
             title="Add Border",
             desc="Add white border padding to images\nusing auto-crop spacing rules",
             command=self._show_add_border_panel,
-            row=3,
+            row=1,
+            column=1,
         )
 
-    def _make_tool_card(self, parent, icon, title, desc, command, row):
+    def _make_tool_card(self, parent, icon, title, desc, command, row, column):
         t = self.current_theme
 
         card = ctk.CTkFrame(
@@ -426,7 +434,7 @@ class MainWindow(ctk.CTk):
             border_width=1,
             border_color=t["border"],
         )
-        card.grid(row=row, column=0, sticky="ew", pady=8)
+        card.grid(row=row, column=column, sticky="nsew", padx=8, pady=8)
         card.grid_columnconfigure(1, weight=1)
 
         # Icon badge
@@ -440,7 +448,7 @@ class MainWindow(ctk.CTk):
             height=52,
             corner_radius=RADIUS["md"],
         )
-        badge.grid(row=0, column=0, rowspan=2, padx=(16, 14), pady=16)
+        badge.grid(row=0, column=0, rowspan=2, padx=(16, 14), pady=(16, 10))
 
         title_lbl = ctk.CTkLabel(
             card,
@@ -472,7 +480,7 @@ class MainWindow(ctk.CTk):
             text_color=t["accent_text"],
             command=command,
         )
-        btn.grid(row=0, column=2, rowspan=2, padx=(8, 16), pady=16)
+        btn.grid(row=2, column=0, columnspan=2, sticky="ew", padx=16, pady=(0, 16))
 
     # ══════════════════════════════════════════════════════════════════════════
     # Panel switching

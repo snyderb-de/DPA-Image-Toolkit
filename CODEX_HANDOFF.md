@@ -185,3 +185,15 @@ Suggested entry format:
   1. Folder mode writes to `selected_folder/extracted-pages/<source_stem>/`
   2. File mode writes beside each source file in `<source_stem>_pages/`
   3. Single-page TIFFs are skipped automatically
+
+## 2026-04-02 - Aligned home screen and sidebar tool navigation
+- What changed:
+  Removed `Home` from the sidebar tool list so it matches the four tool options on the home screen, made the brand area clickable to return home, converted the home tool list into a centered 2x2 grid, and doubled the status progress-bar thickness.
+- Why:
+  The sidebar should mirror the same four tool choices shown on the main page, and the home layout needed better centering and balance.
+- Files:
+  `gui/main_window.py`, `CODEX_HANDOFF.md`
+- Verification:
+  `py_compile` passed for `gui/main_window.py`.
+- Follow-up:
+  `gui/styles.py`, `gui/auto_crop_panel.py`, and `gui/tiff_merge_panel.py` had existing uncommitted local edits, so this UI tweak was kept scoped to `main_window.py`.
