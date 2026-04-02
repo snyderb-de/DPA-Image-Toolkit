@@ -197,3 +197,15 @@ Suggested entry format:
   `py_compile` passed for `gui/main_window.py`.
 - Follow-up:
   `gui/styles.py`, `gui/auto_crop_panel.py`, and `gui/tiff_merge_panel.py` had existing uncommitted local edits, so this UI tweak was kept scoped to `main_window.py`.
+
+## 2026-04-02 - Improved theme contrast and sidebar readability
+- What changed:
+  Increased light/dark theme contrast in `gui/styles.py` and fixed `gui/main_window.py` so sidebar labels, dividers, brand text, and the theme label all recolor correctly when switching modes.
+- Why:
+  Light mode in particular had poor readability because some sidebar text was not updating on theme toggle, and several color tokens were too low-contrast.
+- Files:
+  `gui/styles.py`, `gui/main_window.py`
+- Verification:
+  `py_compile` passed for both files.
+- Follow-up:
+  The panel files still have existing uncommitted local edits, so if readability issues remain inside panel content areas, continue from the current style tokens instead of reintroducing lower-contrast colors.

@@ -31,6 +31,7 @@ class MainWindow(ctk.CTk):
         self.current_panel = "menu"
         self.operation_in_progress = False
         self.operation_type = None
+        self.sidebar_dividers = []
 
         # ── Root grid: sidebar | right-column ─────────────────────────────────
         self.grid_rowconfigure(0, weight=1)
@@ -77,6 +78,8 @@ class MainWindow(ctk.CTk):
         )
         icon_badge.pack(anchor="w")
 
+        self.brand_icon_badge = icon_badge
+
         title_lbl = ctk.CTkLabel(
             brand_inner,
             text="DPA Image\nToolkit",
@@ -85,6 +88,7 @@ class MainWindow(ctk.CTk):
             justify="left",
         )
         title_lbl.pack(anchor="w", pady=(10, 0))
+        self.brand_title_lbl = title_lbl
 
         for widget in (brand_inner, icon_badge, title_lbl):
             widget.bind("<Button-1>", lambda _event: self._on_home())
@@ -103,6 +107,7 @@ class MainWindow(ctk.CTk):
             text_color=t["fg_tertiary"],
         )
         section_lbl.pack(anchor="w", padx=20, pady=(16, 6))
+        self.section_lbl = section_lbl
 
         self._nav_items = {}
         nav_defs = [
@@ -144,6 +149,7 @@ class MainWindow(ctk.CTk):
             text_color=t["fg_secondary"],
         )
         theme_lbl.pack(side="left", padx=(8, 0))
+        self.theme_text_lbl = theme_lbl
 
         self.theme_switch = ctk.CTkSwitch(
             theme_row,
@@ -164,6 +170,7 @@ class MainWindow(ctk.CTk):
             text_color=t["fg_tertiary"],
         )
         ver_lbl.pack(anchor="center")
+        self.ver_lbl = ver_lbl
 
         self._update_nav_highlight("menu")
 
@@ -177,6 +184,7 @@ class MainWindow(ctk.CTk):
                 corner_radius=0,
             )
             div.grid(row=row, column=0, sticky="ew", padx=0, pady=0)
+            self.sidebar_dividers.append(div)
         else:
             div = ctk.CTkFrame(
                 self.sidebar,
@@ -185,7 +193,7 @@ class MainWindow(ctk.CTk):
                 corner_radius=0,
             )
             div.grid_remove()
-            # inline version: just place it inside a frame
+            self.sidebar_dividers.append(div)
             return div
 
     def _make_nav_button(self, parent, icon, label, key):
@@ -571,9 +579,17 @@ class MainWindow(ctk.CTk):
             text_color=t["fg_secondary"],
         )
         self.theme_switch.configure(progress_color=t["accent"])
+        self.theme_text_lbl.configure(text="Dark mode" if self.dark_mode else "Light mode")
+        self.theme_text_lbl.configure(text_color=t["fg_secondary"])
 
         # Sidebar
         self.sidebar.configure(fg_color=t["bg_sidebar"])
+        self.brand_icon_badge.configure(fg_color=t["accent"], text_color="white")
+        self.brand_title_lbl.configure(text_color=t["fg_primary"])
+        self.section_lbl.configure(text_color=t["fg_tertiary"])
+        self.ver_lbl.configure(text_color=t["fg_tertiary"])
+        for divider in self.sidebar_dividers:
+            divider.configure(fg_color=t["border"])
 
         # Right column
         self.right_col.configure(fg_color=t["bg_primary"])
