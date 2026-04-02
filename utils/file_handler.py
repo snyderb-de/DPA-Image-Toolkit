@@ -32,6 +32,30 @@ def pick_folder(title="Select Folder"):
     return None
 
 
+def pick_files(title="Select Files", filetypes=None):
+    """
+    Open native multi-file picker dialog.
+
+    Args:
+        title (str): Dialog title
+        filetypes (list): Tk file type tuples
+
+    Returns:
+        list[Path]: Selected file paths
+    """
+    root = tk.Tk()
+    root.withdraw()
+
+    files = filedialog.askopenfilenames(
+        title=title,
+        filetypes=filetypes or [("All files", "*.*")],
+    )
+
+    root.destroy()
+
+    return [Path(file_path) for file_path in files] if files else []
+
+
 def validate_tif_files(folder_path):
     """
     Validate that folder contains .tif files.

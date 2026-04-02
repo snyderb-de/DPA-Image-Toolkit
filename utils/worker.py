@@ -287,3 +287,159 @@ class TiffMergeWorker(OperationWorker):
     def get_results(self) -> dict:
         """Get operation results."""
         return self.results
+
+
+class TiffSplitWorker(OperationWorker):
+    """Worker for TIFF split operations."""
+
+    def __init__(
+        self,
+        input_files: List[Path],
+        output_root: Optional[Path] = None,
+        use_root_output: bool = False,
+    ):
+        super().__init__(name="TiffSplitWorker")
+        self.input_files = [Path(file_path) for file_path in input_files]
+        self.output_root = Path(output_root) if output_root else None
+        self.use_root_output = use_root_output
+        self.results = {
+            "success": 0,
+            "failed": 0,
+            "skipped": 0,
+            "total": len(self.input_files),
+            "errors": [],
+        }
+
+    def run(self):
+        """Execute TIFF split operation."""
+        from modules.tiff_split.core import split_tiff_file
+
+        try:
+            total = len(self.input_files)
+            if total == 0:
+                self.update_status("No TIFF files selected")
+                return
+
+            for idx, file_path in enumerate(self.input_files, 1):
+                if self.cancelled:
+                    self.update_status("Operation cancelled")
+                    break
+
+                self.update_progress(idx, total, file_path.name)
+                self.update_status(f"Splitting: {file_path.name}")
+
+                if self.use_root_output and self.output_root:
+                    output_folder = self.output_root / file_path.stem
+                else:
+                    output_folder = None
+
+                success, output_paths, error_msg, stats = split_tiff_file(
+                    file_path,
+                    output_folder=output_folder,
+                    skip_single_page=True,
+                )
+
+                if not success:
+                    self.results["failed"] += 1
+                    self.results["errors"].append({
+                        "file": file_path.name,
+                        "error": error_msg,
+                    })
+                    self.report_error(file_path.name, error_msg)
+                    continue
+
+                if stats.get("skipped"):
+                    self.results["skipped"] += 1
+                else:
+                    self.results["success"] += 1
+
+            summary = (
+                f"✅ Split: {self.results['success']} | "
+                f"⚠️ Skipped: {self.results['skipped']} | "
+                f"❌ Failed: {self.results['failed']}"
+            )
+            self.update_status(summary)
+
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
+            self.report_error("operation", str(e))
+
+    def get_results(self) -> dict:
+        """Get operation results."""
+        return self.results
+
+
+class AddBorderWorker(OperationWorker):
+    """Worker for add-border operations."""
+
+    def __init__(
+        self,
+        input_folder: Path,
+        output_folder: Path,
+    ):
+        super().__init__(name="AddBorderWorker")
+        self.input_folder = Path(input_folder)
+        self.output_folder = Path(output_folder)
+        self.results = {
+            "success": 0,
+            "failed": 0,
+            "total": 0,
+            "errors": [],
+        }
+
+    def run(self):
+        """Execute add-border operation."""
+        from modules.image_border.core import add_border_to_image
+
+        try:
+            image_extensions = ('.tif', '.tiff', '.jpg', '.jpeg', '.png', '.bmp', '.gif')
+            image_files = [
+                f for f in self.input_folder.iterdir()
+                if f.is_file() and f.suffix.lower() in image_extensions
+            ]
+
+            if not image_files:
+                self.update_status("No images found")
+                return
+
+            image_files.sort()
+            total = len(image_files)
+            self.results["total"] = total
+
+            for idx, image_file in enumerate(image_files, 1):
+                if self.cancelled:
+                    self.update_status("Operation cancelled")
+                    break
+
+                self.update_progress(idx, total, image_file.name)
+                self.update_status(f"Adding border: {image_file.name}")
+
+                output_path, error_msg, _stats = add_border_to_image(
+                    image_file,
+                    self.output_folder,
+                    preserve_dpi=True,
+                )
+
+                if error_msg:
+                    self.results["failed"] += 1
+                    self.results["errors"].append({
+                        "file": image_file.name,
+                        "error": error_msg,
+                    })
+                    self.report_error(image_file.name, error_msg)
+                else:
+                    self.results["success"] += 1
+
+            summary = (
+                f"✅ Bordered: {self.results['success']} | "
+                f"❌ Failed: {self.results['failed']}"
+            )
+            self.update_status(summary)
+
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
+            self.report_error("operation", str(e))
+
+    def get_results(self) -> dict:
+        """Get operation results."""
+        return self.results

@@ -10,6 +10,8 @@ Two image processing tools in one GUI:
 
 - **Auto-Crop** — Detects large non-white objects in scanned images and crops to them, removing white backgrounds
 - **TIFF Merge** — Groups individual TIFF files by naming pattern and combines each group into a single multi-page TIFF
+- **TIFF Split** — Extracts multi-page TIFFs into single-page TIFF files
+- **Add Border** — Adds white border padding to images using the same spacing logic as Auto-Crop
 
 Typical workflow: scan images → auto-crop → merge pages into multi-page TIFFs.
 
@@ -24,17 +26,23 @@ image-toolkit.bat                   Windows batch launcher
 gui/
 ├── main_window.py                  Main window, panel navigation, theme toggle
 ├── auto_crop_panel.py              Auto-crop UI: folder pick → progress → output
+├── add_border_panel.py             Add-border UI: folder pick → progress → output
 ├── tiff_merge_panel.py             TIFF merge UI: validate → spot-check → progress
+├── tiff_split_panel.py             TIFF split UI: file/folder pick → progress → output
 └── styles.py                       Light/dark palette, orange accent (#ff8800)
 modules/
 ├── auto_cropping/
 │   └── core.py                     crop_image(), get_crop_stats() — OpenCV + Pillow
+├── image_border/
+│   └── core.py                     add_border_to_image() — white border padding
 └── tiff_combine/
     ├── core.py                     merge_tiff_group(), mode conversion, DPI handling
     ├── naming.py                   Group detection, naming validation, sequence sort
     └── error_handler.py            Quarantine failed files, generate error reports
+└── tiff_split/
+    └── core.py                     split_tiff_file(), get_tiff_page_count()
 utils/
-├── worker.py                       OperationWorker base; AutoCropWorker, TiffMergeWorker
+├── worker.py                       OperationWorker base; AutoCrop/TIFF Merge/TIFF Split/Add Border workers
 ├── dependencies.py                 Startup dependency checker with install instructions
 ├── file_handler.py                 Folder picker, format validation, output folder creation
 ├── log_utils.py                    ToolkitLogger, get_logger(), log_message()
@@ -67,6 +75,26 @@ Both tools share the same threading pattern: a daemon `OperationWorker` thread r
 5. Extract DPI from first file; save merged TIFF with `save_all=True`, TIFF deflate compression
 
 **Output:** `input_folder/merged/groupname_merged.tif`
+
+## TIFF Split Algorithm
+
+1. Accept either selected TIFF files or scan a folder for `.tif` / `.tiff`
+2. Open each TIFF and inspect its frame count
+3. Skip single-page TIFFs
+4. Save each frame as its own single-page TIFF, preserving DPI when available
+
+**Output:**
+- Folder mode: `selected_folder/extracted-pages/original_name/`
+- File mode: beside each selected file in `original_name_pages/`
+
+## Add Border Algorithm
+
+1. Open each image in the selected folder
+2. Compute border size using the Auto Crop rule: `2.5%` of width/height, clamped to `15-100px`
+3. Add a white border canvas around the original image
+4. Save the bordered image while preserving DPI when available
+
+**Output:** `input_folder/bordered/`
 
 ### File Naming Convention
 

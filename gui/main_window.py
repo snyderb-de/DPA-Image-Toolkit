@@ -1,299 +1,586 @@
 """
 Main application window for DPA Image Toolkit.
 
-Modern glass-morphism design with dark/light mode, operation state tracking,
-and docked progress bars at bottom.
+Sidebar-navigation layout with dark/light mode, card-based content panels,
+and a docked status bar with a thin progress indicator.
 """
 
 import customtkinter as ctk
-from .styles import get_theme, get_font, BUTTON_STYLE, PANEL_STYLE, TEXTBOX_STYLE
+from .styles import (
+    get_theme, get_font,
+    SIDEBAR_WIDTH, BUTTON, CARD, PROGRESS, RADIUS,
+)
 
 
 class MainWindow(ctk.CTk):
-    """Main application window with modern aesthetic."""
+    """Main application window."""
 
     def __init__(self):
-        """Initialize main window with all UI components."""
         super().__init__()
 
-        # Window configuration
+        # ── Window setup ───────────────────────────────────────────────────────
         self.title("DPA Image Toolkit")
-        self.geometry("1000x700")
-        self.minsize(900, 600)
+        self.geometry("1100x720")
+        self.minsize(920, 600)
 
-        # State
+        # ── State ──────────────────────────────────────────────────────────────
         self.dark_mode = True
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
         self.current_theme = get_theme(self.dark_mode)
-        self.current_panel = "menu"  # 'menu', 'auto_crop', 'tiff_merge'
+        self.current_panel = "menu"
         self.operation_in_progress = False
-        self.operation_type = None  # 'crop' or 'merge'
+        self.operation_type = None
 
-        # Configure grid - 3 rows: toolbar, content, progress bar
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+        # ── Root grid: sidebar | right-column ─────────────────────────────────
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
 
-        # Build UI
-        self._build_toolbar()
-        self._build_content_area()
-        self._build_progress_bar()
+        self._build_sidebar()
+        self._build_right_column()
 
-    def _build_toolbar(self):
-        """Build top toolbar with buttons and theme toggle."""
-        toolbar = ctk.CTkFrame(
+    # ══════════════════════════════════════════════════════════════════════════
+    # Sidebar
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _build_sidebar(self):
+        t = self.current_theme
+
+        self.sidebar = ctk.CTkFrame(
             self,
-            fg_color=self.current_theme["bg_secondary"],
+            width=SIDEBAR_WIDTH,
+            fg_color=t["bg_sidebar"],
             corner_radius=0,
-            border_width=0,
         )
-        toolbar.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        toolbar.grid_columnconfigure(2, weight=1)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_propagate(False)
+        self.sidebar.grid_rowconfigure(2, weight=1)   # spacer pushes bottom
+        self.sidebar.grid_columnconfigure(0, weight=1)
 
-        # App title / home button
-        self.btn_home = ctk.CTkButton(
-            toolbar,
-            text="🏠 DPA Image Toolkit",
-            font=get_font("heading"),
-            height=BUTTON_STYLE["height"],
-            corner_radius=BUTTON_STYLE["corner_radius"],
-            fg_color="transparent",
-            text_color=self.current_theme["fg_primary"],
-            hover_color=self.current_theme["bg_tertiary"],
-            command=self._on_home,
+        # ── Brand ──────────────────────────────────────────────────────────────
+        brand_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        brand_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
+
+        brand_inner = ctk.CTkFrame(brand_frame, fg_color="transparent")
+        brand_inner.pack(fill="x", padx=20, pady=(28, 24))
+
+        # Icon badge
+        icon_badge = ctk.CTkLabel(
+            brand_inner,
+            text="🖼",
+            font=("Segoe UI", 26),
+            fg_color=t["accent"],
+            text_color="white",
+            width=44,
+            height=44,
+            corner_radius=RADIUS["md"],
         )
-        self.btn_home.grid(row=0, column=0, padx=16, pady=12, sticky="w")
+        icon_badge.pack(anchor="w")
+
+        title_lbl = ctk.CTkLabel(
+            brand_inner,
+            text="DPA Image\nToolkit",
+            font=get_font("heading"),
+            text_color=t["fg_primary"],
+            justify="left",
+        )
+        title_lbl.pack(anchor="w", pady=(10, 0))
+
+        # Divider
+        self._sidebar_divider()
+
+        # ── Nav items ──────────────────────────────────────────────────────────
+        nav_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        nav_frame.grid(row=1, column=0, sticky="ew", padx=0, pady=0)
+
+        section_lbl = ctk.CTkLabel(
+            nav_frame,
+            text="TOOLS",
+            font=get_font("micro"),
+            text_color=t["fg_tertiary"],
+        )
+        section_lbl.pack(anchor="w", padx=20, pady=(16, 6))
+
+        self._nav_items = {}
+        nav_defs = [
+            ("menu",      "⌂",  "Home"),
+            ("auto_crop", "✂",  "Auto Crop"),
+            ("tiff_merge","⊞",  "Merge TIFFs"),
+            ("tiff_split","⇵",  "Split TIFFs"),
+            ("add_border","▣",  "Add Border"),
+        ]
+        for key, icon, label in nav_defs:
+            btn = self._make_nav_button(nav_frame, icon, label, key)
+            btn.pack(fill="x", padx=8, pady=2)
+            self._nav_items[key] = btn
 
         # Spacer
-        spacer = ctk.CTkFrame(toolbar, fg_color="transparent")
-        spacer.grid(row=0, column=2, sticky="ew")
+        ctk.CTkFrame(self.sidebar, fg_color="transparent").grid(row=2, column=0)
 
-        # Theme Toggle (top-right)
-        theme_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
-        theme_frame.grid(row=0, column=3, padx=16, pady=12, sticky="e")
+        # Divider
+        self._sidebar_divider(row=3)
 
-        self.theme_label = ctk.CTkLabel(
-            theme_frame,
+        # ── Theme toggle ───────────────────────────────────────────────────────
+        bottom_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        bottom_frame.grid(row=4, column=0, sticky="ew", padx=0, pady=(0, 20))
+
+        theme_row = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        theme_row.pack(fill="x", padx=20, pady=12)
+
+        self.theme_icon_lbl = ctk.CTkLabel(
+            theme_row,
             text="🌙",
-            font=("Arial", 16),
-            text_color=self.current_theme["fg_primary"],
+            font=("Segoe UI", 16),
+            text_color=t["fg_secondary"],
         )
-        self.theme_label.pack(side="left", padx=(0, 8))
+        self.theme_icon_lbl.pack(side="left")
+
+        theme_lbl = ctk.CTkLabel(
+            theme_row,
+            text="Dark mode",
+            font=get_font("small"),
+            text_color=t["fg_secondary"],
+        )
+        theme_lbl.pack(side="left", padx=(8, 0))
 
         self.theme_switch = ctk.CTkSwitch(
-            theme_frame,
+            theme_row,
             text="",
+            width=40,
             command=self._toggle_theme,
-            progress_color=self.current_theme["accent"],
+            progress_color=t["accent"],
+            button_color=t["fg_primary"],
         )
-        self.theme_switch.pack(side="left")
-        self.theme_switch.select()
+        self.theme_switch.pack(side="right")
+        self.theme_switch.select()  # dark mode on by default
 
-    def _build_content_area(self):
-        """Build main content area."""
-        self.content = ctk.CTkFrame(
-            self,
-            fg_color=self.current_theme["bg_primary"],
-            corner_radius=0,
+        # Version tag
+        ver_lbl = ctk.CTkLabel(
+            bottom_frame,
+            text="v1.0",
+            font=get_font("micro"),
+            text_color=t["fg_tertiary"],
         )
-        self.content.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        ver_lbl.pack(anchor="center")
+
+        self._update_nav_highlight("menu")
+
+    def _sidebar_divider(self, row=None):
+        t = self.current_theme
+        if row is not None:
+            div = ctk.CTkFrame(
+                self.sidebar,
+                fg_color=t["border"],
+                height=1,
+                corner_radius=0,
+            )
+            div.grid(row=row, column=0, sticky="ew", padx=0, pady=0)
+        else:
+            div = ctk.CTkFrame(
+                self.sidebar,
+                fg_color=t["border"],
+                height=1,
+                corner_radius=0,
+            )
+            div.grid_remove()
+            # inline version: just place it inside a frame
+            return div
+
+    def _make_nav_button(self, parent, icon, label, key):
+        t = self.current_theme
+        btn = ctk.CTkButton(
+            parent,
+            text=f"  {icon}   {label}",
+            font=get_font("nav"),
+            height=40,
+            corner_radius=RADIUS["md"],
+            anchor="w",
+            fg_color="transparent",
+            text_color=t["sidebar_fg"],
+            hover_color=t["sidebar_hover"],
+            command=lambda k=key: self._nav_click(k),
+        )
+        return btn
+
+    def _nav_click(self, key):
+        if key == "menu":
+            self._on_home()
+        elif key == "auto_crop":
+            self._show_auto_crop_panel()
+        elif key == "tiff_merge":
+            self._show_tiff_merge_panel()
+        elif key == "tiff_split":
+            self._show_tiff_split_panel()
+        elif key == "add_border":
+            self._show_add_border_panel()
+
+    def _update_nav_highlight(self, active_key):
+        t = self.current_theme
+        for key, btn in self._nav_items.items():
+            if key == active_key:
+                btn.configure(
+                    fg_color=t["sidebar_bg_active"],
+                    text_color=t["sidebar_fg_active"],
+                    font=get_font("nav_bold"),
+                )
+            else:
+                btn.configure(
+                    fg_color="transparent",
+                    text_color=t["sidebar_fg"],
+                    font=get_font("nav"),
+                )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Right column (content + status bar)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _build_right_column(self):
+        t = self.current_theme
+
+        right_col = ctk.CTkFrame(self, fg_color=t["bg_primary"], corner_radius=0)
+        right_col.grid(row=0, column=1, sticky="nsew")
+        right_col.grid_rowconfigure(0, weight=1)
+        right_col.grid_columnconfigure(0, weight=1)
+        self.right_col = right_col
+
+        # Content area
+        self.content = ctk.CTkFrame(right_col, fg_color="transparent", corner_radius=0)
+        self.content.grid(row=0, column=0, sticky="nsew")
         self.content.grid_rowconfigure(0, weight=1)
         self.content.grid_columnconfigure(0, weight=1)
 
-        # Will hold either menu or active panel
         self.panel_container = ctk.CTkFrame(
             self.content,
             fg_color="transparent",
+            corner_radius=0,
         )
-        self.panel_container.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        self.panel_container.grid(row=0, column=0, sticky="nsew")
         self.panel_container.grid_rowconfigure(0, weight=1)
         self.panel_container.grid_columnconfigure(0, weight=1)
 
-        # Show menu initially
+        # Status bar
+        self._build_status_bar(right_col)
+
+        # Show menu
         self._show_menu()
 
-    def _build_progress_bar(self):
-        """Build docked progress bar at bottom."""
-        progress_frame = ctk.CTkFrame(
-            self,
-            fg_color=self.current_theme["bg_secondary"],
-            corner_radius=0,
-            border_width=0,
-        )
-        progress_frame.grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-        progress_frame.grid_columnconfigure(1, weight=1)
+    def _build_status_bar(self, parent):
+        t = self.current_theme
 
-        # Status label
-        self.progress_label = ctk.CTkLabel(
-            progress_frame,
-            text="Ready",
-            font=get_font("small"),
-            text_color=self.current_theme["fg_secondary"],
-            anchor="w",
+        bar = ctk.CTkFrame(
+            parent,
+            fg_color=t["bg_secondary"],
+            corner_radius=0,
+            height=52,
         )
-        self.progress_label.grid(row=0, column=0, columnspan=3, sticky="ew", padx=12, pady=8)
+        bar.grid(row=1, column=0, sticky="ew")
+        bar.grid_propagate(False)
+        bar.grid_columnconfigure(0, weight=1)
+        self.status_bar = bar
+
+        # Thin accent line at very top of bar
+        accent_line = ctk.CTkFrame(
+            bar,
+            fg_color=t["border"],
+            height=1,
+            corner_radius=0,
+        )
+        accent_line.grid(row=0, column=0, columnspan=2, sticky="ew")
 
         # Progress bar
         self.progress_bar = ctk.CTkProgressBar(
-            progress_frame,
-            fg_color=self.current_theme["bg_tertiary"],
-            progress_color=self.current_theme["accent"],
-            height=4,
+            bar,
+            fg_color=t["progress_track"],
+            progress_color=t["accent"],
+            height=PROGRESS["height_thin"],
+            corner_radius=0,
         )
-        self.progress_bar.grid(row=1, column=0, columnspan=3, sticky="ew", padx=12, pady=(0, 8))
+        self.progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.progress_bar.set(0)
 
+        # Status row
+        status_row = ctk.CTkFrame(bar, fg_color="transparent")
+        status_row.grid(row=2, column=0, sticky="ew", padx=16, pady=8)
+        status_row.grid_columnconfigure(0, weight=1)
+
+        # Status dot (colored indicator)
+        self.status_dot = ctk.CTkLabel(
+            status_row,
+            text="●",
+            font=("Segoe UI", 10),
+            text_color=t["fg_tertiary"],
+            width=14,
+        )
+        self.status_dot.grid(row=0, column=0, sticky="w")
+
+        self.progress_label = ctk.CTkLabel(
+            status_row,
+            text="Ready",
+            font=get_font("small"),
+            text_color=t["fg_secondary"],
+            anchor="w",
+        )
+        self.progress_label.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Menu screen
+    # ══════════════════════════════════════════════════════════════════════════
+
     def _show_menu(self):
-        """Show main menu."""
-        # Clear container
-        for widget in self.panel_container.winfo_children():
-            widget.destroy()
-
+        self._clear_panel()
         self.current_panel = "menu"
+        self._update_nav_highlight("menu")
 
-        # Menu panel
-        menu_panel = ctk.CTkFrame(
-            self.panel_container,
-            fg_color=self.current_theme["bg_secondary"],
-            corner_radius=12,
+        t = self.current_theme
+
+        # Outer centering frame
+        outer = ctk.CTkFrame(self.panel_container, fg_color="transparent")
+        outer.grid(row=0, column=0)
+
+        # Hero card
+        card = ctk.CTkFrame(
+            outer,
+            fg_color=t["bg_secondary"],
+            corner_radius=RADIUS["xl"],
+            border_width=1,
+            border_color=t["border"],
         )
-        menu_panel.grid(row=0, column=0, padx=40, pady=40)
-        menu_panel.grid_columnconfigure(0, minsize=300)
+        card.pack(padx=40, pady=60, ipadx=20, ipady=10)
+        card.grid_columnconfigure(0, minsize=360)
 
-        # Title
+        # Logo + title
+        logo = ctk.CTkLabel(
+            card,
+            text="🖼",
+            font=("Segoe UI", 44),
+        )
+        logo.grid(row=0, column=0, pady=(36, 0))
+
         title = ctk.CTkLabel(
-            menu_panel,
+            card,
             text="DPA Image Toolkit",
-            font=("Arial", 28, "bold"),
-            text_color=self.current_theme["fg_primary"],
+            font=get_font("display"),
+            text_color=t["fg_primary"],
         )
-        title.grid(row=0, column=0, pady=(40, 10))
+        title.grid(row=1, column=0, pady=(10, 4))
 
-        # Subtitle
         subtitle = ctk.CTkLabel(
-            menu_panel,
-            text="Image Processing & Organization",
+            card,
+            text="Image processing & organization tools",
             font=get_font("small"),
-            text_color=self.current_theme["fg_tertiary"],
+            text_color=t["fg_secondary"],
         )
-        subtitle.grid(row=1, column=0, pady=(0, 40))
+        subtitle.grid(row=2, column=0, pady=(0, 36))
 
-        # Auto Crop Button
-        btn_crop = ctk.CTkButton(
-            menu_panel,
-            text="📷 Auto Crop Images",
-            font=get_font("heading"),
-            height=50,
-            corner_radius=8,
-            fg_color=self.current_theme["accent"],
-            text_color="white",
+        # Divider
+        div = ctk.CTkFrame(card, fg_color=t["border_subtle"], height=1, corner_radius=0)
+        div.grid(row=3, column=0, sticky="ew", padx=0)
+
+        # Tool buttons
+        tools_frame = ctk.CTkFrame(card, fg_color="transparent")
+        tools_frame.grid(row=4, column=0, padx=32, pady=28)
+
+        self._make_tool_card(
+            tools_frame,
+            icon="✂",
+            title="Auto Crop Images",
+            desc="Automatically detect and crop objects\nfrom image backgrounds",
             command=self._show_auto_crop_panel,
+            row=0,
         )
-        btn_crop.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
 
-        # Merge TIFFs Button
-        btn_merge = ctk.CTkButton(
-            menu_panel,
-            text="🔗 Merge TIFF Files",
-            font=get_font("heading"),
-            height=50,
-            corner_radius=8,
-            fg_color=self.current_theme["accent"],
-            text_color="white",
+        self._make_tool_card(
+            tools_frame,
+            icon="⊞",
+            title="Merge TIFF Files",
+            desc="Combine multi-page TIFF sequences\ninto single multi-frame files",
             command=self._show_tiff_merge_panel,
+            row=1,
         )
-        btn_merge.grid(row=3, column=0, sticky="ew", padx=20, pady=10)
 
-        # Info text
-        info = ctk.CTkLabel(
-            menu_panel,
-            text="Select a tool to get started",
-            font=get_font("small"),
-            text_color=self.current_theme["fg_tertiary"],
+        self._make_tool_card(
+            tools_frame,
+            icon="⇵",
+            title="Split Multi-Page TIFFs",
+            desc="Extract multi-page TIFF files\ninto single-page TIFF files",
+            command=self._show_tiff_split_panel,
+            row=2,
         )
-        info.grid(row=4, column=0, pady=(40, 20))
+
+        self._make_tool_card(
+            tools_frame,
+            icon="▣",
+            title="Add Border",
+            desc="Add white border padding to images\nusing auto-crop spacing rules",
+            command=self._show_add_border_panel,
+            row=3,
+        )
+
+    def _make_tool_card(self, parent, icon, title, desc, command, row):
+        t = self.current_theme
+
+        card = ctk.CTkFrame(
+            parent,
+            fg_color=t["bg_tertiary"],
+            corner_radius=RADIUS["lg"],
+            border_width=1,
+            border_color=t["border"],
+        )
+        card.grid(row=row, column=0, sticky="ew", pady=8)
+        card.grid_columnconfigure(1, weight=1)
+
+        # Icon badge
+        badge = ctk.CTkLabel(
+            card,
+            text=icon,
+            font=("Segoe UI", 22),
+            fg_color=t["accent_dim"],
+            text_color=t["accent"],
+            width=52,
+            height=52,
+            corner_radius=RADIUS["md"],
+        )
+        badge.grid(row=0, column=0, rowspan=2, padx=(16, 14), pady=16)
+
+        title_lbl = ctk.CTkLabel(
+            card,
+            text=title,
+            font=get_font("subheading"),
+            text_color=t["fg_primary"],
+            anchor="w",
+        )
+        title_lbl.grid(row=0, column=1, sticky="w", pady=(16, 2))
+
+        desc_lbl = ctk.CTkLabel(
+            card,
+            text=desc,
+            font=get_font("micro"),
+            text_color=t["fg_secondary"],
+            anchor="w",
+            justify="left",
+        )
+        desc_lbl.grid(row=1, column=1, sticky="w", pady=(0, 16))
+
+        btn = ctk.CTkButton(
+            card,
+            text="Open →",
+            font=get_font("small"),
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["accent"],
+            hover_color=t["accent_hover"],
+            text_color=t["accent_text"],
+            command=command,
+        )
+        btn.grid(row=0, column=2, rowspan=2, padx=(8, 16), pady=16)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Panel switching
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _clear_panel(self):
+        for w in self.panel_container.winfo_children():
+            w.destroy()
 
     def _show_auto_crop_panel(self):
-        """Show auto-crop panel."""
         if self.operation_in_progress:
-            self._show_warning("Operation in progress", "Please wait for current operation to complete.")
+            self._show_warning(
+                "Operation In Progress",
+                "Please wait for the current operation to complete before switching panels.",
+            )
             return
-
-        # Clear container
-        for widget in self.panel_container.winfo_children():
-            widget.destroy()
-
+        self._clear_panel()
         self.current_panel = "auto_crop"
-        self._build_auto_crop_panel()
+        self._update_nav_highlight("auto_crop")
+        from .auto_crop_panel import AutoCropPanel
+        AutoCropPanel(self).build(self.panel_container)
 
     def _show_tiff_merge_panel(self):
-        """Show TIFF merge panel."""
         if self.operation_in_progress:
-            self._show_warning("Operation in progress", "Please wait for current operation to complete.")
+            self._show_warning(
+                "Operation In Progress",
+                "Please wait for the current operation to complete before switching panels.",
+            )
             return
-
-        # Clear container
-        for widget in self.panel_container.winfo_children():
-            widget.destroy()
-
+        self._clear_panel()
         self.current_panel = "tiff_merge"
-        self._build_tiff_merge_panel()
-
-    def _build_auto_crop_panel(self):
-        """Build auto-crop panel."""
-        from .auto_crop_panel import AutoCropPanel
-
-        panel = AutoCropPanel(self)
-        panel.build(self.panel_container)
-
-    def _build_tiff_merge_panel(self):
-        """Build TIFF merge panel."""
+        self._update_nav_highlight("tiff_merge")
         from .tiff_merge_panel import TiffMergePanel
+        TiffMergePanel(self).build(self.panel_container)
 
-        panel = TiffMergePanel(self)
-        panel.build(self.panel_container)
+    def _show_tiff_split_panel(self):
+        if self.operation_in_progress:
+            self._show_warning(
+                "Operation In Progress",
+                "Please wait for the current operation to complete before switching panels.",
+            )
+            return
+        self._clear_panel()
+        self.current_panel = "tiff_split"
+        self._update_nav_highlight("tiff_split")
+        from .tiff_split_panel import TiffSplitPanel
+        TiffSplitPanel(self).build(self.panel_container)
+
+    def _show_add_border_panel(self):
+        if self.operation_in_progress:
+            self._show_warning(
+                "Operation In Progress",
+                "Please wait for the current operation to complete before switching panels.",
+            )
+            return
+        self._clear_panel()
+        self.current_panel = "add_border"
+        self._update_nav_highlight("add_border")
+        from .add_border_panel import AddBorderPanel
+        AddBorderPanel(self).build(self.panel_container)
 
     def _on_home(self):
-        """Handle home button click."""
         if self.operation_in_progress:
             self._show_confirmation(
                 "Operation In Progress",
-                "A file operation is currently running.\n\nAre you sure you want to go back to the menu?",
+                "A file operation is currently running.\nAre you sure you want to go back to the menu?",
                 self._show_menu,
             )
         else:
             self._show_menu()
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # Theme
+    # ══════════════════════════════════════════════════════════════════════════
+
     def _toggle_theme(self):
-        """Toggle between dark and light mode."""
         self.dark_mode = not self.dark_mode
+        ctk.set_appearance_mode("dark" if self.dark_mode else "light")
         self.current_theme = get_theme(self.dark_mode)
-        self._refresh_theme()
+        self._apply_theme()
 
-    def _refresh_theme(self):
-        """Refresh all UI components with current theme colors."""
-        self.configure(fg_color=self.current_theme["bg_primary"])
+    def _apply_theme(self):
+        t = self.current_theme
 
-        # Toolbar
-        toolbar = self.grid_slaves(row=0)[0]
-        toolbar.configure(fg_color=self.current_theme["bg_secondary"])
-        self.btn_home.configure(
-            text_color=self.current_theme["fg_primary"],
-            hover_color=self.current_theme["bg_tertiary"],
+        # Icon + label update
+        self.theme_icon_lbl.configure(
+            text="🌙" if self.dark_mode else "☀",
+            text_color=t["fg_secondary"],
         )
-        self.theme_label.configure(text_color=self.current_theme["fg_primary"])
-        self.theme_switch.configure(progress_color=self.current_theme["accent"])
+        self.theme_switch.configure(progress_color=t["accent"])
 
-        # Content
-        content = self.grid_slaves(row=1)[0]
-        content.configure(fg_color=self.current_theme["bg_primary"])
+        # Sidebar
+        self.sidebar.configure(fg_color=t["bg_sidebar"])
 
-        # Progress bar frame
-        progress_frame = self.grid_slaves(row=2)[0]
-        progress_frame.configure(fg_color=self.current_theme["bg_secondary"])
-        self.progress_label.configure(text_color=self.current_theme["fg_secondary"])
+        # Right column
+        self.right_col.configure(fg_color=t["bg_primary"])
+
+        # Status bar
+        self.status_bar.configure(fg_color=t["bg_secondary"])
         self.progress_bar.configure(
-            fg_color=self.current_theme["bg_tertiary"],
-            progress_color=self.current_theme["accent"],
+            fg_color=t["progress_track"],
+            progress_color=t["accent"],
         )
+        self.progress_label.configure(text_color=t["fg_secondary"])
+        self.status_dot.configure(text_color=t["fg_tertiary"])
+
+        # Rebuild nav highlights
+        self._update_nav_highlight(self.current_panel)
 
         # Redraw current panel
         if self.current_panel == "menu":
@@ -302,111 +589,113 @@ class MainWindow(ctk.CTk):
             self._show_auto_crop_panel()
         elif self.current_panel == "tiff_merge":
             self._show_tiff_merge_panel()
+        elif self.current_panel == "tiff_split":
+            self._show_tiff_split_panel()
+        elif self.current_panel == "add_border":
+            self._show_add_border_panel()
 
-    def log_message(self, message, level="info"):
-        """
-        Add a message to the log display.
+    # ══════════════════════════════════════════════════════════════════════════
+    # Public API (called by panels)
+    # ══════════════════════════════════════════════════════════════════════════
 
-        Args:
-            message (str): Message to log
-            level (str): Log level ('info', 'success', 'warning', 'error')
-        """
-        if not hasattr(self, 'log_display'):
+    def set_status(self, message: str, percentage: float = None):
+        """Update the status bar message and optional progress 0–1."""
+        self.progress_label.configure(text=message)
+        if percentage is not None:
+            self.progress_bar.set(max(0.0, min(1.0, percentage)))
+            # Color dot by progress state
+            t = self.current_theme
+            if percentage >= 1.0:
+                self.status_dot.configure(text_color=t["success"])
+            elif percentage > 0:
+                self.status_dot.configure(text_color=t["accent"])
+            else:
+                self.status_dot.configure(text_color=t["fg_tertiary"])
+
+    def log_message(self, message: str, level: str = "info"):
+        """Append a message to the active panel's log display."""
+        if not hasattr(self, "log_display"):
             return
-
-        # Emojis by level
-        emojis = {
-            "info": "ℹ️",
-            "success": "✅",
-            "warning": "⚠️",
-            "error": "❌",
+        prefixes = {
+            "info":    "  ℹ  ",
+            "success": "  ✓  ",
+            "warning": "  ⚠  ",
+            "error":   "  ✕  ",
         }
-        emoji = emojis.get(level, "📝")
-
-        # Format message
-        formatted = f"{emoji} {message}\n"
-
-        # Add to log (temporarily enable to append)
+        prefix = prefixes.get(level, "  ·  ")
         self.log_display.configure(state="normal")
-        self.log_display.insert("end", formatted)
+        self.log_display.insert("end", f"{prefix}{message}\n")
         self.log_display.see("end")
         self.log_display.configure(state="disabled")
 
-    def set_status(self, message, percentage=None):
-        """
-        Update status bar and progress bar.
+    # ══════════════════════════════════════════════════════════════════════════
+    # Dialogs
+    # ══════════════════════════════════════════════════════════════════════════
 
-        Args:
-            message (str): Status message
-            percentage (float): Progress 0-1, or None to hide
-        """
-        self.progress_label.configure(text=message)
-        if percentage is not None:
-            self.progress_bar.set(percentage)
+    def _dialog_base(self, title: str, width: int = 440, height: int = 220):
+        t = self.current_theme
+        d = ctk.CTkToplevel(self)
+        d.title(title)
+        d.geometry(f"{width}x{height}")
+        d.resizable(False, False)
+        d.attributes("-topmost", True)
+        d.configure(fg_color=t["bg_secondary"])
+        d.grab_set()
+        return d
 
-    def _show_warning(self, title, message):
-        """Show warning dialog."""
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(title)
-        dialog.geometry("400x200")
-        dialog.resizable(False, False)
-        dialog.attributes("-topmost", True)
+    def _show_warning(self, title: str, message: str):
+        t = self.current_theme
+        d = self._dialog_base(title, height=200)
 
-        label = ctk.CTkLabel(
-            dialog,
-            text=message,
-            font=get_font("normal"),
-            text_color=self.current_theme["fg_primary"],
-            wraplength=350,
-        )
-        label.pack(pady=30, padx=20)
+        icon = ctk.CTkLabel(d, text="⚠", font=("Segoe UI", 28), text_color=t["warning"])
+        icon.pack(pady=(24, 0))
 
-        btn = ctk.CTkButton(
-            dialog,
-            text="OK",
-            command=dialog.destroy,
-            fg_color=self.current_theme["accent"],
+        ctk.CTkLabel(
+            d, text=message, font=get_font("normal"),
+            text_color=t["fg_primary"], wraplength=380,
+        ).pack(pady=12, padx=24)
+
+        ctk.CTkButton(
+            d, text="OK", width=100,
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["accent"], hover_color=t["accent_hover"],
+            text_color="white", command=d.destroy,
+        ).pack(pady=(0, 20))
+
+    def _show_confirmation(self, title: str, message: str, callback):
+        t = self.current_theme
+        d = self._dialog_base(title, height=210)
+
+        icon = ctk.CTkLabel(d, text="?", font=("Segoe UI", 28, "bold"), text_color=t["accent"])
+        icon.pack(pady=(24, 0))
+
+        ctk.CTkLabel(
+            d, text=message, font=get_font("normal"),
+            text_color=t["fg_primary"], wraplength=380, justify="center",
+        ).pack(pady=12, padx=24)
+
+        btn_row = ctk.CTkFrame(d, fg_color="transparent")
+        btn_row.pack(pady=(0, 20))
+
+        ctk.CTkButton(
+            btn_row, text="Cancel", width=110,
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color="transparent", hover_color=t["bg_tertiary"],
+            text_color=t["fg_secondary"],
+            border_width=1, border_color=t["border"],
+            command=d.destroy,
+        ).pack(side="left", padx=6)
+
+        ctk.CTkButton(
+            btn_row, text="Yes, go back", width=130,
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["accent"], hover_color=t["accent_hover"],
             text_color="white",
-        )
-        btn.pack(pady=10)
-
-    def _show_confirmation(self, title, message, callback):
-        """Show confirmation dialog."""
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(title)
-        dialog.geometry("400x200")
-        dialog.resizable(False, False)
-        dialog.attributes("-topmost", True)
-
-        label = ctk.CTkLabel(
-            dialog,
-            text=message,
-            font=get_font("normal"),
-            text_color=self.current_theme["fg_primary"],
-            wraplength=350,
-        )
-        label.pack(pady=30, padx=20)
-
-        button_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        button_frame.pack(pady=10)
-
-        btn_yes = ctk.CTkButton(
-            button_frame,
-            text="Yes",
-            command=lambda: (dialog.destroy(), callback()),
-            fg_color=self.current_theme["accent"],
-            text_color="white",
-        )
-        btn_yes.pack(side="left", padx=5)
-
-        btn_no = ctk.CTkButton(
-            button_frame,
-            text="Cancel",
-            command=dialog.destroy,
-            fg_color=self.current_theme["bg_tertiary"],
-            text_color=self.current_theme["fg_primary"],
-        )
-        btn_no.pack(side="left", padx=5)
+            command=lambda: (d.destroy(), callback()),
+        ).pack(side="left", padx=6)
 
 
 if __name__ == "__main__":

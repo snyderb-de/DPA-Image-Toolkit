@@ -84,6 +84,22 @@ Combines groups of TIFF files into single multi-page TIFFs.
 
 **Files must be named:** `groupname_###.tif` (exactly 3 digits — `document_001.tif`, `document_002.tif`, etc.)
 
+### Split Multi-Page TIFFs
+Extracts each page of a multi-page TIFF into its own single-page TIFF file.
+
+1. Click **Split Multi-Page TIFFs**
+2. Either select multiple TIFF files or select a folder containing TIFF files
+3. For folder mode, extracted pages go to `selected_folder/extracted-pages/<original_name>/`
+4. For file mode, extracted pages go to a sibling folder beside each source file: `<original_name>_pages/`
+5. Single-page TIFFs are skipped automatically
+
+### Add Border
+Adds a white border around every image in a folder using the same padding logic as Auto Crop.
+
+1. Click **Add Border** → select folder → **Add Border**
+2. Bordered images go to `input_folder/bordered/`
+3. Border size uses the Auto Crop spacing rule: `2.5%` of image size, clamped to `15-100px`
+
 ---
 
 ## Standard Workflow

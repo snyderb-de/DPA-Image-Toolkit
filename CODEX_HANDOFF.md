@@ -170,3 +170,18 @@ Suggested entry format:
   Documentation-only update.
 - Follow-up:
   Keep the dependency list in sync with `requirements.txt`.
+
+## 2026-04-02 - Added TIFF split and add-border tools
+- What changed:
+  Added two new GUI tools: multi-page TIFF splitting and folder-based add-border processing. This included new panels, new worker classes, a TIFF split core module, an image border core module, and updated home/sidebar navigation.
+- Why:
+  The toolkit needed two new user-facing functions accessible by buttons: split multi-page TIFFs into single pages, and add borders using the same spacing logic as auto-crop.
+- Files:
+  `gui/main_window.py`, `gui/tiff_split_panel.py`, `gui/add_border_panel.py`, `utils/worker.py`, `utils/file_handler.py`, `modules/tiff_split/`, `modules/image_border/`, `README.md`, `PROJECT.md`
+- Verification:
+  `py_compile` passed, import smoke tests passed, synthetic TIFF splitting produced two single-page TIFFs, and synthetic border generation produced the expected larger image size.
+- Follow-up:
+  Current split behavior assumptions are:
+  1. Folder mode writes to `selected_folder/extracted-pages/<source_stem>/`
+  2. File mode writes beside each source file in `<source_stem>_pages/`
+  3. Single-page TIFFs are skipped automatically
