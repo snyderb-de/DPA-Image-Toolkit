@@ -23,6 +23,55 @@ Suggested entry format:
 
 ---
 
+## 2026-04-02 - Restyled shell and tool panels to match archival mockups
+- What changed:
+  Shifted the app toward the new archival mockup direction without adding features: updated shared colors and typography in `gui/styles.py`, added a lab-style top chrome and editorial home layout in `gui/main_window.py`, and restyled the Auto Crop, Merge TIFFs, Split TIFFs, and Add Border panels to use the same warmer layered surfaces, serif headings, and clearer info/log treatments.
+- Why:
+  The user added visual mockups and asked for the app to match their style and layout more closely while keeping the existing workflows intact.
+- Files:
+  `gui/styles.py`, `gui/main_window.py`, `gui/auto_crop_panel.py`, `gui/tiff_merge_panel.py`, `gui/tiff_split_panel.py`, `gui/add_border_panel.py`
+- Verification:
+  `python3 -m py_compile gui/styles.py gui/main_window.py gui/auto_crop_panel.py gui/tiff_merge_panel.py gui/tiff_split_panel.py gui/add_border_panel.py`
+- Follow-up:
+  1. The mockup reference folder `tiff-tools-modern-mockups/` is currently untracked and was used as visual input only.
+  2. The next refinement pass should be visual QA inside the running app on both light and dark mode, especially spacing balance and any remaining low-contrast states.
+
+## 2026-04-02 - Simplified chrome and clarified process notes
+- What changed:
+  Removed the top header bar entirely, changed the left-branding to `DPA Toolkit` / `Image Toolkit`, switched light mode toward a cooler grey-blue palette, made the theme switch thumb explicitly white for visibility, replaced the status-bar dot with clearer panel/progress labels, expanded the home process notes to cover all four tools, and added a `PROCESS NOTES` section to every tool screen.
+- Why:
+  The user wanted less ornamental chrome, clearer light-mode readability, and more useful on-screen guidance about what each tool actually does.
+- Files:
+  `gui/styles.py`, `gui/main_window.py`, `gui/auto_crop_panel.py`, `gui/tiff_merge_panel.py`, `gui/tiff_split_panel.py`, `gui/add_border_panel.py`
+- Verification:
+  `python3 -m py_compile gui/styles.py gui/main_window.py gui/auto_crop_panel.py gui/tiff_merge_panel.py gui/tiff_split_panel.py gui/add_border_panel.py`
+- Follow-up:
+  If more polish is needed, the next pass should be visual QA on actual screenshots rather than more structural restyling.
+
+## 2026-04-02 - Fixed home-card clipping and softened dark mode
+- What changed:
+  Updated the dark palette to use lighter slate and blue-grey accents instead of brass/yellow, slightly reduced home-card title sizing, widened the usable title row, increased title/description wrap widths, and narrowed the process-notes column so long tool names no longer clip on the home screen.
+- Why:
+  The user reported clipped tool names and said dark mode felt too yellow and too dark.
+- Files:
+  `gui/styles.py`, `gui/main_window.py`
+- Verification:
+  `python3 -m py_compile gui/styles.py gui/main_window.py`
+- Follow-up:
+  The next refinement should be another screenshot-driven pass after running the updated UI in both themes.
+
+## 2026-04-02 - Cleaned up home-card icons and removed module label
+- What changed:
+  Reworked the home tool-card header so the icon badge is larger and sits on its own row, and removed the `TOOL MODULE` label from those cards entirely.
+- Why:
+  The user called out the card icons and did not want the extra module text.
+- Files:
+  `gui/main_window.py`
+- Verification:
+  `python3 -m py_compile gui/main_window.py`
+- Follow-up:
+  If card polish continues, use fresh screenshots to tune spacing rather than adding more decorative labels.
+
 ## 2026-03-31 - Initial review notes
 - What changed:
   Added this handoff document for cross-agent continuity.

@@ -24,6 +24,7 @@ class TiffSplitPanel:
 
         self.selection_label = None
         self.count_label = None
+        self.info_card = None
         self.info_lbl = None
         self.log_display = None
         self.btn_start = None
@@ -33,46 +34,53 @@ class TiffSplitPanel:
 
         panel = ctk.CTkFrame(container, fg_color="transparent")
         panel.grid(row=0, column=0, sticky="nsew")
-        panel.grid_rowconfigure(3, weight=1)
+        panel.grid_rowconfigure(4, weight=1)
         panel.grid_columnconfigure(0, weight=1)
 
         hdr = ctk.CTkFrame(panel, fg_color="transparent")
-        hdr.grid(row=0, column=0, sticky="ew", padx=28, pady=(24, 0))
+        hdr.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
         hdr.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
             hdr,
             text="⇵",
-            font=("Segoe UI", 20),
+            font=("Segoe UI", 22),
             fg_color=t["accent_dim"],
             text_color=t["accent"],
-            width=40,
-            height=40,
+            width=48,
+            height=48,
             corner_radius=RADIUS["md"],
         ).grid(row=0, column=0, rowspan=2)
+
+        ctk.CTkLabel(
+            hdr,
+            text="TIFF EXTRACTION",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+        ).grid(row=0, column=1, sticky="sw", padx=(16, 0))
 
         ctk.CTkLabel(
             hdr,
             text="Split Multi-Page TIFFs",
             font=get_font("title"),
             text_color=t["fg_primary"],
-        ).grid(row=0, column=1, sticky="w", padx=(14, 0))
+        ).grid(row=1, column=1, sticky="nw", padx=(16, 0))
 
         ctk.CTkLabel(
             hdr,
             text="Extract each page of a multi-page TIFF into individual single-page TIFF files",
-            font=get_font("small"),
+            font=get_font("normal"),
             text_color=t["fg_secondary"],
-        ).grid(row=1, column=1, sticky="w", padx=(14, 0))
+        ).grid(row=2, column=1, sticky="w", padx=(16, 0), pady=(8, 0))
 
         picker_card = ctk.CTkFrame(
             panel,
             fg_color=t["bg_secondary"],
             corner_radius=RADIUS["lg"],
             border_width=1,
-            border_color=t["border"],
+            border_color=t["border_subtle"],
         )
-        picker_card.grid(row=1, column=0, sticky="ew", padx=28, pady=(20, 0))
+        picker_card.grid(row=1, column=0, sticky="ew", padx=36, pady=(24, 0))
         picker_card.grid_columnconfigure(2, weight=1)
 
         ctk.CTkButton(
@@ -81,11 +89,11 @@ class TiffSplitPanel:
             font=get_font("normal"),
             height=BUTTON["height_md"],
             corner_radius=RADIUS["md"],
-            fg_color="transparent",
+            fg_color=t["bg_glass"],
             hover_color=t["bg_tertiary"],
             text_color=t["fg_primary"],
             border_width=1,
-            border_color=t["border"],
+            border_color=t["border_subtle"],
             command=self._on_select_files,
         ).grid(row=0, column=0, padx=(14, 10), pady=14, sticky="w")
 
@@ -95,11 +103,11 @@ class TiffSplitPanel:
             font=get_font("normal"),
             height=BUTTON["height_md"],
             corner_radius=RADIUS["md"],
-            fg_color="transparent",
+            fg_color=t["bg_glass"],
             hover_color=t["bg_tertiary"],
             text_color=t["fg_primary"],
             border_width=1,
-            border_color=t["border"],
+            border_color=t["border_subtle"],
             command=self._on_select_folder,
         ).grid(row=0, column=1, padx=(0, 10), pady=14, sticky="w")
 
@@ -123,32 +131,63 @@ class TiffSplitPanel:
             pady=2,
         )
 
-        info_card = ctk.CTkFrame(
+        self.info_card = ctk.CTkFrame(
             panel,
-            fg_color=t["bg_secondary"],
+            fg_color=t["accent_dim"],
             corner_radius=RADIUS["md"],
-            border_width=1,
-            border_color=t["border_subtle"],
+            border_width=0,
         )
-        info_card.grid(row=2, column=0, sticky="ew", padx=28, pady=(10, 0))
+        self.info_card.grid(row=2, column=0, sticky="ew", padx=36, pady=(12, 0))
 
         self.info_lbl = ctk.CTkLabel(
-            info_card,
+            self.info_card,
             text="Choose TIFF files or a folder. Folder mode skips single-page TIFFs automatically.",
             font=get_font("small"),
             text_color=t["fg_secondary"],
             anchor="w",
         )
-        self.info_lbl.pack(padx=14, pady=10, anchor="w")
+        self.info_lbl.pack(padx=16, pady=12, anchor="w")
+
+        notes_card = ctk.CTkFrame(
+            panel,
+            fg_color=t["bg_secondary"],
+            corner_radius=RADIUS["lg"],
+            border_width=1,
+            border_color=t["border_subtle"],
+        )
+        notes_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
+
+        ctk.CTkLabel(
+            notes_card,
+            text="PROCESS NOTES",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+            anchor="w",
+        ).pack(anchor="w", padx=16, pady=(14, 2))
+
+        for line in (
+            "Split TIFFs accepts either selected TIFF files or a folder containing TIFFs.",
+            "Only multi-page TIFFs are extracted into single-page files; single-page TIFFs are skipped.",
+            "Folder mode writes output into extracted-pages/ so the source folder stays organized.",
+        ):
+            ctk.CTkLabel(
+                notes_card,
+                text=f"•  {line}",
+                font=get_font("small"),
+                text_color=t["fg_secondary"],
+                justify="left",
+                wraplength=860,
+                anchor="w",
+            ).pack(anchor="w", padx=16, pady=(0, 8))
 
         log_card = ctk.CTkFrame(
             panel,
             fg_color=t["bg_secondary"],
             corner_radius=RADIUS["lg"],
             border_width=1,
-            border_color=t["border"],
+            border_color=t["border_subtle"],
         )
-        log_card.grid(row=3, column=0, sticky="nsew", padx=28, pady=(10, 0))
+        log_card.grid(row=4, column=0, sticky="nsew", padx=36, pady=(12, 0))
         log_card.grid_rowconfigure(2, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
@@ -159,7 +198,7 @@ class TiffSplitPanel:
         ctk.CTkLabel(
             log_hdr,
             text="Activity Log",
-            font=get_font("subheading"),
+            font=get_font("eyebrow"),
             text_color=t["fg_secondary"],
         ).grid(row=0, column=0, sticky="w")
 
@@ -169,11 +208,11 @@ class TiffSplitPanel:
             font=get_font("micro"),
             height=22,
             corner_radius=RADIUS["sm"],
-            fg_color="transparent",
+            fg_color=t["bg_glass"],
             hover_color=t["bg_tertiary"],
-            text_color=t["fg_tertiary"],
+            text_color=t["fg_secondary"],
             border_width=1,
-            border_color=t["border"],
+            border_color=t["border_subtle"],
             command=self._clear_log,
         ).grid(row=0, column=1, sticky="e")
 
@@ -194,7 +233,7 @@ class TiffSplitPanel:
         self.log_display.configure(state="disabled")
 
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
-        action_bar.grid(row=4, column=0, sticky="ew", padx=28, pady=(10, 20))
+        action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
         action_bar.grid_columnconfigure(0, weight=1)
 
         self.btn_start = ctk.CTkButton(
@@ -205,7 +244,7 @@ class TiffSplitPanel:
             corner_radius=RADIUS["md"],
             fg_color=t["accent"],
             hover_color=t["accent_hover"],
-            text_color="white",
+            text_color=t["accent_text"],
             command=self._on_start_split,
             state="disabled",
         )
@@ -338,12 +377,14 @@ class TiffSplitPanel:
     def _set_info(self, text, level="info"):
         t = self.theme
         color_map = {
-            "info": t["fg_secondary"],
-            "success": t["success"],
-            "warning": t["warning"],
-            "error": t["error"],
+            "info": (t["fg_secondary"], t["accent_dim"]),
+            "success": (t["success"], t["success_dim"]),
+            "warning": (t["warning"], t["warning_dim"]),
+            "error": (t["error"], t["error_dim"]),
         }
-        self.info_lbl.configure(text=text, text_color=color_map.get(level, t["fg_secondary"]))
+        text_color, bg_color = color_map.get(level, (t["fg_secondary"], t["accent_dim"]))
+        self.info_card.configure(fg_color=bg_color)
+        self.info_lbl.configure(text=text, text_color=text_color)
 
     def _clear_log(self):
         self.log_display.configure(state="normal")

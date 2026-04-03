@@ -1,107 +1,116 @@
 """
-Styling and theming for DPA Image Toolkit GUI.
+Shared styling tokens for the DPA Image Toolkit GUI.
 
-Modern design system with rich dark/light palettes, sidebar layout,
-card-based components, and orange accent throughout.
+The visual direction follows a preservation-lab look with layered
+slate surfaces in dark mode and cooler archive-paper blues in light mode.
 """
 
 # ── Dark Mode ──────────────────────────────────────────────────────────────────
 DARK_MODE = {
-    # Backgrounds (layered depth)
-    "bg_base":        "#0D1117",   # window root — deepest
-    "bg_primary":     "#161B22",   # main content area
-    "bg_secondary":   "#232A33",   # cards / panels
-    "bg_tertiary":    "#343C46",   # hover / input / nested
-    "bg_sidebar":     "#010409",   # sidebar rail
+    # Backgrounds
+    "bg_base":        "#171B21",
+    "bg_primary":     "#1D2229",
+    "bg_secondary":   "#262C34",
+    "bg_tertiary":    "#313844",
+    "bg_sidebar":     "#1B2026",
+    "bg_topbar":      "#313844",
+    "bg_glass":       "#2B333D",
 
     # Foregrounds
-    "fg_primary":     "#E6EDF3",   # headings / primary text
-    "fg_secondary":   "#A7B0BA",   # subtext / labels
-    "fg_tertiary":    "#6E7681",   # muted / placeholders
+    "fg_primary":     "#E6ECF3",
+    "fg_secondary":   "#C2CDD8",
+    "fg_tertiary":    "#94A3B8",
+    "fg_inverse":     "#1B2530",
 
-    # Accent (orange)
-    "accent":         "#F97316",   # primary actions
-    "accent_hover":   "#EA580C",   # hover state
-    "accent_dim":     "#1F1109",   # accent-tinted background
-    "accent_text":    "#FFFFFF",   # text on accent buttons
+    # Accent (muted preservation blue)
+    "accent":         "#7A9BBC",
+    "accent_hover":   "#6B8CAF",
+    "accent_dim":     "#243242",
+    "accent_text":    "#FFFFFF",
 
     # Sidebar-specific
-    "sidebar_fg":     "#B4BDC8",   # sidebar nav text
-    "sidebar_fg_active": "#F97316",   # active nav item text
-    "sidebar_bg_active": "#2B1C0E",   # active nav item bg
-    "sidebar_hover":  "#212A33",   # hover on nav item
+    "sidebar_fg":     "#BDC7D2",
+    "sidebar_fg_active": "#D7E5F4",
+    "sidebar_bg_active": "#2C3846",
+    "sidebar_hover":  "#26303B",
 
     # Semantic
-    "success":        "#3FB950",
-    "success_dim":    "#0A1F0F",
-    "warning":        "#E3B341",
-    "warning_dim":    "#1F1600",
-    "error":          "#F85149",
-    "error_dim":      "#200D0C",
+    "success":        "#74B79A",
+    "success_dim":    "#1F312A",
+    "warning":        "#C8AA72",
+    "warning_dim":    "#3A3020",
+    "error":          "#D98982",
+    "error_dim":      "#3A2426",
 
     # Borders / dividers
-    "border":         "#3A424D",
-    "border_subtle":  "#2A313A",
+    "border":         "#3E4A58",
+    "border_subtle":  "#333C47",
 
     # Progress bar track
-    "progress_track": "#343C46",
+    "progress_track": "#3A4451",
 }
 
 # ── Light Mode ─────────────────────────────────────────────────────────────────
 LIGHT_MODE = {
     # Backgrounds
-    "bg_base":        "#F0F2F5",
-    "bg_primary":     "#F4F7FB",
+    "bg_base":        "#E9EEF5",
+    "bg_primary":     "#F3F7FC",
     "bg_secondary":   "#FFFFFF",
-    "bg_tertiary":    "#E6EBF2",
-    "bg_sidebar":     "#EEF2F7",
+    "bg_tertiary":    "#E5ECF4",
+    "bg_sidebar":     "#E6EDF6",
+    "bg_topbar":      "#D7E1EC",
+    "bg_glass":       "#F4F8FD",
 
     # Foregrounds
-    "fg_primary":     "#1F2328",
-    "fg_secondary":   "#475467",
-    "fg_tertiary":    "#667085",
+    "fg_primary":     "#1F2A37",
+    "fg_secondary":   "#475569",
+    "fg_tertiary":    "#64748B",
+    "fg_inverse":     "#FFF9F0",
 
     # Accent
-    "accent":         "#EA580C",
-    "accent_hover":   "#C2410C",
-    "accent_dim":     "#FFF1E6",
+    "accent":         "#5D7695",
+    "accent_hover":   "#4C6685",
+    "accent_dim":     "#E7EEF7",
     "accent_text":    "#FFFFFF",
 
     # Sidebar-specific
-    "sidebar_fg":     "#344054",
-    "sidebar_fg_active": "#EA580C",
-    "sidebar_bg_active": "#FFE9D5",
-    "sidebar_hover":  "#DCE3EC",
+    "sidebar_fg":     "#526274",
+    "sidebar_fg_active": "#37506C",
+    "sidebar_bg_active": "#DCE6F2",
+    "sidebar_hover":  "#DCE5EF",
 
     # Semantic
-    "success":        "#1A7F37",
-    "success_dim":    "#DCFCE7",
-    "warning":        "#9A6700",
-    "warning_dim":    "#FEF9C3",
-    "error":          "#CF222E",
-    "error_dim":      "#FEE2E2",
+    "success":        "#3E7C62",
+    "success_dim":    "#DCEEE6",
+    "warning":        "#8A6A3F",
+    "warning_dim":    "#F2E7D5",
+    "error":          "#B4534B",
+    "error_dim":      "#F8DEDB",
 
     # Borders
-    "border":         "#C4CDD8",
-    "border_subtle":  "#D9E1EA",
+    "border":         "#C7D3E0",
+    "border_subtle":  "#DCE5EF",
 
     # Progress bar track
-    "progress_track": "#D7DEE8",
+    "progress_track": "#D7E0EA",
 }
 
 # ── Typography ─────────────────────────────────────────────────────────────────
 FONTS = {
-    "display":   ("Segoe UI", 24, "bold"),   # hero titles
-    "title":     ("Segoe UI", 18, "bold"),   # panel headings
-    "heading":   ("Segoe UI", 15, "bold"),   # card headings
-    "subheading":("Segoe UI", 13, "bold"),   # sub-sections
-    "normal":    ("Segoe UI", 13),           # body text
-    "small":     ("Segoe UI", 12),           # labels / metadata
-    "micro":     ("Segoe UI", 11),           # fine print
-    "mono":      ("Consolas", 12),           # log / code
+    "display":   ("Georgia", 30, "bold"),
+    "title":     ("Georgia", 24, "bold"),
+    "heading":   ("Georgia", 16, "bold"),
+    "subheading":("Segoe UI", 13, "bold"),
+    "normal":    ("Segoe UI", 13),
+    "small":     ("Segoe UI", 12),
+    "micro":     ("Segoe UI", 11),
+    "eyebrow":   ("Segoe UI", 10, "bold"),
+    "mono":      ("Consolas", 12),
     "mono_sm":   ("Consolas", 11),
-    "nav":       ("Segoe UI", 14),           # sidebar nav items
-    "nav_bold":  ("Segoe UI", 14, "bold"),
+    "nav":       ("Segoe UI", 11, "bold"),
+    "nav_bold":  ("Segoe UI", 11, "bold"),
+    "brand":     ("Georgia", 22, "bold"),
+    "brand_sm":  ("Georgia", 16, "italic"),
 }
 
 # ── Component Tokens ───────────────────────────────────────────────────────────
@@ -110,14 +119,14 @@ SIDEBAR_WIDTH = 220
 RADIUS = {
     "sm":   4,
     "md":   8,
-    "lg":   12,
-    "xl":   16,
+    "lg":   14,
+    "xl":   20,
     "pill": 999,
 }
 
 BUTTON = {
-    "height_lg": 44,
-    "height_md": 36,
+    "height_lg": 46,
+    "height_md": 38,
     "height_sm": 28,
     "corner_radius": RADIUS["md"],
 }
@@ -131,8 +140,8 @@ INPUT = {
 CARD = {
     "corner_radius": RADIUS["lg"],
     "border_width": 1,
-    "pad_x": 16,
-    "pad_y": 14,
+    "pad_x": 18,
+    "pad_y": 16,
 }
 
 PROGRESS = {

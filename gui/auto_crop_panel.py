@@ -1,340 +1,416 @@
 """
 Auto-crop panel for DPA Image Toolkit.
 
-Folder selection, progress tracking, live logging, background processing.
+Modern card-based layout: drop-zone folder picker, stats strip,
+live log with colored levels, and a docked action bar.
 """
 
 import customtkinter as ctk
 from pathlib import Path
+
 from utils.file_handler import pick_folder, validate_image_files, create_error_folder
 from utils.worker import AutoCropWorker
-from .styles import get_theme, get_font
+from .styles import get_theme, get_font, BUTTON, CARD, RADIUS
 
 
 class AutoCropPanel:
-    """Auto-crop panel manager."""
+    """Auto-crop panel controller."""
 
     def __init__(self, parent_window):
-        """
-        Initialize auto-crop panel.
-
-        Args:
-            parent_window: Main window reference
-        """
         self.parent = parent_window
         self.theme = parent_window.current_theme
-        self.worker: AutoCropWorker = None
-        self.selected_folder = None
-        self.output_folder = None
-        self.error_folder = None
 
-    def _dispatch_to_ui(self, callback, *args):
-        """Run a callback on the Tk main thread."""
-        self.parent.after(0, lambda: callback(*args))
+        self.worker: AutoCropWorker = None
+        self.selected_folder: Path = None
+        self.output_folder: Path = None
+        self.error_folder: Path = None
+        self.has_errors = False
+
+        # widget refs (set during build)
+        self.folder_label = None
+        self.file_count_lbl = None
+        self.info_card = None
+        self.info_lbl = None
+        self.log_display = None
+        self.btn_start = None
+        self.btn_cancel = None
+        self.btn_error_report = None
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # UI Build
+    # ──────────────────────────────────────────────────────────────────────────
 
     def build(self, container):
-        """
-        Build auto-crop panel UI.
+        t = self.theme
 
-        Args:
-            container: Parent CTkFrame to build in
-        """
+        # Root panel fills container
         panel = ctk.CTkFrame(container, fg_color="transparent")
-        panel.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        panel.grid_rowconfigure(3, weight=1)
+        panel.grid(row=0, column=0, sticky="nsew")
+        panel.grid_rowconfigure(4, weight=1)   # log stretches
         panel.grid_columnconfigure(0, weight=1)
 
-        # Header
-        header = ctk.CTkLabel(
-            panel,
-            text="📷 Auto Crop Images",
-            font=("Arial", 20, "bold"),
-            text_color=self.theme["fg_primary"],
-        )
-        header.grid(row=0, column=0, sticky="w", pady=(0, 20))
+        # ── Page header ───────────────────────────────────────────────────────
+        hdr_row = ctk.CTkFrame(panel, fg_color="transparent")
+        hdr_row.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
+        hdr_row.grid_columnconfigure(1, weight=1)
 
-        # Controls frame
-        controls = ctk.CTkFrame(
-            panel,
-            fg_color=self.theme["bg_secondary"],
-            corner_radius=8,
+        badge = ctk.CTkLabel(
+            hdr_row,
+            text="✂",
+            font=("Segoe UI", 22),
+            fg_color=t["accent_dim"],
+            text_color=t["accent"],
+            width=48, height=48,
+            corner_radius=RADIUS["md"],
         )
-        controls.grid(row=1, column=0, sticky="ew", pady=(0, 20))
-        controls.grid_columnconfigure(1, weight=1)
+        badge.grid(row=0, column=0, rowspan=2)
+
+        ctk.CTkLabel(
+            hdr_row,
+            text="PROCESSING MODULE",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+            anchor="w",
+        ).grid(row=0, column=1, sticky="sw", padx=(16, 0))
+
+        title = ctk.CTkLabel(
+            hdr_row,
+            text="Auto Crop Images",
+            font=get_font("title"),
+            text_color=t["fg_primary"],
+            anchor="w",
+        )
+        title.grid(row=1, column=1, sticky="nw", padx=(16, 0))
+
+        subtitle = ctk.CTkLabel(
+            hdr_row,
+            text="Detect and crop objects from image backgrounds automatically",
+            font=get_font("normal"),
+            text_color=t["fg_secondary"],
+            anchor="w",
+        )
+        subtitle.grid(row=2, column=1, sticky="w", padx=(16, 0), pady=(8, 0))
+
+        # ── Folder picker card ────────────────────────────────────────────────
+        picker_card = ctk.CTkFrame(
+            panel,
+            fg_color=t["bg_secondary"],
+            corner_radius=RADIUS["lg"],
+            border_width=1,
+            border_color=t["border_subtle"],
+        )
+        picker_card.grid(row=1, column=0, sticky="ew", padx=36, pady=(24, 0))
+        picker_card.grid_columnconfigure(1, weight=1)
 
         # Folder button
         btn_folder = ctk.CTkButton(
-            controls,
-            text="📁 Select Image Folder",
+            picker_card,
+            text="  📁  Select Image Folder",
             font=get_font("normal"),
-            height=40,
-            fg_color=self.theme["accent"],
-            text_color="white",
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
             command=self._on_select_folder,
         )
-        btn_folder.grid(row=0, column=0, padx=12, pady=12, sticky="w")
+        btn_folder.grid(row=0, column=0, padx=14, pady=14, sticky="w")
 
-        # Selected folder label
+        # Path / status label
         self.folder_label = ctk.CTkLabel(
-            controls,
+            picker_card,
             text="No folder selected",
             font=get_font("small"),
-            text_color=self.theme["fg_tertiary"],
-            anchor="e",
+            text_color=t["fg_tertiary"],
+            anchor="w",
         )
-        self.folder_label.grid(row=0, column=1, padx=12, pady=12, sticky="e")
+        self.folder_label.grid(row=0, column=1, padx=(0, 14), pady=14, sticky="ew")
 
-        # Info frame
-        info_frame = ctk.CTkFrame(
+        # File count badge
+        self.file_count_lbl = ctk.CTkLabel(
+            picker_card,
+            text="",
+            font=get_font("micro"),
+            text_color=t["accent"],
+            fg_color=t["accent_dim"],
+            corner_radius=RADIUS["pill"],
+            padx=8,
+            pady=2,
+        )
+        # hidden until a folder is selected
+
+        # ── Info / status banner ──────────────────────────────────────────────
+        self.info_card = ctk.CTkFrame(
             panel,
-            fg_color=self.theme["bg_secondary"],
-            corner_radius=8,
-        )
-        info_frame.grid(row=2, column=0, sticky="ew", pady=(0, 20))
-
-        self.info_label = ctk.CTkLabel(
-            info_frame,
-            text="Select a folder containing images to begin auto-cropping.",
-            font=get_font("small"),
-            text_color=self.theme["fg_secondary"],
-            wraplength=700,
-        )
-        self.info_label.pack(padx=12, pady=8, anchor="w")
-
-        # Log display
-        log_frame = ctk.CTkFrame(
-            panel,
-            fg_color=self.theme["bg_secondary"],
-            corner_radius=8,
-        )
-        log_frame.grid(row=3, column=0, sticky="nsew")
-
-        self.log_display = ctk.CTkTextbox(
-            log_frame,
-            fg_color=self.theme["bg_primary"],
-            text_color=self.theme["fg_primary"],
+            fg_color=t["accent_dim"],
+            corner_radius=RADIUS["md"],
             border_width=0,
-            corner_radius=8,
-            font=get_font("monospace"),
         )
-        self.log_display.pack(fill="both", expand=True, padx=12, pady=12)
+        self.info_card.grid(row=2, column=0, sticky="ew", padx=36, pady=(12, 0))
+
+        self.info_lbl = ctk.CTkLabel(
+            self.info_card,
+            text="Select a folder containing images to begin.",
+            font=get_font("small"),
+            text_color=t["fg_secondary"],
+            anchor="w",
+        )
+        self.info_lbl.pack(padx=16, pady=12, anchor="w")
+
+        notes_card = ctk.CTkFrame(
+            panel,
+            fg_color=t["bg_secondary"],
+            corner_radius=RADIUS["lg"],
+            border_width=1,
+            border_color=t["border_subtle"],
+        )
+        notes_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
+
+        ctk.CTkLabel(
+            notes_card,
+            text="PROCESS NOTES",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+            anchor="w",
+        ).pack(anchor="w", padx=16, pady=(14, 2))
+
+        for line in (
+            "Auto Crop detects content and crops out scanner-created white space.",
+            "Best results come from pages with clear contrast against the scanner bed.",
+            "Cropped images are written to cropped/ and failed files are reported separately.",
+        ):
+            ctk.CTkLabel(
+                notes_card,
+                text=f"•  {line}",
+                font=get_font("small"),
+                text_color=t["fg_secondary"],
+                justify="left",
+                wraplength=860,
+                anchor="w",
+            ).pack(anchor="w", padx=16, pady=(0, 8))
+
+        # ── Log card ──────────────────────────────────────────────────────────
+        log_card = ctk.CTkFrame(
+            panel,
+            fg_color=t["bg_secondary"],
+            corner_radius=RADIUS["lg"],
+            border_width=1,
+            border_color=t["border_subtle"],
+        )
+        log_card.grid(row=4, column=0, sticky="nsew", padx=36, pady=(12, 0))
+        log_card.grid_rowconfigure(2, weight=1)
+        log_card.grid_columnconfigure(0, weight=1)
+
+        # Log header
+        log_hdr = ctk.CTkFrame(log_card, fg_color="transparent")
+        log_hdr.grid(row=0, column=0, sticky="ew", padx=14, pady=(10, 0))
+        log_hdr.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            log_hdr,
+            text="Activity Log",
+            font=get_font("eyebrow"),
+            text_color=t["fg_secondary"],
+        ).grid(row=0, column=0, sticky="w")
+
+        self.log_clear_btn = ctk.CTkButton(
+            log_hdr,
+            text="Clear",
+            font=get_font("micro"),
+            height=22,
+            corner_radius=RADIUS["sm"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_secondary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            command=self._clear_log,
+        )
+        self.log_clear_btn.grid(row=0, column=1, sticky="e")
+
+        # Divider
+        ctk.CTkFrame(
+            log_card, fg_color=t["border_subtle"], height=1, corner_radius=0,
+        ).grid(row=1, column=0, sticky="ew", padx=0, pady=(8, 0))
+
+        # Textbox
+        self.log_display = ctk.CTkTextbox(
+            log_card,
+            fg_color="transparent",
+            text_color=t["fg_primary"],
+            border_width=0,
+            corner_radius=0,
+            font=get_font("mono"),
+            wrap="word",
+        )
+        self.log_display.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
         self.log_display.configure(state="disabled")
 
-        # Button frame at bottom
-        button_frame = ctk.CTkFrame(
-            panel,
-            fg_color="transparent",
-        )
-        button_frame.grid(row=4, column=0, sticky="ew", pady=(20, 0))
-        button_frame.grid_columnconfigure(1, weight=1)
+        # ── Action bar ────────────────────────────────────────────────────────
+        action_bar = ctk.CTkFrame(panel, fg_color="transparent")
+        action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
+        action_bar.grid_columnconfigure(1, weight=1)
 
-        # Error report button (disabled by default)
         self.btn_error_report = ctk.CTkButton(
-            button_frame,
-            text="📋 View Error Report",
+            action_bar,
+            text="  📋  View Errors",
             font=get_font("small"),
-            height=32,
-            fg_color=self.theme["error"],
-            text_color="white",
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["error_dim"],
+            hover_color=t["error"],
+            text_color=t["error"],
+            border_width=1,
+            border_color=t["error"],
             command=self._on_view_error_report,
             state="disabled",
         )
-        self.btn_error_report.grid(row=0, column=0, padx=12, pady=0, sticky="w")
+        self.btn_error_report.grid(row=0, column=0, sticky="w")
 
-        # Start button
         self.btn_start = ctk.CTkButton(
-            button_frame,
-            text="▶ Start Auto Crop",
+            action_bar,
+            text="  ▶  Start Auto Crop",
             font=get_font("normal"),
-            height=32,
-            fg_color=self.theme["accent"],
-            text_color="white",
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["accent"],
+            hover_color=t["accent_hover"],
+            text_color=t["accent_text"],
             command=self._on_start_crop,
             state="disabled",
         )
-        self.btn_start.grid(row=0, column=2, padx=12, pady=0, sticky="e")
+        self.btn_start.grid(row=0, column=2, sticky="e")
 
-        self.btn_cancel = None  # Will be created during operation
-        self.has_errors = False
+        self._log("Ready — select an image folder to get started.", "info")
 
-        self._log("Ready to auto-crop images", "info")
+    # ──────────────────────────────────────────────────────────────────────────
+    # Callbacks
+    # ──────────────────────────────────────────────────────────────────────────
 
     def _on_select_folder(self):
-        """Handle folder selection."""
         folder = pick_folder("Select folder with images to auto-crop")
 
         if not folder:
-            self._log("Folder selection cancelled", "info")
+            self._log("Folder selection cancelled.", "info")
             return
 
-        # Validate folder contains images
         is_valid, files, error = validate_image_files(folder)
 
         if not is_valid:
             self._log(f"No images found: {error}", "error")
+            self._set_info(f"✕  {error}", level="error")
             return
 
         self.selected_folder = folder
         self.error_folder = create_error_folder(folder)
 
-        # Update UI
-        self.folder_label.configure(text=str(folder.name))
-        self.info_label.configure(
-            text=f"✅ Found {len(files)} image(s). Click 'Start Auto Crop' to begin.",
+        # Update picker row
+        self.folder_label.configure(
+            text=str(folder),
+            text_color=self.theme["fg_primary"],
+        )
+
+        # Show file count badge
+        self.file_count_lbl.configure(text=f"  {len(files)} images  ")
+        self.file_count_lbl.grid(row=0, column=2, padx=(0, 14))
+
+        self._set_info(
+            f"✓  Found {len(files)} image file(s) in '{folder.name}' — click Start to begin.",
+            level="success",
         )
         self.btn_start.configure(state="normal")
 
-        self._log(f"Selected folder: {folder}", "success")
-        self._log(f"Found {len(files)} image file(s)", "info")
+        self._log(f"Folder: {folder}", "info")
+        self._log(f"Found {len(files)} image file(s).", "success")
 
     def _on_start_crop(self):
-        """Handle start crop button."""
         if not self.selected_folder:
-            self._log("No folder selected", "error")
+            self._log("No folder selected.", "error")
             return
 
-        # Create output folders
         self.output_folder = create_error_folder(self.selected_folder).parent / "cropped"
         self.output_folder.mkdir(parents=True, exist_ok=True)
-
         error_folder = create_error_folder(self.selected_folder)
 
-        # Disable button and set operation state
-        self.btn_start.configure(state="disabled")
+        self.btn_start.configure(state="disabled", text="  ⏳  Running…")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "crop"
         self.has_errors = False
 
-        self._log("Starting auto-crop operation...", "info")
+        self.parent.set_status("Starting auto-crop…", 0.0)
+        self._log("Starting auto-crop operation…", "info")
 
-        # Create and start worker
         self.worker = AutoCropWorker(
             input_folder=self.selected_folder,
             output_folder=self.output_folder,
             error_folder=error_folder,
         )
-
-        # Set up callbacks
         self.worker.set_progress_callback(
-            lambda progress: self._dispatch_to_ui(self._on_progress, progress)
+            lambda p: self._dispatch(self._on_progress, p)
         )
         self.worker.set_status_callback(
-            lambda message: self._dispatch_to_ui(self._on_status, message)
+            lambda m: self._dispatch(self._on_status, m)
         )
         self.worker.set_error_callback(
-            lambda filename, error_message: self._dispatch_to_ui(
-                self._on_error,
-                filename,
-                error_message,
-            )
+            lambda f, e: self._dispatch(self._on_error, f, e)
         )
 
-        # Create cancel button
-        self._create_cancel_button()
-
-        # Start worker
         self.worker.start()
-
-        # Wait for completion
-        self._wait_for_worker()
+        self._poll_worker()
 
     def _on_progress(self, progress: dict):
-        """Handle progress update."""
         current = progress["current"]
         total = progress["total"]
-        percentage = progress["percentage"] / 100.0
-        filename = progress["filename"]
+        pct = progress["percentage"] / 100.0
+        filename = progress.get("filename", "")
 
-        # Update main window progress
-        status = f"Cropping: {current} / {total}"
-        self.parent.set_status(status, percentage)
-
-        # Log file being processed
+        self.parent.set_status(f"Cropping {current} / {total} — {filename}", pct)
         self._log(f"Processing: {filename}", "info")
 
     def _on_status(self, message: str):
-        """Handle status update."""
         self.parent.set_status(message)
         self._log(message, "success")
 
     def _on_error(self, filename: str, error_message: str):
-        """Handle error notification."""
         self.has_errors = True
-        self._log(f"Error: {filename} — {error_message}", "error")
-
-        # Enable error report button
+        self._log(f"{filename} — {error_message}", "error")
         if self.btn_error_report:
             self.btn_error_report.configure(state="normal")
 
-    def _create_cancel_button(self):
-        """Create cancel button during operation."""
-        # This would be added to the button frame during operation
-        # For now, cancellation happens when worker.cancel() is called
-        pass
-
-    def _on_cancel_crop(self):
-        """Handle cancel button."""
-        if self.worker:
-            self._log("Cancelling operation...", "warning")
-            self.worker.cancel()
-            self.btn_start.configure(state="normal")
-            self.parent.operation_in_progress = False
-
-    def _wait_for_worker(self):
-        """Wait for worker to complete and finalize."""
+    def _poll_worker(self):
         if self.worker and self.worker.is_alive():
-            self.worker.join(timeout=0.1)
-            self.parent.after(100, self._wait_for_worker)
+            self.worker.join(timeout=0.05)
+            self.parent.after(100, self._poll_worker)
         else:
-            # Worker complete
-            if self.worker:
-                results = self.worker.get_results()
-                self._log(
-                    f"Operation complete: {results['success']} cropped, "
-                    f"{results['skipped']} skipped, {results['failed']} failed",
-                    "success" if not self.has_errors else "warning",
-                )
+            self._on_worker_done()
 
-                # Generate error report if needed
-                if results["errors"]:
-                    self._generate_error_report(results)
+    def _on_worker_done(self):
+        if self.worker:
+            results = self.worker.get_results()
+            level = "warning" if self.has_errors else "success"
+            self._log(
+                f"Done — {results['success']} cropped, "
+                f"{results['skipped']} skipped, {results['failed']} failed.",
+                level,
+            )
+            self._set_info(
+                f"✓  Complete — {results['success']} cropped  ·  "
+                f"{results['skipped']} skipped  ·  {results['failed']} failed",
+                level=level,
+            )
 
-            # Re-enable start button
-            self.btn_start.configure(state="normal")
-            self.parent.operation_in_progress = False
+            if results.get("errors"):
+                self._generate_error_report(results)
 
-    def _generate_error_report(self, results: dict):
-        """Generate error report file."""
-        report_file = self.error_folder / "CROP_ERROR_REPORT.txt"
-        report_lines = [
-            "DPA Image Toolkit - Auto Crop Error Report",
-            "=" * 60,
-            "",
-            f"Total Errors: {len(results['errors'])}",
-            "",
-        ]
-
-        for error_info in results["errors"]:
-            report_lines.append(f"File: {error_info['file']}")
-            report_lines.append(f"Error: {error_info['error']}")
-            report_lines.append("")
-
-        report_lines.extend([
-            "=" * 60,
-            "These files have been moved to the errored-files/ folder.",
-            "Check file format and try again.",
-        ])
-
-        try:
-            report_file.write_text("\n".join(report_lines))
-            self._log(f"Error report saved: {report_file.name}", "info")
-        except Exception as e:
-            self._log(f"Failed to save error report: {e}", "error")
+        self.btn_start.configure(state="normal", text="  ▶  Start Auto Crop")
+        self.parent.operation_in_progress = False
+        self.parent.set_status("Ready", 1.0)
 
     def _on_view_error_report(self):
-        """Handle view error report button."""
         if not self.error_folder or not self.error_folder.exists():
-            self._log("No error folder found", "warning")
+            self._log("No error folder found.", "warning")
             return
 
         import subprocess
@@ -343,27 +419,72 @@ class AutoCropPanel:
         try:
             if platform.system() == "Windows":
                 subprocess.Popen(f'explorer "{self.error_folder}"')
-            elif platform.system() == "Darwin":  # macOS
+            elif platform.system() == "Darwin":
                 subprocess.Popen(["open", str(self.error_folder)])
-            else:  # Linux
+            else:
                 subprocess.Popen(["xdg-open", str(self.error_folder)])
-
             self._log(f"Opened error folder: {self.error_folder}", "info")
         except Exception as e:
             self._log(f"Failed to open error folder: {e}", "error")
 
-    def _log(self, message, level="info"):
-        """Add message to log display."""
-        emojis = {
-            "info": "ℹ️",
-            "success": "✅",
-            "warning": "⚠️",
-            "error": "❌",
-        }
-        emoji = emojis.get(level, "📝")
-        formatted = f"{emoji} {message}\n"
+    # ──────────────────────────────────────────────────────────────────────────
+    # Helpers
+    # ──────────────────────────────────────────────────────────────────────────
 
+    def _dispatch(self, callback, *args):
+        self.parent.after(0, lambda: callback(*args))
+
+    def _set_info(self, text: str, level: str = "info"):
+        t = self.theme
+        color_map = {
+            "info":    (t["fg_secondary"], t["accent_dim"]),
+            "success": (t["success"], t["success_dim"]),
+            "warning": (t["warning"], t["warning_dim"]),
+            "error":   (t["error"], t["error_dim"]),
+        }
+        text_color, bg_color = color_map.get(level, (t["fg_secondary"], t["accent_dim"]))
+        self.info_card.configure(fg_color=bg_color)
+        self.info_lbl.configure(
+            text=text,
+            text_color=text_color,
+        )
+
+    def _clear_log(self):
         self.log_display.configure(state="normal")
-        self.log_display.insert("end", formatted)
+        self.log_display.delete("1.0", "end")
+        self.log_display.configure(state="disabled")
+
+    def _log(self, message: str, level: str = "info"):
+        t = self.theme
+        prefixes = {
+            "info":    "  ·  ",
+            "success": "  ✓  ",
+            "warning": "  ⚠  ",
+            "error":   "  ✕  ",
+        }
+        prefix = prefixes.get(level, "  ·  ")
+        self.log_display.configure(state="normal")
+        self.log_display.insert("end", f"{prefix}{message}\n")
         self.log_display.see("end")
         self.log_display.configure(state="disabled")
+
+    def _generate_error_report(self, results: dict):
+        if not self.error_folder:
+            return
+        report_file = self.error_folder / "CROP_ERROR_REPORT.txt"
+        lines = [
+            "DPA Image Toolkit — Auto Crop Error Report",
+            "=" * 60, "",
+            f"Total Errors: {len(results['errors'])}", "",
+        ]
+        for e in results["errors"]:
+            lines += [f"File:  {e['file']}", f"Error: {e['error']}", ""]
+        lines += [
+            "=" * 60,
+            "These files have been moved to the errored-files/ folder.",
+        ]
+        try:
+            report_file.write_text("\n".join(lines))
+            self._log(f"Error report saved: {report_file.name}", "info")
+        except Exception as ex:
+            self._log(f"Failed to save error report: {ex}", "error")
