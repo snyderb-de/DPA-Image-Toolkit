@@ -1,137 +1,146 @@
-// DPA Image Toolkit Dashboard - Script
+async function loadDashboard() {
+    let data = window.DPA_DASHBOARD_DATA;
 
-// Dashboard state (can be updated with data.json later)
-const dashboardState = {
-    currentPhase: 1,
-    phases: [
-        { id: 1, name: 'Setup & Repository Integration', progress: 0, status: 'pending' },
-        { id: 2, name: 'Analysis & Architecture Design', progress: 0, status: 'pending' },
-        { id: 3, name: 'GUI Development & Integration', progress: 0, status: 'pending' },
-        { id: 4, name: 'Testing & Refinement', progress: 0, status: 'pending' },
-        { id: 5, name: 'Documentation & Deployment', progress: 0, status: 'pending' }
-    ],
-    repositories: [
-        { id: 1, url: '', status: 'Not provided', integration: 'Pending' },
-        { id: 2, url: '', status: 'Not provided', integration: 'Pending' }
-    ]
-};
+    if (!data) {
+        const response = await fetch("data.json");
+        data = await response.json();
+    }
 
-// Initialize dashboard on page load
-document.addEventListener('DOMContentLoaded', function() {
-    updateDashboard();
-    setLastUpdated();
-    loadDataFromFile();
-});
-
-// Update dashboard display
-function updateDashboard() {
-    updatePhaseInfo();
-    updateProgressBar();
-    updateRepositories();
-    updatePhasesTimeline();
+    renderProject(data.project);
+    renderHighlights(data.highlights);
+    renderTools(data.tools);
+    renderList("workflow", data.workflow, true);
+    renderList("architecture", data.architecture);
+    renderLanguages(data.languages, data.languageNote);
+    renderList("open-issues", data.openIssues);
+    renderList("future-ideas", data.futureIdeas);
+    renderList("limitations", data.limitations);
+    renderList("dependencies", data.dependencies);
+    renderList("source-repos", data.sourceRepos);
+    renderDocs(data.docs);
+    renderList("recent-commits", data.recentCommits);
+    renderGeneratedAt();
 }
 
-// Update current phase information
-function updatePhaseInfo() {
-    const currentPhase = dashboardState.phases[dashboardState.currentPhase - 1];
-    document.getElementById('currentPhase').textContent = `Phase ${currentPhase.id}: ${currentPhase.name}`;
-    document.getElementById('phaseProgress').textContent = `${currentPhase.progress}%`;
+function renderProject(project) {
+    document.getElementById("project-name").textContent = project.name;
+    document.getElementById("project-tagline").textContent = project.tagline;
+    document.getElementById("project-summary").textContent = project.summary;
+    document.getElementById("project-version").textContent = `Version ${project.version}`;
+    document.getElementById("project-status").textContent = project.status;
 }
 
-// Update overall progress bar
-function updateProgressBar() {
-    const totalPhases = dashboardState.phases.length;
-    const completedPhases = dashboardState.phases.filter(p => p.status === 'completed').length;
-    const activePhases = dashboardState.phases.filter(p => p.status === 'active').length;
+function renderHighlights(highlights) {
+    const root = document.getElementById("highlights");
+    root.innerHTML = "";
 
-    const overallProgress = ((completedPhases + (activePhases * 0.5)) / totalPhases) * 100;
-    const progressFill = document.getElementById('overallProgress');
-    progressFill.style.width = overallProgress + '%';
-
-    document.getElementById('progressText').textContent = `${Math.round(overallProgress)}% Complete`;
-}
-
-// Update repository status
-function updateRepositories() {
-    dashboardState.repositories.forEach((repo, index) => {
-        const repoNum = index + 1;
-        document.getElementById(`repo${repoNum}-url`).textContent = repo.url || 'Not provided';
-        document.getElementById(`repo${repoNum}-status`).textContent = repo.status;
-        document.getElementById(`repo${repoNum}-integration`).textContent = repo.integration;
+    highlights.forEach((item) => {
+        const card = document.createElement("article");
+        card.className = "stat-card";
+        card.innerHTML = `
+            <p class="stat-label">${item.label}</p>
+            <h3 class="stat-value">${item.value}</h3>
+            <p class="stat-detail">${item.detail}</p>
+        `;
+        root.appendChild(card);
     });
 }
 
-// Update phases timeline
-function updatePhasesTimeline() {
-    dashboardState.phases.forEach((phase) => {
-        const phaseElement = document.getElementById(`phase-${phase.id}`);
-        const statusElement = phaseElement.querySelector('.phase-status');
+function renderTools(tools) {
+    const root = document.getElementById("tools");
+    root.innerHTML = "";
 
-        // Update status badge
-        statusElement.textContent = phase.status.charAt(0).toUpperCase() + phase.status.slice(1);
-        statusElement.className = `phase-status ${phase.status}`;
+    tools.forEach((tool) => {
+        const card = document.createElement("article");
+        card.className = "tool-card";
 
-        // Update phase item class
-        phaseElement.classList.remove('pending', 'active', 'completed');
-        phaseElement.classList.add(phase.status);
+        const outputs = tool.outputs.map((item) => `<li>${item}</li>`).join("");
+        const notes = tool.notes.map((item) => `<li>${item}</li>`).join("");
+
+        card.innerHTML = `
+            <div class="tool-head">
+                <div class="tool-icon">${tool.icon}</div>
+                <div>
+                    <h3>${tool.name}</h3>
+                    <p>${tool.summary}</p>
+                </div>
+            </div>
+            <div class="tool-meta">
+                <p><strong>Input:</strong> ${tool.inputs}</p>
+                <div>
+                    <strong>Output:</strong>
+                    <ul>${outputs}</ul>
+                </div>
+                <div>
+                    <strong>Notes:</strong>
+                    <ul>${notes}</ul>
+                </div>
+            </div>
+        `;
+
+        root.appendChild(card);
     });
 }
 
-// Set last updated timestamp
-function setLastUpdated() {
+function renderList(id, items, ordered = false) {
+    const root = document.getElementById(id);
+    root.innerHTML = "";
+
+    items.forEach((item) => {
+        const entry = document.createElement("li");
+        entry.textContent = item;
+        root.appendChild(entry);
+    });
+
+    if (ordered) {
+        root.classList.add("numbered");
+    }
+}
+
+function renderLanguages(languages, note) {
+    const root = document.getElementById("languages");
+    root.innerHTML = "";
+
+    languages.forEach((lang) => {
+        const row = document.createElement("div");
+        row.className = "language-row";
+        row.innerHTML = `
+            <div class="language-meta">
+                <span class="language-name">${lang.name}</span>
+                <span class="language-stats">${lang.files} files · ${lang.percent}%</span>
+            </div>
+            <div class="language-bar">
+                <div class="language-fill" style="width:${lang.percent}%"></div>
+            </div>
+        `;
+        root.appendChild(row);
+    });
+
+    document.getElementById("language-note").textContent = note;
+}
+
+function renderDocs(docs) {
+    const root = document.getElementById("docs");
+    root.innerHTML = "";
+
+    docs.forEach((doc) => {
+        const card = document.createElement("article");
+        card.className = "doc-card";
+        card.innerHTML = `
+            <h3>${doc.name}</h3>
+            <p>${doc.description}</p>
+            <a href="${doc.path}">${doc.path}</a>
+        `;
+        root.appendChild(card);
+    });
+}
+
+function renderGeneratedAt() {
     const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    document.getElementById('lastUpdated').textContent = formattedDate;
+    document.getElementById("generated-at").textContent =
+        `Generated ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 }
 
-// Load data from data.json (for future use)
-function loadDataFromFile() {
-    // Placeholder for loading from data.json
-    // fetch('data.json')
-    //     .then(response => response.json())
-    //     .then(data => {
-    //         Object.assign(dashboardState, data);
-    //         updateDashboard();
-    //     })
-    //     .catch(error => console.log('data.json not found, using defaults'));
-}
-
-// Function to update a specific phase (callable from console or programmatically)
-function updatePhase(phaseId, status, progress = 0) {
-    const phase = dashboardState.phases.find(p => p.id === phaseId);
-    if (phase) {
-        phase.status = status;
-        phase.progress = progress;
-        updateDashboard();
-    }
-}
-
-// Function to update repository information
-function updateRepository(repoNum, url, status, integration) {
-    if (dashboardState.repositories[repoNum - 1]) {
-        dashboardState.repositories[repoNum - 1] = { id: repoNum, url, status, integration };
-        updateRepositories();
-    }
-}
-
-// Function to set current phase
-function setCurrentPhase(phaseId) {
-    dashboardState.currentPhase = phaseId;
-    updatePhaseInfo();
-}
-
-// Expose functions globally for console/programmatic use
-window.dashboardAPI = {
-    updatePhase,
-    updateRepository,
-    setCurrentPhase,
-    getState: () => dashboardState
-};
-
-console.log('Dashboard initialized. Use window.dashboardAPI to update dashboard state.');
+loadDashboard().catch((error) => {
+    document.body.innerHTML = `<pre style="padding:2rem;">Failed to load dashboard data.\n${error}</pre>`;
+});

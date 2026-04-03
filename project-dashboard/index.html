@@ -3,153 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DPA Image Toolkit - Project Dashboard</title>
+    <title>DPA Image Toolkit — Project Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <h1>DPA Image Toolkit</h1>
-            <p class="subtitle">Unified Application Project Dashboard</p>
+    <div class="shell">
+        <header class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">GitHub Pages Dashboard</p>
+                <h1 id="project-name">DPA Image Toolkit</h1>
+                <p class="tagline" id="project-tagline"></p>
+                <p class="summary" id="project-summary"></p>
+                <div class="hero-meta">
+                    <span class="meta-pill" id="project-version"></span>
+                    <span class="meta-pill" id="project-status"></span>
+                </div>
+            </div>
         </header>
 
-        <!-- Project Status Overview -->
-        <section class="section project-status">
-            <h2>Project Status</h2>
-            <div class="status-grid">
-                <div class="status-card">
-                    <h3>Current Phase</h3>
-                    <p class="phase-name" id="currentPhase">Phase 1: Setup</p>
-                    <p class="phase-progress" id="phaseProgress">0%</p>
+        <main class="content">
+            <section class="section">
+                <div class="section-header">
+                    <p class="eyebrow">Snapshot</p>
+                    <h2>Project Overview</h2>
                 </div>
-                <div class="status-card">
-                    <h3>Overall Progress</h3>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="overallProgress" style="width: 0%"></div>
-                    </div>
-                    <p class="progress-text" id="progressText">0% Complete</p>
-                </div>
-                <div class="status-card">
-                    <h3>Timeline</h3>
-                    <p class="timeline-info">6-10 weeks estimated</p>
-                    <p class="timeline-info" id="statusDate">Start Date: TBD</p>
-                </div>
-            </div>
-        </section>
+                <div class="stat-grid" id="highlights"></div>
+            </section>
 
-        <!-- Merged Repositories Status -->
-        <section class="section repositories">
-            <h2>Source Repositories</h2>
-            <div class="repo-grid">
-                <div class="repo-card">
-                    <div class="repo-header">
-                        <h3>Repository 1</h3>
-                        <span class="status-badge pending">Not Configured</span>
-                    </div>
-                    <div class="repo-info">
-                        <p><strong>URL:</strong> <span id="repo1-url">Not provided</span></p>
-                        <p><strong>Status:</strong> <span id="repo1-status">Awaiting URL</span></p>
-                        <p><strong>Integration:</strong> <span id="repo1-integration">Pending</span></p>
-                    </div>
+            <section class="section">
+                <div class="section-header">
+                    <p class="eyebrow">Toolkit</p>
+                    <h2>Included Tools</h2>
                 </div>
+                <div class="tool-grid" id="tools"></div>
+            </section>
 
-                <div class="repo-card">
-                    <div class="repo-header">
-                        <h3>Repository 2</h3>
-                        <span class="status-badge pending">Not Configured</span>
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Workflow</p>
+                        <h2>Typical Use</h2>
                     </div>
-                    <div class="repo-info">
-                        <p><strong>URL:</strong> <span id="repo2-url">Not provided</span></p>
-                        <p><strong>Status:</strong> <span id="repo2-status">Awaiting URL</span></p>
-                        <p><strong>Integration:</strong> <span id="repo2-integration">Pending</span></p>
+                    <ol class="stacked-list numbered" id="workflow"></ol>
+                </section>
+
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Architecture</p>
+                        <h2>Repo Structure</h2>
                     </div>
-                </div>
-            </div>
-        </section>
+                    <ul class="stacked-list" id="architecture"></ul>
+                </section>
+            </section>
 
-        <!-- Project Phases -->
-        <section class="section phases">
-            <h2>Project Phases</h2>
-            <div class="phases-list">
-                <div class="phase-item" id="phase-1">
-                    <div class="phase-marker">1</div>
-                    <div class="phase-details">
-                        <h4>Setup & Repository Integration</h4>
-                        <p class="phase-duration">1-2 weeks</p>
-                        <p class="phase-description">Create base structure, import repos, remove .git folders</p>
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Language Data</p>
+                        <h2>Tracked File Mix</h2>
                     </div>
-                    <div class="phase-status pending">Pending</div>
-                </div>
+                    <div class="language-list" id="languages"></div>
+                    <p class="footnote" id="language-note"></p>
+                </section>
 
-                <div class="phase-item" id="phase-2">
-                    <div class="phase-marker">2</div>
-                    <div class="phase-details">
-                        <h4>Analysis & Architecture Design</h4>
-                        <p class="phase-duration">1 week</p>
-                        <p class="phase-description">Analyze functionality, design unified architecture</p>
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Current Work</p>
+                        <h2>Open Issues</h2>
                     </div>
-                    <div class="phase-status pending">Pending</div>
-                </div>
+                    <ul class="stacked-list issue-list" id="open-issues"></ul>
+                </section>
+            </section>
 
-                <div class="phase-item" id="phase-3">
-                    <div class="phase-marker">3</div>
-                    <div class="phase-details">
-                        <h4>GUI Development & Integration</h4>
-                        <p class="phase-duration">2-3 weeks</p>
-                        <p class="phase-description">Develop main GUI, integrate functionality, create modules</p>
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Roadmap</p>
+                        <h2>Future Ideas</h2>
                     </div>
-                    <div class="phase-status pending">Pending</div>
-                </div>
+                    <ul class="stacked-list" id="future-ideas"></ul>
+                </section>
 
-                <div class="phase-item" id="phase-4">
-                    <div class="phase-marker">4</div>
-                    <div class="phase-details">
-                        <h4>Testing & Refinement</h4>
-                        <p class="phase-duration">1-2 weeks</p>
-                        <p class="phase-description">Functional testing, bug fixes, optimization</p>
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Limitations</p>
+                        <h2>Current Constraints</h2>
                     </div>
-                    <div class="phase-status pending">Pending</div>
-                </div>
+                    <ul class="stacked-list" id="limitations"></ul>
+                </section>
+            </section>
 
-                <div class="phase-item" id="phase-5">
-                    <div class="phase-marker">5</div>
-                    <div class="phase-details">
-                        <h4>Documentation & Deployment</h4>
-                        <p class="phase-duration">1 week</p>
-                        <p class="phase-description">Complete docs, create deployment package</p>
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Dependencies</p>
+                        <h2>Runtime Stack</h2>
                     </div>
-                    <div class="phase-status pending">Pending</div>
-                </div>
-            </div>
-        </section>
+                    <ul class="stacked-list mono-list" id="dependencies"></ul>
+                </section>
 
-        <!-- Quick Links -->
-        <section class="section quick-links">
-            <h2>Resources</h2>
-            <div class="links-grid">
-                <a href="../PROJECT_PLAN.md" class="link-card">
-                    <h3>📋 Project Plan</h3>
-                    <p>Detailed project phases and timeline</p>
-                </a>
-                <a href="../README.md" class="link-card">
-                    <h3>📖 README</h3>
-                    <p>Project setup and usage instructions</p>
-                </a>
-                <a href="../merged-repos/" class="link-card">
-                    <h3>📁 Merged Repositories</h3>
-                    <p>Integrated source code</p>
-                </a>
-            </div>
-        </section>
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Reference</p>
+                        <h2>Source Repos</h2>
+                    </div>
+                    <ul class="stacked-list mono-list" id="source-repos"></ul>
+                </section>
+            </section>
 
-        <!-- Footer -->
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Repo Docs</p>
+                        <h2>Readme Content</h2>
+                    </div>
+                    <div class="docs-grid" id="docs"></div>
+                </section>
+
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Recent Changes</p>
+                        <h2>Latest Commits</h2>
+                    </div>
+                    <ul class="stacked-list mono-list" id="recent-commits"></ul>
+                </section>
+            </section>
+        </main>
+
         <footer class="footer">
-            <p>DPA Image Toolkit Project Dashboard</p>
-            <p class="last-updated">Last Updated: <span id="lastUpdated">Loading...</span></p>
+            <p>DPA Image Toolkit dashboard</p>
+            <p id="generated-at"></p>
         </footer>
     </div>
 
+    <script src="data.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

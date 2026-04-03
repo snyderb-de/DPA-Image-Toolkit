@@ -52,26 +52,7 @@ class AutoCropPanel:
         # ── Page header ───────────────────────────────────────────────────────
         hdr_row = ctk.CTkFrame(panel, fg_color="transparent")
         hdr_row.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
-        hdr_row.grid_columnconfigure(1, weight=1)
-
-        badge = ctk.CTkLabel(
-            hdr_row,
-            text="✂",
-            font=("Segoe UI", 22),
-            fg_color=t["accent_dim"],
-            text_color=t["accent"],
-            width=48, height=48,
-            corner_radius=RADIUS["md"],
-        )
-        badge.grid(row=0, column=0, rowspan=2)
-
-        ctk.CTkLabel(
-            hdr_row,
-            text="PROCESSING MODULE",
-            font=get_font("eyebrow"),
-            text_color=t["fg_tertiary"],
-            anchor="w",
-        ).grid(row=0, column=1, sticky="sw", padx=(16, 0))
+        hdr_row.grid_columnconfigure(0, weight=1)
 
         title = ctk.CTkLabel(
             hdr_row,
@@ -80,7 +61,7 @@ class AutoCropPanel:
             text_color=t["fg_primary"],
             anchor="w",
         )
-        title.grid(row=1, column=1, sticky="nw", padx=(16, 0))
+        title.grid(row=0, column=0, sticky="sw")
 
         subtitle = ctk.CTkLabel(
             hdr_row,
@@ -88,8 +69,10 @@ class AutoCropPanel:
             font=get_font("normal"),
             text_color=t["fg_secondary"],
             anchor="w",
+            justify="left",
+            wraplength=760,
         )
-        subtitle.grid(row=2, column=1, sticky="w", padx=(16, 0), pady=(8, 0))
+        subtitle.grid(row=1, column=0, sticky="nw", pady=(8, 0))
 
         # ── Folder picker card ────────────────────────────────────────────────
         picker_card = ctk.CTkFrame(

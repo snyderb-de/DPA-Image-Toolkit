@@ -1,4 +1,4 @@
-{
+window.DPA_DASHBOARD_DATA = {
   "project": {
     "name": "DPA Image Toolkit",
     "tagline": "Desktop toolkit for archival image cleanup and TIFF workflow management",
@@ -215,3 +215,4 @@
     "14cf417 Fix main menu grid startup crash"
   ]
 }
+;

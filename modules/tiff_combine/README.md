@@ -1,6 +1,6 @@
 # TIFF Combine Module
 
-Production-ready TIFF merge implementation for multi-page TIFF creation.
+TIFF merge implementation for building multi-page TIFFs from grouped page files.
 
 ## Quick Start
 
@@ -66,7 +66,7 @@ def merge_tiff_group(
 - `group_name` (str): Group name (extracted from filename before `_###`)
 - `input_folder` (Path|str): Folder containing TIFF files
 - `output_folder` (Path|str): Folder to save merged TIFF
-- `dpi_per_file` (bool): Preserve DPI from first file (default True)
+- `dpi_per_file` (bool): Current implementation still saves using the first file's DPI (default True)
 
 **Returns**:
 - `success` (bool): True if merge succeeded
@@ -250,7 +250,7 @@ Output:
 
 ## DPI Preservation
 
-DPI is extracted from the first valid file in the group:
+Current behavior extracts DPI from the first valid file in the group:
 
 ```python
 # First file has DPI 300×300

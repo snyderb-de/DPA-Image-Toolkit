@@ -1,19 +1,25 @@
 # DPA Image Toolkit — Project Reference
 
-**Version 1.0 | Production Ready | Windows Desktop App**
-
----
+**Version 1.0 | Functional desktop toolkit for archival image workflows**
 
 ## What It Does
 
-Two image processing tools in one GUI:
+The toolkit currently ships four user-facing tools in one desktop GUI:
 
-- **Auto-Crop** — Detects large non-white objects in scanned images and crops to them, removing white backgrounds
-- **TIFF Merge** — Groups individual TIFF files by naming pattern and combines each group into a single multi-page TIFF
-- **TIFF Split** — Extracts multi-page TIFFs into single-page TIFF files
-- **Add Border** — Adds white border padding to images using the same spacing logic as Auto-Crop
+- **Auto Crop** — Detect content and crop away scanner-created white space while keeping all meaningful detected content
+- **Merge TIFFs** — Group TIFF files by naming pattern and combine each valid group into a single multi-page TIFF
+- **Split TIFFs** — Extract multi-page TIFFs into single-page TIFF files
+- **Add Border** — Add white border padding to image folders using the same spacing logic as Auto Crop
 
-Typical workflow: scan images → auto-crop → merge pages into multi-page TIFFs.
+Typical workflow:
+
+```text
+scan images -> auto crop -> merge tiffs
+```
+
+Supporting workflows:
+- split existing multi-page TIFFs into single pages
+- add consistent borders to book scans or similar image sets
 
 ---
 
@@ -24,12 +30,12 @@ main.py                             Entry point; dependency check, then launch G
 dpa-image-toolkit.py                Wrapper script for user-level launch
 image-toolkit.bat                   Windows batch launcher
 gui/
-├── main_window.py                  Main window, panel navigation, theme toggle
+├── main_window.py                  Main window, panel navigation, theming, status bar
 ├── auto_crop_panel.py              Auto-crop UI: folder pick → progress → output
 ├── add_border_panel.py             Add-border UI: folder pick → progress → output
 ├── tiff_merge_panel.py             TIFF merge UI: validate → spot-check → progress
 ├── tiff_split_panel.py             TIFF split UI: file/folder pick → progress → output
-└── styles.py                       Light/dark palette, orange accent (#ff8800)
+└── styles.py                       Light/dark theme tokens and layout constants
 modules/
 ├── auto_cropping/
 │   └── core.py                     crop_image(), get_crop_stats() — OpenCV + Pillow
@@ -49,7 +55,7 @@ utils/
 └── progress.py                     ProgressTracker, create_progress_callback()
 ```
 
-Both tools share the same threading pattern: a daemon `OperationWorker` thread runs the operation and fires progress/status/error callbacks back to the GUI. The UI never blocks.
+All tools share the same threading pattern: a daemon `OperationWorker` thread runs the operation and fires progress/status/error callbacks back to the GUI. The UI never blocks.
 
 ---
 
@@ -116,21 +122,21 @@ The `cropped/` folder output from Auto-Crop preserves original filenames, so fil
 | GUI framework | customtkinter | Consistent with original auto-cropping repo; pure pip install |
 | TIFF backend | Pillow | Portable; no IrfanView or other external tool dependency |
 | White threshold | 253 | Detects near-white objects (RGB 240+) while skipping pure white |
-| DPI on merge | First file in group | All pages same DPI in practice; simpler |
+| DPI on merge | First file in group | Current implementation is simpler; per-page DPI preservation remains a TODO |
 | Error strategy | Quarantine to `errored-files/` | Processing continues; failures isolated with report |
 | File order | Numeric sort on `_###` | Explicit; not filesystem-dependent |
-| Naming validation | Required before merge | Prevents silent grouping mistakes |
+| Naming validation | Required for valid groups | Prevents silent grouping mistakes while still allowing mixed folders |
 
 ---
 
 ## Known Limitations
 
-- **White background assumed** — Auto-crop will not work correctly on colored or dark backgrounds
-- **DPI from first file** — All pages in a merged TIFF share the first file's DPI
+- **White background assumed** — Auto Crop is tuned for scanned images on white or near-white backgrounds
+- **DPI from first file on merge** — Per-page DPI preservation is still an open enhancement
 - **RGBA transparency** — Flattened to white background on merge
-- **Max 999 pages** per merged TIFF (3-digit sequence limit); keep under 100–200 for practical use
-- **Windows launcher only** — `image-toolkit.bat` is Windows-specific; the Python app itself runs cross-platform
-- **No undo** — Operations cannot be reversed from within the app
+- **Max 999 pages** per merge group — Naming pattern uses 3-digit sequence numbers
+- **No in-app undo** — Operations write output folders but do not provide reversal controls
+- **Windows-first packaging** — The `.bat` launcher is Windows-specific, though the Python app can run cross-platform
 
 ---
 
@@ -151,7 +157,7 @@ pip install -r requirements.txt
 
 ## Source Repos (Reference)
 
-The two original repositories are preserved unchanged in `merged-repos/` for reference. The top-level app code is the live implementation.
+The original source repositories are preserved in `merged-repos/` for reference. The top-level app code is the live implementation.
 
 - `merged-repos/auto-cropping/` — original auto-cropping app
 - `merged-repos/tiff-combine/` — original tiff-combine scripts (Pillow, IrfanView, PowerShell variants)

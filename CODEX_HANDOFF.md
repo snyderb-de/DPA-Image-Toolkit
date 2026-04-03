@@ -72,6 +72,56 @@ Suggested entry format:
 - Follow-up:
   If card polish continues, use fresh screenshots to tune spacing rather than adding more decorative labels.
 
+## 2026-04-02 - Refreshed docs and rebuilt the project dashboard page
+- What changed:
+  Updated the root docs to reflect the current four-tool application, corrected stale module README details, and replaced the old placeholder `project-dashboard/` site with a GitHub Pages-ready dashboard driven by `data.json` that now includes toolkit overview, workflow, architecture, language mix, open issues, limitations, dependencies, and recent commits.
+- Why:
+  The user asked for updated readmes and a project dashboard page suitable for GitHub with readme content, language data, and issue visibility.
+- Files:
+  `README.md`, `PROJECT.md`, `modules/auto_cropping/README.md`, `modules/tiff_combine/README.md`, `modules/tiff_combine/NAMING_README.md`, `project-dashboard/index.html`, `project-dashboard/script.js`, `project-dashboard/style.css`, `project-dashboard/data.json`
+- Verification:
+  `python3 -m json.tool project-dashboard/data.json`
+  `node --check project-dashboard/script.js`
+- Follow-up:
+  If the dashboard is published through GitHub Pages, do one browser pass after deployment to verify relative links and fetch behavior in the chosen Pages hosting setup.
+
+## 2026-04-02 - Simplified panel headers and centered badges
+- What changed:
+  Removed the small panel-header labels such as `PROCESSING MODULE`, `TIFF CONSOLIDATION`, `TIFF EXTRACTION`, and `BORDER MODULE`, and updated the panel badge labels so the icons are centered within their boxes.
+- Why:
+  The user did not want the extra header labels and called out the badge icon alignment.
+- Files:
+  `gui/auto_crop_panel.py`, `gui/tiff_merge_panel.py`, `gui/tiff_split_panel.py`, `gui/add_border_panel.py`
+- Verification:
+  `python3 -m py_compile gui/auto_crop_panel.py gui/tiff_merge_panel.py gui/tiff_split_panel.py gui/add_border_panel.py`
+- Follow-up:
+  Keep panel headers visually simple; continue using screenshot-led QA for any further spacing tweaks.
+
+## 2026-04-02 - Removed tool-page header badges entirely
+- What changed:
+  Removed the large icon badges from the individual tool page headers so only the landing page retains tool icons.
+- Why:
+  The user wanted the tool-page headers simplified further and asked to keep icons only on the landing page.
+- Files:
+  `gui/auto_crop_panel.py`, `gui/tiff_merge_panel.py`, `gui/tiff_split_panel.py`, `gui/add_border_panel.py`
+- Verification:
+  `python3 -m py_compile gui/auto_crop_panel.py gui/tiff_merge_panel.py gui/tiff_split_panel.py gui/add_border_panel.py`
+- Follow-up:
+  If more header polish is needed, continue tightening spacing rather than reintroducing decorative elements.
+
+## 2026-04-02 - Added local-file fallback for project dashboard
+- What changed:
+  Added `project-dashboard/data.js` and updated the dashboard to use inline JavaScript data when opened directly from disk, while still allowing `data.json` fetch-based loading when served from GitHub Pages or another web host.
+- Why:
+  Browsers commonly block `fetch("data.json")` from local `file://` pages, which caused the dashboard to fail when opened directly.
+- Files:
+  `project-dashboard/index.html`, `project-dashboard/script.js`, `project-dashboard/data.js`
+- Verification:
+  `node --check project-dashboard/script.js`
+  `python3 -m json.tool project-dashboard/data.json`
+- Follow-up:
+  If dashboard content changes later, update both `data.json` and `data.js` or add a build step to generate one from the other.
+
 ## 2026-03-31 - Initial review notes
 - What changed:
   Added this handoff document for cross-agent continuity.

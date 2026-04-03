@@ -1,6 +1,6 @@
 # Auto-Cropping Module
 
-Complete, production-tested auto-crop implementation.
+Complete auto-crop implementation for scanned-image workflows.
 
 ## Quick Start
 
@@ -25,7 +25,7 @@ else:
 
 ### crop_image()
 
-Find and crop the largest non-white object in an image.
+Find detected non-white content in an image and crop one combined region that keeps all meaningful content.
 
 ```python
 def crop_image(
@@ -108,7 +108,7 @@ else:
    - This allows detection of near-white objects (RGB 240+)
 5. **Find contours** of non-white regions
 6. **Filter by size**: minimum 50×50px (configurable)
-7. **Get bounding box** of largest contour
+7. **Union bounding boxes** across all meaningful contours
 8. **Calculate padding**: 2.5% of object size, clamped 15-100px
 9. **Crop image** with padding applied
 10. **Save** with original DPI preserved
@@ -179,10 +179,8 @@ python tests/create_test_images.py
 # Run tests
 python tests/test_auto_crop.py
 
-# Expected output:
-# ✅ Cropped: 24
-# ⚠️ Skipped: 1  (near-white edge case)
-# ❌ Errors:  0
+# The script processes both the original single-object fixtures
+# and the multi-object fixture set.
 ```
 
 ## Integration with GUI
@@ -214,9 +212,9 @@ results = worker.get_results()
 
 ## Performance
 
-- **Speed**: ~120ms per image (depends on image size)
-- **Memory**: ~50MB peak for processing
-- **Scaling**: Handles 100+ images efficiently with threading
+- **Speed** depends on image size and contour complexity
+- **Memory** is bounded by current image size plus working buffers
+- **Scaling** is suitable for batch folder workflows through worker-thread processing
 
 ## Known Limitations
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `naming.py` module handles all file naming validation for tiff-combine operations. It ensures files follow the exact pattern required by the merge algorithm.
+The `naming.py` module handles file naming validation for TIFF merge operations. It identifies valid groups and reports unmatched files so mixed folders can still proceed when usable groups exist.
 
 ## File Naming Pattern
 
@@ -131,8 +131,8 @@ else:
 
 **Returns**: `tuple(dict, bool, list)`
 - `groups`: `{'group': ['file1', 'file2'], ...}`
-- `is_valid`: `True` if all .tif files follow pattern
-- `issues`: List of problem files/error messages
+- `is_valid`: `True` if all `.tif` files follow pattern
+- `issues`: List of unmatched or invalid files/error messages
 
 ### get_validation_summary()
 
@@ -166,7 +166,7 @@ summary = get_validation_summary(Path('my_folder'))
 
 **Returns**: `dict` - Ready to display in UI
 
-## Usage in UI (Week 5)
+## Usage in UI
 
 ### Example: Validation Panel
 
@@ -208,10 +208,9 @@ pattern = r'_\d{3}$'       # Case-insensitive
 
 ## Integration Notes
 
-- **Week 5**: This module will be called by `tiff_merge_panel.py`
-- **Week 5**: Error handling will use results to decide if merge can proceed
-- **Week 5**: UI will display validation summary before allowing merge
-- **Critical**: User must explicitly confirm naming is correct before merge starts
+- `tiff_merge_panel.py` uses this module when a folder is selected
+- Valid groups can be merged even if some TIFFs in the folder do not match the naming rule
+- The UI surfaces issues as warnings and allows the user to confirm the detected groups before merging
 
 ## Testing
 

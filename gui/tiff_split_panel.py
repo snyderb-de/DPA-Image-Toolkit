@@ -39,39 +39,23 @@ class TiffSplitPanel:
 
         hdr = ctk.CTkFrame(panel, fg_color="transparent")
         hdr.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
-        hdr.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            hdr,
-            text="⇵",
-            font=("Segoe UI", 22),
-            fg_color=t["accent_dim"],
-            text_color=t["accent"],
-            width=48,
-            height=48,
-            corner_radius=RADIUS["md"],
-        ).grid(row=0, column=0, rowspan=2)
-
-        ctk.CTkLabel(
-            hdr,
-            text="TIFF EXTRACTION",
-            font=get_font("eyebrow"),
-            text_color=t["fg_tertiary"],
-        ).grid(row=0, column=1, sticky="sw", padx=(16, 0))
+        hdr.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             hdr,
             text="Split Multi-Page TIFFs",
             font=get_font("title"),
             text_color=t["fg_primary"],
-        ).grid(row=1, column=1, sticky="nw", padx=(16, 0))
+        ).grid(row=0, column=0, sticky="sw")
 
         ctk.CTkLabel(
             hdr,
             text="Extract each page of a multi-page TIFF into individual single-page TIFF files",
             font=get_font("normal"),
             text_color=t["fg_secondary"],
-        ).grid(row=2, column=1, sticky="w", padx=(16, 0), pady=(8, 0))
+            justify="left",
+            wraplength=760,
+        ).grid(row=1, column=0, sticky="nw", pady=(8, 0))
 
         picker_card = ctk.CTkFrame(
             panel,
