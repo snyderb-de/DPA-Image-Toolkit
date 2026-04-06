@@ -39,14 +39,56 @@ if exist "%TARGET_PY%" (
 )
 
 set "PYTHON_CMD="
-py -3 --version >nul 2>&1
-if %errorlevel% equ 0 (
-    set "PYTHON_CMD=py -3"
-) else (
-    python --version >nul 2>&1
-    if %errorlevel% equ 0 (
-        set "PYTHON_CMD=python"
+set "PYTHON_PIP_CMD="
+set "FIRST_PY_CMD="
+set "FIRST_PY_PIP_CMD="
+
+REM Candidate 1: python (preferred)
+python --version >nul 2>&1
+if !errorlevel! equ 0 (
+    if not defined FIRST_PY_CMD (
+        set "FIRST_PY_CMD=python"
+        set "FIRST_PY_PIP_CMD=python -m pip"
     )
+    python -c "import customtkinter, PIL, cv2, numpy" >nul 2>&1
+    if !errorlevel! equ 0 if not defined PYTHON_CMD (
+        set "PYTHON_CMD=python"
+        set "PYTHON_PIP_CMD=python -m pip"
+    )
+)
+
+REM Candidate 2: python3
+python3 --version >nul 2>&1
+if !errorlevel! equ 0 (
+    if not defined FIRST_PY_CMD (
+        set "FIRST_PY_CMD=python3"
+        set "FIRST_PY_PIP_CMD=python3 -m pip"
+    )
+    python3 -c "import customtkinter, PIL, cv2, numpy" >nul 2>&1
+    if !errorlevel! equ 0 if not defined PYTHON_CMD (
+        set "PYTHON_CMD=python3"
+        set "PYTHON_PIP_CMD=python3 -m pip"
+    )
+)
+
+REM Candidate 3: py launcher
+py -3 --version >nul 2>&1
+if !errorlevel! equ 0 (
+    if not defined FIRST_PY_CMD (
+        set "FIRST_PY_CMD=py -3"
+        set "FIRST_PY_PIP_CMD=py -3 -m pip"
+    )
+    py -3 -c "import customtkinter, PIL, cv2, numpy" >nul 2>&1
+    if !errorlevel! equ 0 if not defined PYTHON_CMD (
+        set "PYTHON_CMD=py -3"
+        set "PYTHON_PIP_CMD=py -3 -m pip"
+    )
+)
+
+REM If no interpreter has all deps yet, use the first available one.
+if not defined PYTHON_CMD if defined FIRST_PY_CMD (
+    set "PYTHON_CMD=%FIRST_PY_CMD%"
+    set "PYTHON_PIP_CMD=%FIRST_PY_PIP_CMD%"
 )
 
 if not defined PYTHON_CMD (
@@ -75,7 +117,7 @@ if %errorlevel% neq 0 (
     echo.
     echo If you see an error about missing dependencies, follow these steps:
     echo   1. Open Command Prompt or PowerShell
-    echo   2. Run: %PYTHON_CMD% -m pip install -r "%REQUIREMENTS_FILE%"
+    echo   2. Run: %PYTHON_PIP_CMD% install -r "%REQUIREMENTS_FILE%"
     echo   3. Try launching again
     echo.
     echo If problems persist, contact support with the error message above.

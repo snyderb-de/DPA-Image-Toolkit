@@ -24,8 +24,8 @@ class MainWindow(ctk.CTk):
         self.minsize(920, 600)
 
         # ── State ──────────────────────────────────────────────────────────────
-        self.dark_mode = True
-        ctk.set_appearance_mode("dark")
+        self.dark_mode = False
+        ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         self.current_theme = get_theme(self.dark_mode)
         self.current_panel = "menu"
@@ -133,7 +133,7 @@ class MainWindow(ctk.CTk):
 
         self.theme_icon_lbl = ctk.CTkLabel(
             theme_row,
-            text="🌙",
+            text="🌙" if self.dark_mode else "☀",
             font=("Segoe UI", 16),
             text_color=t["fg_secondary"],
         )
@@ -141,7 +141,7 @@ class MainWindow(ctk.CTk):
 
         theme_lbl = ctk.CTkLabel(
             theme_row,
-            text="Dark mode",
+            text="Dark mode" if self.dark_mode else "Light mode",
             font=get_font("small"),
             text_color=t["fg_secondary"],
         )
@@ -158,7 +158,10 @@ class MainWindow(ctk.CTk):
             button_hover_color="#FFFFFF",
         )
         self.theme_switch.pack(side="right")
-        self.theme_switch.select()  # dark mode on by default
+        if self.dark_mode:
+            self.theme_switch.select()
+        else:
+            self.theme_switch.deselect()
 
         # Version tag
         ver_lbl = ctk.CTkLabel(
