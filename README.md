@@ -102,6 +102,33 @@ C:\Users\[user]\Scripts\dpa-img-tk\
 └─ utils\
 ```
 
+Copy-ready deployment bundle:
+
+```text
+deploy/
+├─ image-toolkit.bat
+├─ README.md
+└─ dpa-img-tk/
+   ├─ dpa-image-toolkit.py
+   ├─ main.py
+   ├─ requirements.txt
+   ├─ gui/
+   ├─ modules/
+   └─ utils/
+```
+
+Copy the contents of `deploy/` into:
+
+```text
+C:\Users\[user]\Scripts\
+```
+
+The launcher batch file is absolute-path aware, so you can keep a copy of `image-toolkit.bat` on the Desktop and it will still launch the app from:
+
+```text
+C:\Users\[user]\Scripts\dpa-img-tk\
+```
+
 Required to run:
 - `image-toolkit.bat`
 - `dpa-image-toolkit.py`
@@ -109,6 +136,7 @@ Required to run:
 - `gui/`
 - `modules/`
 - `utils/`
+- `requirements.txt`
 
 Not required for launch:
 - `tests/`

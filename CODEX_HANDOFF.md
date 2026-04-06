@@ -122,6 +122,18 @@ Suggested entry format:
 - Follow-up:
   If dashboard content changes later, update both `data.json` and `data.js` or add a build step to generate one from the other.
 
+## 2026-04-06 - Added copy-ready deploy bundle for Scripts-based launch
+- What changed:
+  Updated `image-toolkit.bat` so it prefers `%USERPROFILE%\Scripts\dpa-img-tk\dpa-image-toolkit.py`, still falls back to a local app copy for development use, and added a `deploy/` folder containing a copy-ready runtime bundle intended to be copied into `C:\Users\<user>\Scripts\`.
+- Why:
+  The user needed a deployment layout where the launcher can live anywhere, including the Desktop, while the app files live under the user Scripts directory.
+- Files:
+  `image-toolkit.bat`, `README.md`, `deploy/README.md`, `deploy/image-toolkit.bat`, `deploy/dpa-img-tk/*`
+- Verification:
+  `python3 -m py_compile dpa-image-toolkit.py main.py gui/main_window.py gui/auto_crop_panel.py gui/tiff_merge_panel.py gui/tiff_split_panel.py gui/add_border_panel.py utils/worker.py modules/auto_cropping/core.py modules/tiff_combine/core.py modules/tiff_split/core.py modules/image_border/core.py`
+- Follow-up:
+  If deploy bundle contents change later, regenerate `deploy/dpa-img-tk/` so it stays in sync with the live app files.
+
 ## 2026-03-31 - Initial review notes
 - What changed:
   Added this handoff document for cross-agent continuity.
