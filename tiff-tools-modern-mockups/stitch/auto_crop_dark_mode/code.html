@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;family=Newsreader:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-surface-variant": "#d0c5b5",
+            "on-secondary-fixed-variant": "#3d494a",
+            "secondary": "#bcc9ca",
+            "surface-container-high": "#282a2c",
+            "on-primary": "#412d00",
+            "error": "#ffb4ab",
+            "surface-tint": "#e3c286",
+            "on-error": "#690005",
+            "primary-fixed": "#ffdea5",
+            "on-secondary-container": "#aebbbc",
+            "inverse-primary": "#745b29",
+            "on-primary-fixed": "#271900",
+            "error-container": "#93000a",
+            "tertiary-fixed": "#d2e6e7",
+            "surface-container-highest": "#333537",
+            "secondary-fixed-dim": "#bcc9ca",
+            "surface-container": "#1e2022",
+            "on-error-container": "#ffdad6",
+            "on-secondary": "#263334",
+            "surface-dim": "#121416",
+            "inverse-on-surface": "#2f3133",
+            "primary-container": "#ccac72",
+            "tertiary": "#bbd0d0",
+            "outline-variant": "#4d463a",
+            "secondary-container": "#3f4b4c",
+            "on-primary-fixed-variant": "#5a4313",
+            "secondary-fixed": "#d8e5e6",
+            "on-secondary-fixed": "#111e1f",
+            "surface-container-low": "#1a1c1e",
+            "tertiary-container": "#a0b4b5",
+            "tertiary-fixed-dim": "#b6cacb",
+            "on-tertiary-container": "#344647",
+            "on-primary-container": "#564010",
+            "surface-bright": "#37393b",
+            "primary": "#e9c78b",
+            "on-tertiary-fixed-variant": "#374a4b",
+            "surface-variant": "#333537",
+            "surface-container-lowest": "#0c0e10",
+            "inverse-surface": "#e2e2e5",
+            "surface": "#121416",
+            "outline": "#998f81",
+            "primary-fixed-dim": "#e3c286",
+            "on-background": "#e2e2e5",
+            "on-surface": "#e2e2e5",
+            "background": "#121416",
+            "on-tertiary": "#213435",
+            "on-tertiary-fixed": "#0b1e1f"
+          },
+          fontFamily: {
+            "headline": ["Newsreader", "serif"],
+            "body": ["Manrope", "sans-serif"],
+            "label": ["Manrope", "sans-serif"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-panel {
+      background: rgba(55, 57, 59, 0.6);
+      backdrop-filter: blur(12px);
+    }
+    .amber-gradient {
+      background: linear-gradient(45deg, #e9c78b 0%, #ccac72 100%);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-[#1a1c1e] flex flex-col py-8 space-y-6 z-50">
+<div class="px-8">
+<h2 class="font-headline italic text-xl text-[#e9c78b] tracking-tight">Lab Index</h2>
+<p class="font-body uppercase tracking-widest text-[11px] text-[#ccac72] mt-1">V1.0.4-BETA</p>
+</div>
+<nav class="flex-1 flex flex-col space-y-1">
+<a class="flex items-center space-x-4 py-3 text-[#d0c5b5] opacity-60 hover:opacity-100 transition-opacity pl-4 hover:bg-[#1e2022]" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-body uppercase tracking-widest text-[11px]">Home</span>
+</a>
+<a class="flex items-center space-x-4 py-3 text-[#e9c78b] font-bold border-l-2 border-[#ccac72] pl-4 bg-[#1e2022]" href="#">
+<span class="material-symbols-outlined" data-icon="crop">crop</span>
+<span class="font-body uppercase tracking-widest text-[11px]">Auto Crop</span>
+</a>
+<a class="flex items-center space-x-4 py-3 text-[#d0c5b5] opacity-60 hover:opacity-100 transition-opacity pl-4 hover:bg-[#1e2022]" href="#">
+<span class="material-symbols-outlined" data-icon="merge_type">merge_type</span>
+<span class="font-body uppercase tracking-widest text-[11px]">Merge TIFFs</span>
+</a>
+<a class="flex items-center space-x-4 py-3 text-[#d0c5b5] opacity-60 hover:opacity-100 transition-opacity pl-4 hover:bg-[#1e2022]" href="#">
+<span class="material-symbols-outlined" data-icon="vertical_split">vertical_split</span>
+<span class="font-body uppercase tracking-widest text-[11px]">Split TIFFs</span>
+</a>
+<a class="flex items-center space-x-4 py-3 text-[#d0c5b5] opacity-60 hover:opacity-100 transition-opacity pl-4 hover:bg-[#1e2022]" href="#">
+<span class="material-symbols-outlined" data-icon="border_outer">border_outer</span>
+<span class="font-body uppercase tracking-widest text-[11px]">Add Border</span>
+</a>
+</nav>
+<div class="px-8 pt-6 border-t border-outline-variant/10">
+<div class="flex items-center space-x-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden">
+<img alt="User profile" data-alt="Close up portrait of an older archivist man with glasses in a professional studio setting with soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSTpyb4O9viyY3ILmE34wjrhdwtizn5HFLD2K-FvMk9-Gv6iXwQtT2FQ1gYrMrt0m8PuvoOHdw8kij27Z1LBG7QRH8Qh7dG7PRzDuYMoXfyNq4qtMAsYdBhNqrC_G-ff1qjzRQGRfbdECkF5JCL2i9I28nOUVgF3ikG6kOMQ4KIkAV4XQMy_55Fztd9RD_Pj99KbyUy3fEmrgM7HQJGOqXKTOTcSpox-8Z0if_Ad-YxZoxGMPgUHyDWKwWIIctfM9K6pKC-BbZ-Bo"/>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold uppercase tracking-widest">A. Sterling</span>
+<span class="text-[9px] text-on-surface-variant">Senior Curator</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 left-64 right-0 h-16 bg-[#37393b]/80 backdrop-blur-xl flex justify-between items-center px-8 z-40">
+<div class="flex flex-col">
+<span class="font-body text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">Tool Terminal</span>
+<h1 class="font-headline italic text-lg text-[#e9c78b]">Digital Preservation Lab</h1>
+</div>
+<div class="flex items-center space-x-6">
+<div class="relative flex items-center bg-surface-container-lowest px-4 py-1.5 rounded-lg border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm text-outline mr-2">search</span>
+<input class="bg-transparent border-none text-[12px] focus:ring-0 text-on-surface w-48 placeholder:text-outline/50" placeholder="Search archive..." type="text"/>
+</div>
+<div class="flex items-center space-x-4">
+<button class="text-[#d0c5b5] hover:text-white transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="text-[#d0c5b5] hover:text-white transition-colors">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 mt-16 p-8 min-h-screen bg-surface">
+<div class="max-w-6xl mx-auto space-y-12">
+<!-- Page Header & Instructions -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<span class="font-body text-[11px] uppercase tracking-[0.3em] text-primary mb-2 block">Processing Module 02</span>
+<h2 class="font-headline text-4xl text-on-surface">Auto Crop</h2>
+<p class="mt-4 text-on-surface-variant max-w-xl font-body leading-relaxed">
+            Automatically detect and extract artifacts from digital contact sheets. Drag files into the drop zone to begin identification. The system uses computer vision to distinguish background noise from archival material.
+          </p>
+</div>
+<div class="bg-surface-container-low p-4 rounded-lg flex items-start space-x-3 border-l-2 border-primary">
+<span class="material-symbols-outlined text-primary text-sm mt-0.5">info</span>
+<div>
+<span class="text-[10px] font-bold uppercase tracking-widest block text-on-surface">Pro Tip</span>
+<p class="text-[11px] text-on-surface-variant">Use high-contrast backgrounds (matte black) for 99% accuracy in auto-detection.</p>
+</div>
+</div>
+</section>
+<!-- Grid Layout -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Left: Upload & Preview (Asymmetric Focus) -->
+<div class="col-span-12 lg:col-span-8 space-y-8">
+<!-- Drop Zone -->
+<div class="glass-panel border-2 border-dashed border-outline-variant/30 rounded-xl p-12 flex flex-col items-center justify-center text-center transition-all hover:border-primary/50 group">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl text-primary" data-icon="upload_file">upload_file</span>
+</div>
+<h3 class="font-headline text-xl text-on-surface mb-2">Ingest Visual Assets</h3>
+<p class="text-on-surface-variant text-sm max-w-xs mx-auto">
+              Drop TIFF, RAW, or JPEG folders here to initialize the preservation sequence.
+            </p>
+<button class="mt-8 px-6 py-2 bg-surface-container-highest text-primary text-[11px] font-bold uppercase tracking-widest rounded-md hover:bg-surface-bright transition-colors border border-outline-variant/20">
+              Browse Local Drives
+            </button>
+</div>
+<!-- Preview Area -->
+<div class="bg-surface-container-low rounded-xl overflow-hidden relative group aspect-video flex items-center justify-center">
+<div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/microfabrics.png')] opacity-10 pointer-events-none"></div>
+<!-- Mock Artifact Preview -->
+<div class="relative w-full h-full flex items-center justify-center p-12">
+<div class="relative group">
+<img alt="Archival camera preview" class="max-h-[400px] w-auto shadow-2xl grayscale contrast-125" data-alt="Vintage silver-gelatin black and white photograph of an industrial landscape sitting on a dark grey felt background with visible dust and paper texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVKxRoMjwOLNFqyiY6GDHHpsgBPOo2ENcwFVnRJjpaLBH5iZHrC3xCluC4E890US3IrTt68qtWxGS9WxdJInf8-WYTbPQ8zzssVpUcGUxAmfcVOal7ZyQ6qdFhjRozF3kaZljHyYNEFtYI2xkm9DXiC9Yj7XPyRdmaQKU1Y1mJfec8nf0JFHCgr04F4cXPmmAelxoyunDpb0Io5MxAoVswp-zvsJh-_d68Qvv2EjdU24IBOweDZEps5b7PQikCKlSXc4xNfn2nbEM"/>
+<!-- Crop Overlay Marks -->
+<div class="absolute -top-4 -left-4 w-12 h-12 border-t-2 border-l-2 border-primary"></div>
+<div class="absolute -top-4 -right-4 w-12 h-12 border-t-2 border-r-2 border-primary"></div>
+<div class="absolute -bottom-4 -left-4 w-12 h-12 border-b-2 border-l-2 border-primary"></div>
+<div class="absolute -bottom-4 -right-4 w-12 h-12 border-b-2 border-r-2 border-primary"></div>
+<div class="absolute inset-0 border border-primary/20 bg-primary/5"></div>
+<!-- Metadata Tag -->
+<div class="absolute top-4 left-4 bg-surface-bright/90 backdrop-blur px-3 py-1 rounded text-[10px] font-mono text-primary flex items-center">
+<span class="w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
+                    DETECTED: ARTIFACT_092
+                  </div>
+</div>
+</div>
+<!-- Preview Controls -->
+<div class="absolute bottom-6 right-6 flex space-x-2">
+<button class="w-10 h-10 rounded-lg bg-surface-bright/80 backdrop-blur flex items-center justify-center text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined">zoom_in</span>
+</button>
+<button class="w-10 h-10 rounded-lg bg-surface-bright/80 backdrop-blur flex items-center justify-center text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Right: Settings Panel -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<div class="bg-surface-container-low rounded-xl p-8 border-t-4 border-primary">
+<h4 class="font-headline text-lg text-on-surface mb-6">Process Parameters</h4>
+<form class="space-y-8">
+<!-- Toggle 1 -->
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface">Remove Empty Space</span>
+<span class="text-[10px] text-on-surface-variant">Auto-trim surrounding negative margin</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface-variant after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Slider -->
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface">Tolerance</label>
+<span class="text-[10px] font-mono text-primary">12.5%</span>
+</div>
+<input class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary" type="range"/>
+<div class="flex justify-between text-[9px] text-on-surface-variant font-mono uppercase">
+<span>Sensitive</span>
+<span>Strict</span>
+</div>
+</div>
+<!-- Format Select -->
+<div class="space-y-3">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface">Output Format</label>
+<div class="grid grid-cols-2 gap-2">
+<button class="py-2 px-3 bg-surface-container-highest border border-primary text-primary text-[10px] font-bold rounded" type="button">TIFF (16-BIT)</button>
+<button class="py-2 px-3 bg-surface-container-highest border border-transparent text-on-surface-variant text-[10px] font-bold rounded hover:bg-surface-bright" type="button">RAW (DNG)</button>
+<button class="py-2 px-3 bg-surface-container-highest border border-transparent text-on-surface-variant text-[10px] font-bold rounded hover:bg-surface-bright" type="button">PNG (LOSSLESS)</button>
+<button class="py-2 px-3 bg-surface-container-highest border border-transparent text-on-surface-variant text-[10px] font-bold rounded hover:bg-surface-bright" type="button">JPEG 2000</button>
+</div>
+</div>
+<div class="pt-8 border-t border-outline-variant/10">
+<button class="amber-gradient w-full py-4 rounded-md text-on-primary font-bold uppercase tracking-[0.2em] text-xs shadow-lg shadow-primary/10 hover:brightness-110 transition-all flex items-center justify-center space-x-2" type="button">
+<span class="material-symbols-outlined text-sm">play_arrow</span>
+<span>Run Auto Crop</span>
+</button>
+<p class="mt-4 text-[9px] text-center text-on-surface-variant uppercase tracking-widest italic">
+                  Estimated completion: <span class="text-primary">4m 12s</span>
+</p>
+</div>
+</form>
+</div>
+<!-- Catalog Reference Card -->
+<div class="bg-surface-container-highest p-6 rounded-xl border border-outline-variant/10">
+<div class="flex items-center space-x-3 mb-4">
+<span class="material-symbols-outlined text-primary text-lg">history</span>
+<h5 class="text-[11px] font-bold uppercase tracking-[0.2em]">Session History</h5>
+</div>
+<ul class="space-y-3">
+<li class="flex items-center justify-between text-[10px]">
+<span class="text-on-surface-variant">Batch_2024_08_A</span>
+<span class="text-on-surface-variant opacity-50">142 Items</span>
+</li>
+<li class="flex items-center justify-between text-[10px]">
+<span class="text-on-surface-variant">Rare_Books_Folio_9</span>
+<span class="text-on-surface-variant opacity-50">28 Items</span>
+</li>
+<li class="flex items-center justify-between text-[10px]">
+<span class="text-on-surface-variant">Slide_Scan_001</span>
+<span class="text-primary font-bold">COMPLETED</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 left-0 w-full h-8 bg-[#0c0e10] flex items-center justify-between px-6 z-50">
+<div class="flex items-center space-x-4">
+<div class="flex items-center space-x-2">
+<div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+<span class="font-label text-[10px] font-medium tracking-tighter text-[#ccac72]">System Ready</span>
+</div>
+<span class="text-[10px] font-medium tracking-tighter text-[#4d463a]">|</span>
+<span class="font-label text-[10px] font-medium tracking-tighter text-[#4d463a]">Latency: 14ms</span>
+</div>
+<div class="flex items-center space-x-6">
+<a class="font-label text-[10px] font-medium tracking-tighter text-[#4d463a] hover:text-[#e9c78b] transition-colors" href="#">Recent Activity</a>
+<a class="font-label text-[10px] font-medium tracking-tighter text-[#4d463a] hover:text-[#e9c78b] transition-colors" href="#">Background Tasks</a>
+<div class="w-32 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="w-1/3 h-full bg-primary/40"></div>
+</div>
+</div>
+</footer>
+</body></html>
