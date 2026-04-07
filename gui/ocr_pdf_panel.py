@@ -293,7 +293,7 @@ class OcrPdfPanel:
 
         ctk.CTkCheckBox(
             options_card,
-            text="Skip OCR when any page fails the quality precheck",
+            text="Skip OCR when any page fails the quality precheck (avoids unreliable OCR)",
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.skip_messy_var,
@@ -359,6 +359,7 @@ class OcrPdfPanel:
             "One selected folder becomes one output PDF named after the folder.",
             "Metadata entry appears after folder selection and is written into the final PDF.",
             "PDF/A is on by default and uses local OCR tooling to produce an archival-friendly output.",
+            "The quality precheck may skip a document when pages look too messy to produce trustworthy OCR text.",
         ):
             ctk.CTkLabel(
                 notes_card,
@@ -580,7 +581,8 @@ class OcrPdfPanel:
         self._set_info(
             (
                 f"Running OCR on {len(self.selected_files)} page(s) into one PDF. "
-                f"PDF/A is {'on' if self.save_pdfa_var.get() else 'off'}."
+                f"PDF/A is {'on' if self.save_pdfa_var.get() else 'off'}. "
+                f"Quality precheck is {'on' if self.skip_messy_var.get() else 'off'}."
             ),
             level="info",
         )
