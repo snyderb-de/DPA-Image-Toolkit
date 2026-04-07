@@ -33,6 +33,7 @@ class TiffMergePanel:
         self.log_display = None
         self.btn_start = None
         self.btn_error_report = None
+        self.merge_completed = False
 
     # ──────────────────────────────────────────────────────────────────────────
     # UI Build
@@ -292,6 +293,7 @@ class TiffMergePanel:
         self.selected_folder = folder
         self.error_folder = create_error_folder(folder)
         self.groups = groups
+        self.merge_completed = False
 
         self.folder_label.configure(
             text=str(folder),
@@ -311,6 +313,7 @@ class TiffMergePanel:
             info += f"  ·  {single} single file(s) will be skipped"
         self._set_info(info, level="success")
         self.btn_start.configure(state="normal")
+        self.btn_start.configure(text="  ▶  Start Merge")
 
         self._log(f"Folder: {folder}", "info")
         self._log(f"Found {len(groups)} group(s):", "success")
@@ -333,6 +336,7 @@ class TiffMergePanel:
 
         self.parent.set_status("Starting TIFF merge…", 0.0)
         self._log("Starting TIFF merge operation…", "info")
+        self.merge_completed = False
 
         output_folder = self.selected_folder / "merged"
         output_folder.mkdir(parents=True, exist_ok=True)
@@ -372,11 +376,16 @@ class TiffMergePanel:
         self._log(message, "info")
 
         if "✅" in message or "❌" in message or "cancelled" in message.lower():
-            self.btn_start.configure(state="normal", text="  ▶  Start Merge")
             self.parent.operation_in_progress = False
             self.parent.set_status("Ready", 1.0)
 
             results = getattr(self.worker, "get_results", lambda: {})()
+            if not message.lower().endswith("cancelled") and results.get("total", 0) > 0:
+                self.merge_completed = True
+
+            button_text = "Finished" if self.merge_completed else "  ▶  Start Merge"
+            self.btn_start.configure(state="normal", text=button_text)
+
             if results.get("failed", 0) > 0:
                 self.btn_error_report.configure(state="normal")
                 self._log("Some groups failed — click 'View Errors' for details.", "warning")

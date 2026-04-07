@@ -366,7 +366,7 @@ class TiffSplitWorker(OperationWorker):
                 self.update_status(f"Splitting: {file_path.name}")
 
                 if self.use_root_output and self.output_root:
-                    output_folder = self.output_root / file_path.stem
+                    output_folder = self.output_root
                 else:
                     output_folder = None
 
