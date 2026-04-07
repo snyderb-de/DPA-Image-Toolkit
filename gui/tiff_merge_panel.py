@@ -465,7 +465,7 @@ class TiffMergePanel:
         )
         scroll.pack(fill="both", expand=True, padx=24, pady=(0, 0))
 
-        group_names = list(self.groups.keys())
+        group_names = sorted(self.groups.keys())
         indices = {0}
         if len(group_names) > 2:
             indices.add(len(group_names) // 2)
@@ -510,31 +510,32 @@ class TiffMergePanel:
                 padx=4,
             ).grid(row=0, column=2, padx=8)
 
-            # File list preview
-            if len(files) <= 3:
-                preview_files = files
-                ellipsis = False
-            else:
-                preview_files = [files[0], files[-1]]
-                ellipsis = True
+            preview_rows = [
+                ("First file", files[0]),
+                ("Last file", files[-1]),
+                ("Total files", str(len(files))),
+            ]
 
-            for j, fname in enumerate(preview_files):
-                if ellipsis and j == 1:
-                    ctk.CTkLabel(
-                        row_frame,
-                        text=f"    … {len(files) - 2} more files …",
-                        font=get_font("mono_sm"),
-                        text_color=t["fg_tertiary"],
-                        anchor="w",
-                    ).pack(fill="x", padx=(32, 8))
+            for label, value in preview_rows:
+                info_row = ctk.CTkFrame(row_frame, fg_color="transparent")
+                info_row.pack(fill="x", padx=(32, 8), pady=(4, 0))
+                info_row.grid_columnconfigure(1, weight=1)
 
                 ctk.CTkLabel(
-                    row_frame,
-                    text=f"    {fname}",
+                    info_row,
+                    text=f"{label}:",
+                    font=get_font("micro"),
+                    text_color=t["fg_tertiary"],
+                    anchor="w",
+                ).grid(row=0, column=0, sticky="w", padx=(0, 10))
+
+                ctk.CTkLabel(
+                    info_row,
+                    text=value,
                     font=get_font("mono_sm"),
                     text_color=t["fg_secondary"],
                     anchor="w",
-                ).pack(fill="x", padx=(32, 8))
+                ).grid(row=0, column=1, sticky="w")
 
             # Divider between groups
             if i < len(indices) - 1:
