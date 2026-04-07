@@ -112,6 +112,7 @@ class MainWindow(ctk.CTk):
             ("tiff_merge","⊞",  "MERGE TIFFS"),
             ("tiff_split","⇵",  "SPLIT TIFFS"),
             ("add_border","▣",  "ADD BORDER"),
+            ("ocr_pdf",   "⎘",  "OCR TO PDF"),
         ]
         for key, icon, label in nav_defs:
             btn = self._make_nav_button(nav_frame, icon, label, key)
@@ -223,6 +224,8 @@ class MainWindow(ctk.CTk):
             self._show_tiff_split_panel()
         elif key == "add_border":
             self._show_add_border_panel()
+        elif key == "ocr_pdf":
+            self._show_ocr_pdf_panel()
 
     def _update_nav_highlight(self, active_key):
         t = self.current_theme
@@ -365,6 +368,7 @@ class MainWindow(ctk.CTk):
         tools_frame.grid_columnconfigure(1, weight=1, uniform="tool")
         tools_frame.grid_rowconfigure(0, weight=1)
         tools_frame.grid_rowconfigure(1, weight=1)
+        tools_frame.grid_rowconfigure(2, weight=1)
 
         self._make_tool_card(
             tools_frame,
@@ -404,6 +408,16 @@ class MainWindow(ctk.CTk):
             command=self._show_add_border_panel,
             row=1,
             column=1,
+        )
+
+        self._make_tool_card(
+            tools_frame,
+            icon="⎘",
+            title="OCR to PDF",
+            desc="Convert scanned images into\nsearchable PDF files with OCR",
+            command=self._show_ocr_pdf_panel,
+            row=2,
+            column=0,
         )
 
         side_note = ctk.CTkFrame(
@@ -580,6 +594,20 @@ class MainWindow(ctk.CTk):
         from .add_border_panel import AddBorderPanel
         AddBorderPanel(self).build(self.panel_container)
 
+    def _show_ocr_pdf_panel(self):
+        if self.operation_in_progress:
+            self._show_warning(
+                "Operation In Progress",
+                "Please wait for the current operation to complete before switching panels.",
+            )
+            return
+        self._clear_panel()
+        self.current_panel = "ocr_pdf"
+        self._update_nav_highlight("ocr_pdf")
+        self._refresh_chrome_context()
+        from .ocr_pdf_panel import OcrPdfPanel
+        OcrPdfPanel(self).build(self.panel_container)
+
     def _on_home(self):
         if self.operation_in_progress:
             self._show_confirmation(
@@ -652,6 +680,8 @@ class MainWindow(ctk.CTk):
             self._show_tiff_split_panel()
         elif self.current_panel == "add_border":
             self._show_add_border_panel()
+        elif self.current_panel == "ocr_pdf":
+            self._show_ocr_pdf_panel()
 
     def _refresh_chrome_context(self):
         panel_titles = {
@@ -660,6 +690,7 @@ class MainWindow(ctk.CTk):
             "tiff_merge": "Merge TIFFs",
             "tiff_split": "Split TIFFs",
             "add_border": "Add Border",
+            "ocr_pdf": "OCR to PDF",
         }
         self.status_panel_label.configure(
             text=panel_titles.get(self.current_panel, "Home")

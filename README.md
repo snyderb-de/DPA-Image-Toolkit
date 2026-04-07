@@ -2,11 +2,12 @@
 
 Desktop toolkit for archival image cleanup and TIFF workflow management.
 
-The app currently includes four tools:
+The app currently includes five tools:
 - Auto Crop
 - Merge TIFFs
 - Split Multi-Page TIFFs
 - Add Border
+- OCR to PDF
 
 ## Quick Start
 
@@ -62,6 +63,20 @@ Adds a white border to every image in a folder using the same spacing logic as A
 - Output: `input_folder/bordered/`
 - Border rule: `2.5%` of image size, clamped to `15-100px`
 
+### OCR to PDF
+
+Treats one selected folder of scan images as one document and creates a single searchable PDF. The tool prefers PDF/A when the optional archival stack is available.
+
+- Input: one folder of page image files
+- Output: `input_folder/ocr-pdf/<folder_name>.pdf`
+- Errors: `input_folder/errored-files/ocr-pdf/`
+- Defaults:
+  - searchable PDF always targeted first
+  - PDF/A preferred when available
+  - metadata prompt after folder selection
+  - skip existing output PDF
+  - skip the document when any page fails a conservative OCR quality precheck
+
 ## Typical Workflow
 
 ```text
@@ -75,12 +90,20 @@ Scanned images
 You can also use:
 - Split TIFFs to break apart existing multi-page TIFFs
 - Add Border to add consistent margins to image sets such as book scans
+- OCR to PDF to turn a folder of page scans into one searchable access PDF
 
 ## Dependencies
 
 ```bash
 pip install customtkinter pillow opencv-python numpy
 ```
+
+OCR to PDF requires local OCR tooling:
+
+- Tesseract OCR
+- OCRmyPDF for optional PDF/A output
+
+The guaranteed local path is Tesseract-based searchable PDF generation. PDF/A is attempted only when OCRmyPDF is available on the machine.
 
 Or:
 

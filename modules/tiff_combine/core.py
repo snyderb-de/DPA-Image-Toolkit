@@ -114,8 +114,8 @@ def merge_tiff_group(
                 {"file": group_name, "error": "No images after mode conversion"}
             ]
 
-        # Create output filename
-        output_filename = f"{group_name}_merged.tif"
+        # Save inside merged/ without changing the base group name.
+        output_filename = f"{group_name}.tif"
         output_path = output_folder / output_filename
 
         # Create multi-page TIFF
