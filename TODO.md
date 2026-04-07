@@ -33,6 +33,14 @@
 
 ---
 
+## OCR Enhancements
+
+- [ ] Tune the messy-scan heuristic against real production samples
+- [ ] Add PDF/A validation reporting in the UI
+- [ ] Offer a manual override flow for scans skipped by the OCR quality gate
+
+---
+
 ## Future Release Ideas
 
 - [ ] Configurable white threshold via UI slider

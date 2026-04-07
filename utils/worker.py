@@ -443,3 +443,153 @@ class AddBorderWorker(OperationWorker):
     def get_results(self) -> dict:
         """Get operation results."""
         return self.results
+
+
+class OcrPdfWorker(OperationWorker):
+    """Worker for OCR-to-PDF operations."""
+
+    def __init__(
+        self,
+        input_folder: Path,
+        output_folder: Path,
+        error_folder: Path,
+        recurse: bool = False,
+        language: str = "eng",
+        skip_existing: bool = True,
+        save_pdfa: bool = True,
+        skip_messy: bool = True,
+        tesseract_path: Optional[Path] = None,
+    ):
+        super().__init__(name="OcrPdfWorker")
+        self.input_folder = Path(input_folder)
+        self.output_folder = Path(output_folder)
+        self.error_folder = Path(error_folder)
+        self.recurse = recurse
+        self.language = language
+        self.skip_existing = skip_existing
+        self.save_pdfa = save_pdfa
+        self.skip_messy = skip_messy
+        self.tesseract_path = Path(tesseract_path) if tesseract_path else None
+        self.results = {
+            "success": 0,
+            "failed": 0,
+            "skipped": 0,
+            "total": 0,
+            "cancelled": False,
+            "errors": [],
+            "skip_reasons": [],
+            "outputs": [],
+        }
+
+    def run(self):
+        """Execute OCR-to-PDF operation."""
+        from modules.ocr_pdf.core import (
+            check_ocr_dependencies,
+            find_ocr_input_files,
+            ocr_image_to_pdf,
+        )
+
+        try:
+            self.update_status("Checking OCR dependencies...")
+            ok, error_msg, dependency_info = check_ocr_dependencies(
+                language=self.language,
+                tesseract_path=self.tesseract_path,
+                require_pdfa=self.save_pdfa,
+            )
+            if not ok:
+                self.update_status("OCR dependencies are missing")
+                self.results["errors"].append({
+                    "file": "dependency",
+                    "error": error_msg,
+                })
+                self.report_error("dependency", error_msg)
+                return
+
+            resolved_tesseract = dependency_info.get("tesseract_path")
+
+            self.update_status("Scanning folder for OCR input files...")
+            image_files = find_ocr_input_files(
+                self.input_folder,
+                recurse=self.recurse,
+            )
+
+            if not image_files:
+                self.update_status("No supported image files found")
+                return
+
+            total = len(image_files)
+            self.results["total"] = total
+            self.update_status(f"Found {total} image file(s) to OCR")
+
+            for idx, image_file in enumerate(image_files, 1):
+                if self.cancelled:
+                    self.results["cancelled"] = True
+                    self.update_status("Operation cancelled")
+                    break
+
+                display_name = image_file.name
+                try:
+                    display_name = str(image_file.relative_to(self.input_folder))
+                except ValueError:
+                    pass
+
+                self.update_progress(idx, total, display_name)
+                self.update_status(f"OCR: {display_name}")
+
+                result = ocr_image_to_pdf(
+                    image_path=image_file,
+                    input_folder=self.input_folder,
+                    output_folder=self.output_folder,
+                    recurse=self.recurse,
+                    language=self.language,
+                    skip_existing=self.skip_existing,
+                    save_pdfa=self.save_pdfa,
+                    skip_messy=self.skip_messy,
+                    tesseract_path=resolved_tesseract,
+                    cancel_check=lambda: self.cancelled,
+                )
+
+                if result["status"] == "success":
+                    self.results["success"] += 1
+                    self.results["outputs"].append(str(result["output_path"]))
+                elif result["status"] == "skipped":
+                    self.results["skipped"] += 1
+                    skip_reason = result.get("error") or "Skipped"
+                    self.results["skip_reasons"].append({
+                        "file": display_name,
+                        "reason": skip_reason,
+                    })
+                    self.update_status(f"Skipped: {display_name} — {skip_reason}")
+                elif result["status"] == "cancelled":
+                    self.results["cancelled"] = True
+                    self.update_status("Operation cancelled")
+                    break
+                else:
+                    self.results["failed"] += 1
+                    error_msg = result.get("error") or "OCR failed"
+                    self.results["errors"].append({
+                        "file": display_name,
+                        "error": error_msg,
+                    })
+                    self.report_error(display_name, error_msg)
+
+            summary = (
+                f"✅ OCR'd: {self.results['success']} | "
+                f"⚠️ Skipped: {self.results['skipped']} | "
+                f"❌ Failed: {self.results['failed']}"
+            )
+            if self.results["cancelled"]:
+                summary = (
+                    f"Cancelled — OCR'd: {self.results['success']} | "
+                    f"Skipped: {self.results['skipped']} | "
+                    f"Failed: {self.results['failed']}"
+                )
+            self.update_status(summary)
+
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
+            self.report_error("operation", str(e))
+
+    def get_results(self) -> dict:
+        """Get operation results."""
+        return self.results

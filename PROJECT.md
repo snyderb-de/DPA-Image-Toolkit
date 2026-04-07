@@ -10,11 +10,13 @@ The toolkit currently ships four user-facing tools in one desktop GUI:
 - **Merge TIFFs** — Group TIFF files by naming pattern and combine each valid group into a single multi-page TIFF
 - **Split TIFFs** — Extract multi-page TIFFs into single-page TIFF files
 - **Add Border** — Add white border padding to image folders using the same spacing logic as Auto Crop
+- **OCR to PDF** — Convert scanned image folders into searchable PDFs with optional PDF/A output
 
 Typical workflow:
 
 ```text
 scan images -> auto crop -> merge tiffs
+scan images -> OCR to PDF
 ```
 
 Supporting workflows:
@@ -33,6 +35,7 @@ gui/
 ├── main_window.py                  Main window, panel navigation, theming, status bar
 ├── auto_crop_panel.py              Auto-crop UI: folder pick → progress → output
 ├── add_border_panel.py             Add-border UI: folder pick → progress → output
+├── ocr_pdf_panel.py                OCR UI: folder pick → options → progress → output
 ├── tiff_merge_panel.py             TIFF merge UI: validate → spot-check → progress
 ├── tiff_split_panel.py             TIFF split UI: file/folder pick → progress → output
 └── styles.py                       Light/dark theme tokens and layout constants
@@ -41,6 +44,8 @@ modules/
 │   └── core.py                     crop_image(), get_crop_stats() — OpenCV + Pillow
 ├── image_border/
 │   └── core.py                     add_border_to_image() — white border padding
+├── ocr_pdf/
+│   └── core.py                     OCR file discovery, quality precheck, OCR/PDF generation
 └── tiff_combine/
     ├── core.py                     merge_tiff_group(), mode conversion, DPI handling
     ├── naming.py                   Group detection, naming validation, sequence sort
@@ -102,6 +107,18 @@ All tools share the same threading pattern: a daemon `OperationWorker` thread ru
 
 **Output:** `input_folder/bordered/`
 
+## OCR to PDF Algorithm
+
+1. Discover supported image files in the selected folder
+2. Optionally recurse into subfolders while ignoring toolkit-generated output folders
+3. Optionally run a conservative OCR readiness precheck to skip scans that are likely too blurry, low-contrast, blank, or noisy to produce useful OCR
+4. If PDF/A is enabled, process the file through OCRmyPDF using local OCR dependencies
+5. If PDF/A is disabled, fall back to direct Tesseract searchable PDF generation
+6. Write one output PDF per source image
+
+**Output:** `input_folder/ocr-pdf/`
+**Errors:** `input_folder/errored-files/ocr-pdf/`
+
 ### File Naming Convention
 
 Files **must** follow: `groupname_###.tif` (exactly 3 digits)
@@ -137,6 +154,7 @@ The `cropped/` folder output from Auto-Crop preserves original filenames, so fil
 - **Max 999 pages** per merge group — Naming pattern uses 3-digit sequence numbers
 - **No in-app undo** — Operations write output folders but do not provide reversal controls
 - **Windows-first packaging** — The `.bat` launcher is Windows-specific, though the Python app can run cross-platform
+- **OCR dependencies are external** — Tesseract and, for PDF/A mode, OCRmyPDF plus its runtime stack must be installed on the machine
 
 ---
 
