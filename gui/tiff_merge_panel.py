@@ -414,9 +414,12 @@ class TiffMergePanel:
         t = self.theme
         d = ctk.CTkToplevel(self.parent)
         d.title("Confirm File Groups")
-        d.geometry("520x460")
+        width = 520
+        height = 460
+        d.geometry(f"{width}x{height}")
         d.resizable(False, False)
         d.attributes("-topmost", True)
+        d.transient(self.parent)
         d.configure(fg_color=t["bg_secondary"])
         d.grab_set()
 
@@ -566,12 +569,30 @@ class TiffMergePanel:
             ),
         ).grid(row=0, column=2, sticky="e")
 
+        d.wait_visibility()
+        self._center_dialog(d, width, height)
+        d.focus_force()
+
     # ──────────────────────────────────────────────────────────────────────────
     # Helpers
     # ──────────────────────────────────────────────────────────────────────────
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
+
+    def _center_dialog(self, dialog, width: int, height: int):
+        """Center a modal dialog over the main application window."""
+        self.parent.update_idletasks()
+        dialog.update_idletasks()
+
+        parent_x = self.parent.winfo_rootx()
+        parent_y = self.parent.winfo_rooty()
+        parent_width = self.parent.winfo_width()
+        parent_height = self.parent.winfo_height()
+
+        x = parent_x + max((parent_width - width) // 2, 0)
+        y = parent_y + max((parent_height - height) // 2, 0)
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
 
     def _set_info(self, text: str, level: str = "info"):
         t = self.theme

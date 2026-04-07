@@ -4,7 +4,9 @@ Background worker threads for long-running operations.
 Handles auto-crop and TIFF merge operations with progress callbacks.
 """
 
+import os
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, Optional, List
 
@@ -221,13 +223,46 @@ class TiffMergeWorker(OperationWorker):
             "errors": [],
         }
 
-    def run(self):
-        """Execute TIFF merge operation."""
+    def _get_worker_count(self, total_groups: int) -> int:
+        """Choose a modest worker count for parallel group merges."""
+        if total_groups <= 1:
+            return 1
+
+        cpu_count = os.cpu_count() or 2
+        return max(1, min(total_groups, cpu_count, 4))
+
+    def _merge_single_group(self, group_name: str) -> dict:
+        """Merge one TIFF group and return a structured result."""
         from modules.tiff_combine.core import merge_tiff_group
-        import shutil
 
         try:
-            group_names = list(self.groups.keys())
+            success, output_path, errors = merge_tiff_group(
+                group_name,
+                self.input_folder,
+                self.output_folder,
+                dpi_per_file=True,
+            )
+            return {
+                "group": group_name,
+                "success": success,
+                "output_path": output_path,
+                "errors": errors or [],
+            }
+        except Exception as e:
+            return {
+                "group": group_name,
+                "success": False,
+                "output_path": None,
+                "errors": [{
+                    "file": group_name,
+                    "error": f"Merge failed: {str(e)}",
+                }],
+            }
+
+    def run(self):
+        """Execute TIFF merge operation."""
+        try:
+            group_names = sorted(self.groups.keys())
             total_groups = len(group_names)
 
             if total_groups == 0:
@@ -235,43 +270,45 @@ class TiffMergeWorker(OperationWorker):
                 return
 
             self.results["total"] = total_groups
+            worker_count = self._get_worker_count(total_groups)
+            completed = 0
 
-            for idx, group_name in enumerate(group_names, 1):
-                if self.cancelled:
-                    self.update_status("Operation cancelled")
-                    break
+            if worker_count > 1:
+                self.update_status(
+                    f"Running {total_groups} groups with {worker_count} parallel workers"
+                )
+            else:
+                self.update_status(f"Running {total_groups} group(s) sequentially")
 
-                self.update_progress(idx, total_groups, group_name)
-                self.update_status(f"Merging: {group_name}")
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                futures = {
+                    executor.submit(self._merge_single_group, group_name): group_name
+                    for group_name in group_names
+                }
 
-                try:
-                    # Merge the group
-                    success, output_path, errors = merge_tiff_group(
-                        group_name,
-                        self.input_folder,
-                        self.output_folder,
-                        dpi_per_file=True,
-                    )
+                for future in as_completed(futures):
+                    if self.cancelled:
+                        self.update_status("Operation cancelled")
+                        break
 
-                    if success:
+                    result = future.result()
+                    group_name = result["group"]
+                    completed += 1
+
+                    self.update_progress(completed, total_groups, group_name)
+
+                    if result["success"]:
                         self.results["success"] += 1
+                        self.update_status(f"Merged: {group_name}")
                     else:
                         self.results["failed"] += 1
-                        for error_info in errors:
+                        self.update_status(f"Failed: {group_name}")
+                        for error_info in result["errors"]:
                             self.results["errors"].append(error_info)
                             self.report_error(
                                 error_info.get("file", group_name),
                                 error_info.get("error", "Unknown error"),
                             )
-
-                except Exception as e:
-                    self.results["failed"] += 1
-                    error_msg = f"Merge failed: {str(e)}"
-                    self.results["errors"].append({
-                        "file": group_name,
-                        "error": error_msg,
-                    })
-                    self.report_error(group_name, error_msg)
 
             # Generate summary
             summary = (
