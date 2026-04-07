@@ -18,7 +18,6 @@ from typing import Optional
 
 import cv2
 from PIL import Image
-from pypdf import PdfReader, PdfWriter
 
 
 SUPPORTED_IMAGE_SUFFIXES = (
@@ -100,6 +99,13 @@ def detect_ocrmypdf_module() -> bool:
     return importlib.util.find_spec("ocrmypdf") is not None
 
 
+def detect_pypdf_module() -> bool:
+    """
+    Check whether pypdf is importable in the current Python environment.
+    """
+    return importlib.util.find_spec("pypdf") is not None
+
+
 def list_tesseract_languages(
     tesseract_path: Optional[str | Path] = None,
 ) -> list[str]:
@@ -165,6 +171,7 @@ def check_ocr_dependencies(
                 "tesseract_path": None,
                 "languages": [],
                 "ocrmypdf_available": detect_ocrmypdf_module(),
+                "pypdf_available": detect_pypdf_module(),
             },
         )
 
@@ -189,9 +196,25 @@ def check_ocr_dependencies(
                 {
                     "tesseract_path": resolved_tesseract,
                     "languages": languages,
-                    "ocrmypdf_available": True,
+                    "ocrmypdf_available": detect_ocrmypdf_module(),
+                    "pypdf_available": detect_pypdf_module(),
                 },
             )
+
+    if not detect_pypdf_module():
+        return (
+            False,
+            (
+                "The Python package 'pypdf' is not installed. Install the toolkit "
+                "requirements before running OCR to PDF."
+            ),
+            {
+                "tesseract_path": resolved_tesseract,
+                "languages": languages,
+                "ocrmypdf_available": detect_ocrmypdf_module(),
+                "pypdf_available": False,
+            },
+        )
 
     return (
         True,
@@ -205,9 +228,73 @@ def check_ocr_dependencies(
             "tesseract_path": resolved_tesseract,
             "languages": languages,
             "ocrmypdf_available": detect_ocrmypdf_module(),
+            "pypdf_available": True,
             "require_pdfa": require_pdfa,
         },
     )
+
+
+def get_ocr_dependency_statuses(
+    language: str = "eng",
+    tesseract_path: Optional[str | Path] = None,
+    require_pdfa: bool = True,
+) -> list[dict]:
+    """
+    Return dependency status entries for the OCR panel.
+    """
+    resolved_tesseract = detect_tesseract_path(tesseract_path)
+    pypdf_available = detect_pypdf_module()
+    ocrmypdf_available = detect_ocrmypdf_module()
+    installed_languages = list_tesseract_languages(resolved_tesseract) if resolved_tesseract else []
+    requested_languages = [
+        part.strip()
+        for part in str(language).split("+")
+        if part.strip()
+    ] or ["eng"]
+    missing_languages = [
+        code for code in requested_languages
+        if installed_languages and code not in installed_languages
+    ]
+
+    statuses = [
+        {
+            "label": "Tesseract OCR",
+            "ok": bool(resolved_tesseract),
+            "detail": str(resolved_tesseract) if resolved_tesseract else "Required for searchable PDF output",
+        },
+        {
+            "label": "pypdf",
+            "ok": pypdf_available,
+            "detail": "Required to merge OCR page PDFs into one document",
+        },
+        {
+            "label": "OCR Language",
+            "ok": bool(resolved_tesseract) and not missing_languages,
+            "detail": (
+                f"Language ready: {'+'.join(requested_languages)}"
+                if resolved_tesseract and not missing_languages
+                else (
+                    f"Missing language pack: {'+'.join(missing_languages)}"
+                    if resolved_tesseract and missing_languages
+                    else "Requires Tesseract first"
+                )
+            ),
+        },
+        {
+            "label": "OCRmyPDF",
+            "ok": ocrmypdf_available,
+            "detail": (
+                "Optional archival backend for PDF/A"
+                if ocrmypdf_available
+                else (
+                    "Missing: standard searchable PDF still works"
+                    if not require_pdfa
+                    else "Missing: PDF/A fallback unavailable on this machine"
+                )
+            ),
+        },
+    ]
+    return statuses
 
 
 def find_ocr_input_files(
@@ -566,6 +653,11 @@ def merge_page_pdfs(
     """
     output_pdf_path = Path(output_pdf_path)
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except Exception as exc:
+        return False, f"pypdf import failed: {exc}"
 
     writer = PdfWriter()
     handles = []

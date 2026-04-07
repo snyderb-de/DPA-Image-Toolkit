@@ -8,7 +8,11 @@ produces a single searchable PDF for that folder.
 import customtkinter as ctk
 from pathlib import Path
 
-from modules.ocr_pdf.core import check_ocr_dependencies, find_ocr_input_files
+from modules.ocr_pdf.core import (
+    check_ocr_dependencies,
+    find_ocr_input_files,
+    get_ocr_dependency_statuses,
+)
 from utils.file_handler import create_error_folder, create_output_folder, pick_folder
 from utils.worker import OcrPdfWorker
 from .styles import BUTTON, RADIUS, get_font
@@ -164,6 +168,7 @@ class OcrPdfPanel:
         self.btn_error_report = None
         self.btn_metadata = None
         self.metadata_label = None
+        self.dependency_rows = []
 
     def build(self, container):
         t = self.theme
@@ -172,6 +177,7 @@ class OcrPdfPanel:
         panel.grid(row=0, column=0, sticky="nsew")
         panel.grid_rowconfigure(5, weight=1)
         panel.grid_columnconfigure(0, weight=1)
+        panel.grid_columnconfigure(1, weight=0)
 
         hdr_row = ctk.CTkFrame(panel, fg_color="transparent")
         hdr_row.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
@@ -256,6 +262,108 @@ class OcrPdfPanel:
         )
         self.info_lbl.pack(padx=16, pady=12, anchor="w")
 
+        side_panel = ctk.CTkFrame(
+            panel,
+            fg_color=t["bg_secondary"],
+            corner_radius=RADIUS["xl"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            width=300,
+        )
+        side_panel.grid(row=1, column=1, rowspan=5, sticky="nsew", padx=(0, 36), pady=(24, 0))
+        side_panel.grid_propagate(False)
+
+        side_inner = ctk.CTkFrame(side_panel, fg_color="transparent")
+        side_inner.pack(fill="both", expand=True, padx=20, pady=20)
+        side_inner.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            side_inner,
+            text="DEPENDENCY CHECK",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            side_inner,
+            text="OCR readiness for this machine",
+            font=get_font("normal"),
+            text_color=t["fg_primary"],
+            anchor="w",
+        ).grid(row=1, column=0, sticky="w", pady=(6, 12))
+
+        dep_frame = ctk.CTkFrame(
+            side_inner,
+            fg_color=t["bg_glass"],
+            corner_radius=RADIUS["lg"],
+            border_width=1,
+            border_color=t["border_subtle"],
+        )
+        dep_frame.grid(row=2, column=0, sticky="ew")
+        dep_frame.grid_columnconfigure(0, weight=1)
+
+        self.dependency_rows = []
+        for index in range(4):
+            row = ctk.CTkFrame(dep_frame, fg_color="transparent")
+            row.grid(row=index, column=0, sticky="ew", padx=14, pady=(12 if index == 0 else 0, 10))
+            row.grid_columnconfigure(0, weight=1)
+
+            label = ctk.CTkLabel(
+                row,
+                text="",
+                font=get_font("small"),
+                text_color=t["fg_primary"],
+                anchor="w",
+                justify="left",
+                wraplength=220,
+            )
+            label.grid(row=0, column=0, sticky="w")
+
+            detail = ctk.CTkLabel(
+                row,
+                text="",
+                font=get_font("micro"),
+                text_color=t["fg_tertiary"],
+                anchor="w",
+                justify="left",
+                wraplength=220,
+            )
+            detail.grid(row=1, column=0, sticky="w", pady=(4, 0))
+            self.dependency_rows.append((label, detail))
+
+        support_card = ctk.CTkFrame(
+            side_inner,
+            fg_color=t["accent_dim"],
+            corner_radius=RADIUS["lg"],
+            border_width=0,
+        )
+        support_card.grid(row=3, column=0, sticky="ew", pady=(16, 0))
+
+        ctk.CTkLabel(
+            support_card,
+            text="WHAT THIS MEANS",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+            anchor="w",
+        ).pack(anchor="w", padx=14, pady=(14, 2))
+
+        for line in (
+            "✅ means the dependency is ready.",
+            "❌ means the tool cannot use that dependency right now.",
+            "Searchable PDF only needs the standard OCR stack.",
+            "PDF/A also needs the optional OCRmyPDF archival backend.",
+        ):
+            ctk.CTkLabel(
+                support_card,
+                text=f"•  {line}",
+                font=get_font("small"),
+                text_color=t["fg_secondary"],
+                justify="left",
+                wraplength=240,
+                anchor="w",
+            ).pack(anchor="w", padx=14, pady=(0, 8))
+
         options_card = ctk.CTkFrame(
             panel,
             fg_color=t["bg_secondary"],
@@ -281,6 +389,7 @@ class OcrPdfPanel:
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.save_pdfa_var,
+            command=self._refresh_dependency_panel,
         ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 14))
 
         ctk.CTkCheckBox(
@@ -307,11 +416,14 @@ class OcrPdfPanel:
             anchor="w",
         ).grid(row=1, column=2, sticky="e", padx=(16, 8), pady=(0, 14))
 
-        ctk.CTkEntry(
+        language_entry = ctk.CTkEntry(
             options_card,
             textvariable=self.language_var,
             width=140,
-        ).grid(row=1, column=3, sticky="w", padx=(0, 16), pady=(0, 14))
+        )
+        language_entry.grid(row=1, column=3, sticky="w", padx=(0, 16), pady=(0, 14))
+        language_entry.bind("<FocusOut>", lambda _event: self._refresh_dependency_panel())
+        language_entry.bind("<Return>", lambda _event: self._refresh_dependency_panel())
 
         self.btn_metadata = ctk.CTkButton(
             options_card,
@@ -476,6 +588,7 @@ class OcrPdfPanel:
         )
         self.btn_start.grid(row=0, column=2, sticky="e")
 
+        self._refresh_dependency_panel()
         self._log("Ready — select a scan folder to create one OCR'd PDF.", "info")
 
     def _on_select_folder(self):
@@ -504,6 +617,7 @@ class OcrPdfPanel:
 
         self._log(f"Folder: {folder}", "info")
         self._log(f"Found {len(files)} page image(s).", "success")
+        self._refresh_dependency_panel()
         self._prompt_metadata()
 
     def _prompt_metadata(self):
@@ -543,6 +657,17 @@ class OcrPdfPanel:
     def _on_edit_metadata(self):
         self._prompt_metadata()
 
+    def _refresh_dependency_panel(self):
+        statuses = get_ocr_dependency_statuses(
+            language=self.language_var.get().strip() or "eng",
+            require_pdfa=self.save_pdfa_var.get(),
+        )
+
+        for (label_widget, detail_widget), status in zip(self.dependency_rows, statuses):
+            emoji = "✅" if status["ok"] else "❌"
+            label_widget.configure(text=f"{emoji}  {status['label']}")
+            detail_widget.configure(text=status["detail"])
+
     def _on_start_ocr(self):
         if not self.selected_folder or not self.metadata:
             self._log("Select a folder and set metadata before starting OCR.", "error")
@@ -555,6 +680,7 @@ class OcrPdfPanel:
             language=language,
             require_pdfa=self.save_pdfa_var.get(),
         )
+        self._refresh_dependency_panel()
         if not ok:
             self._set_info(f"✕  {error_msg}", level="error")
             self._log(error_msg, "error")
