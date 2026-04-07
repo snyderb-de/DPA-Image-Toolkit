@@ -20,8 +20,8 @@ class MainWindow(ctk.CTk):
 
         # ── Window setup ───────────────────────────────────────────────────────
         self.title("DPA Image Toolkit")
-        self.geometry("1100x720")
-        self.minsize(920, 600)
+        self.geometry("1300x950")
+        self.minsize(1200, 860)
 
         # ── State ──────────────────────────────────────────────────────────────
         self.dark_mode = False
@@ -69,7 +69,7 @@ class MainWindow(ctk.CTk):
 
         title_lbl = ctk.CTkLabel(
             brand_inner,
-            text="DPA Toolkit",
+            text="DPA Image Toolkit",
             font=get_font("brand"),
             text_color=t["accent"],
             justify="left",
@@ -77,17 +77,7 @@ class MainWindow(ctk.CTk):
         title_lbl.pack(anchor="w")
         self.brand_title_lbl = title_lbl
 
-        sub_lbl = ctk.CTkLabel(
-            brand_inner,
-            text="Image Toolkit",
-            font=get_font("small"),
-            text_color=t["fg_secondary"],
-            anchor="w",
-        )
-        sub_lbl.pack(anchor="w", pady=(6, 0))
-        self.brand_subtitle_lbl = sub_lbl
-
-        for widget in (brand_inner, title_lbl, sub_lbl):
+        for widget in (brand_inner, title_lbl):
             widget.bind("<Button-1>", lambda _event: self._on_home())
 
         # Divider
@@ -647,7 +637,6 @@ class MainWindow(ctk.CTk):
         # Sidebar
         self.sidebar.configure(fg_color=t["bg_sidebar"])
         self.brand_title_lbl.configure(text_color=t["accent"])
-        self.brand_subtitle_lbl.configure(text_color=t["fg_secondary"])
         self.section_lbl.configure(text_color=t["fg_tertiary"])
         self.ver_lbl.configure(text_color=t["fg_tertiary"])
         for divider in self.sidebar_dividers:

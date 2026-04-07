@@ -237,6 +237,7 @@ class TiffMergePanel:
             text_color=t["error"],
             border_width=1,
             border_color=t["error"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_view_error_report,
             state="disabled",
         )
@@ -251,6 +252,7 @@ class TiffMergePanel:
             fg_color=t["accent"],
             hover_color=t["accent_hover"],
             text_color=t["accent_text"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_start_merge,
             state="disabled",
         )

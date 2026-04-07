@@ -436,6 +436,7 @@ class OcrPdfPanel:
             text_color=t["fg_primary"],
             border_width=1,
             border_color=t["border_subtle"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_edit_metadata,
             state="disabled",
         )
@@ -553,6 +554,7 @@ class OcrPdfPanel:
             text_color=t["error"],
             border_width=1,
             border_color=t["error"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_view_error_report,
             state="disabled",
         )
@@ -569,6 +571,7 @@ class OcrPdfPanel:
             text_color=t["warning"],
             border_width=1,
             border_color=t["warning"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_cancel,
             state="disabled",
         )
@@ -583,6 +586,7 @@ class OcrPdfPanel:
             fg_color=t["accent"],
             hover_color=t["accent_hover"],
             text_color=t["accent_text"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_start_ocr,
             state="disabled",
         )

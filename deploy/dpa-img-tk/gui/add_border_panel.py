@@ -221,6 +221,7 @@ class AddBorderPanel:
             fg_color=t["accent"],
             hover_color=t["accent_hover"],
             text_color=t["accent_text"],
+            text_color_disabled=t["button_disabled_text"],
             command=self._on_start,
             state="disabled",
         )

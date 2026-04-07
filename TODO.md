@@ -20,6 +20,8 @@
 
 ## TIFF Merge Enhancements
 
+- [ ] Keep `Finished` non-clickable after a merge completes until a new job is loaded
+- [ ] Detect existing `merged/` and `errored-files/` folders and warn that a merge job may already have been completed; design the follow-up flow
 - [ ] Per-page DPI preservation
 - [ ] Page reordering / extraction from existing multi-page TIFFs
 - [ ] Advanced compression options (JPEG, LZW, PackBits)
@@ -30,6 +32,7 @@
 ## General Enhancements
 
 - [ ] Undo support (move output back, restore originals)
+- [ ] Keep `Finished` non-clickable after a split job completes until a new job is loaded
 
 ---
 

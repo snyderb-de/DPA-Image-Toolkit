@@ -21,6 +21,7 @@ DARK_MODE = {
     "fg_secondary":   "#C2CDD8",
     "fg_tertiary":    "#94A3B8",
     "fg_inverse":     "#1B2530",
+    "button_disabled_text": "#D6DEE8",
 
     # Accent (muted preservation blue)
     "accent":         "#7A9BBC",
@@ -66,6 +67,7 @@ LIGHT_MODE = {
     "fg_secondary":   "#475569",
     "fg_tertiary":    "#64748B",
     "fg_inverse":     "#FFF9F0",
+    "button_disabled_text": "#5F6F82",
 
     # Accent
     "accent":         "#5D7695",
