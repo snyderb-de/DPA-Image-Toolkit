@@ -5,7 +5,7 @@ TIFF split panel for DPA Image Toolkit.
 import customtkinter as ctk
 from pathlib import Path
 
-from utils.file_handler import pick_folder, pick_files
+from utils.file_handler import create_error_folder, pick_folder, pick_files
 from utils.tool_dependencies import (
     check_tool_dependencies,
     get_tool_dependency_panel_content,
@@ -28,6 +28,8 @@ class TiffSplitPanel:
         self.selected_folder: Path = None
         self.selected_files = []
         self.worker = None
+        self.error_folder: Path = None
+        self.has_errors = False
 
         self.selection_label = None
         self.count_label = None
@@ -35,6 +37,9 @@ class TiffSplitPanel:
         self.info_lbl = None
         self.log_display = None
         self.btn_start = None
+        self.btn_new_job = None
+        self.btn_cancel = None
+        self.btn_error_report = None
         self.dependency_rows = []
 
     def build(self, container):
@@ -200,9 +205,9 @@ class TiffSplitPanel:
 
         ctk.CTkLabel(
             log_hdr,
-            text="Activity Log",
+            text="ACTIVITY LOG",
             font=get_font("eyebrow"),
-            text_color=t["fg_secondary"],
+            text_color=t["fg_tertiary"],
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkButton(
@@ -237,7 +242,58 @@ class TiffSplitPanel:
 
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
         action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
-        action_bar.grid_columnconfigure(0, weight=1)
+        action_bar.grid_columnconfigure(1, weight=1)
+
+        self.btn_error_report = ctk.CTkButton(
+            action_bar,
+            text="  📋  View Errors",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["error_dim"],
+            hover_color=t["error"],
+            text_color=t["error"],
+            border_width=1,
+            border_color=t["error"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_view_error_report,
+            state="disabled",
+        )
+        self.btn_error_report.grid(row=0, column=0, sticky="w")
+
+        self.btn_new_job = ctk.CTkButton(
+            action_bar,
+            text="  ↺  Clear/New Job",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_clear_new_job,
+            state="normal",
+        )
+        self.btn_new_job.grid(row=0, column=1, sticky="e", padx=(0, 10))
+
+        self.btn_cancel = ctk.CTkButton(
+            action_bar,
+            text="  ■  Cancel",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["warning_dim"],
+            hover_color=t["warning"],
+            text_color=t["warning"],
+            border_width=1,
+            border_color=t["warning"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_cancel,
+            state="disabled",
+        )
+        self.btn_cancel.grid(row=0, column=2, sticky="e", padx=(0, 10))
 
         self.btn_start = ctk.CTkButton(
             action_bar,
@@ -252,7 +308,7 @@ class TiffSplitPanel:
             command=self._on_start_split,
             state="disabled",
         )
-        self.btn_start.grid(row=0, column=1, sticky="e")
+        self.btn_start.grid(row=0, column=3, sticky="e")
 
         self._refresh_dependency_panel()
         self._log("Ready — choose TIFF files or a TIFF folder.", "info")
@@ -269,6 +325,8 @@ class TiffSplitPanel:
         self.selection_mode = "files"
         self.selected_folder = None
         self.selected_files = [Path(file_path) for file_path in files]
+        self.error_folder = self._prepare_error_folder(self.selected_files[0].parent)
+        self.has_errors = False
         self.selection_label.configure(
             text=f"{len(self.selected_files)} file(s) selected",
             text_color=self.theme["fg_primary"],
@@ -276,6 +334,7 @@ class TiffSplitPanel:
         self.count_label.configure(text=f"  {len(self.selected_files)} TIFFs  ")
         self.count_label.grid(row=0, column=3, padx=(0, 14))
         self.btn_start.configure(state="normal")
+        self.btn_error_report.configure(state="disabled")
         self._set_info(
             "✓  Selected TIFF files. Each file will be extracted into a sibling *_pages folder.",
             "success",
@@ -305,10 +364,13 @@ class TiffSplitPanel:
         self.selection_mode = "folder"
         self.selected_folder = folder
         self.selected_files = list(files)
+        self.error_folder = self._prepare_error_folder(folder)
+        self.has_errors = False
         self.selection_label.configure(text=str(folder), text_color=self.theme["fg_primary"])
         self.count_label.configure(text=f"  {len(self.selected_files)} TIFFs  ")
         self.count_label.grid(row=0, column=3, padx=(0, 14))
         self.btn_start.configure(state="normal")
+        self.btn_error_report.configure(state="disabled")
         self._set_info(
             f"✓  Found {len(self.selected_files)} TIFF file(s). Multi-page TIFFs will be extracted directly into extracted-pages/.",
             "success",
@@ -335,8 +397,16 @@ class TiffSplitPanel:
             return
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
+        self.btn_new_job.configure(state="normal")
+        self.btn_error_report.configure(state="disabled")
+        self.btn_cancel.configure(state="normal")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "split"
+        self.has_errors = False
+
+        if not self.error_folder:
+            base_folder = self.selected_folder or self.selected_files[0].parent
+            self.error_folder = self._prepare_error_folder(base_folder)
 
         output_root = None
         use_root_output = False
@@ -372,7 +442,20 @@ class TiffSplitPanel:
         self._log(message, "success" if "✅" in message else "info")
 
     def _on_error(self, filename, error_message):
+        self.has_errors = True
         self._log(f"{filename} — {error_message}", "error")
+        if self.btn_error_report:
+            self.btn_error_report.configure(state="normal")
+
+    def _on_cancel(self):
+        if self.worker and self.worker.is_alive():
+            self.worker.cancel()
+            self.btn_cancel.configure(state="disabled")
+            self._log("Cancellation requested — waiting for the current TIFF to finish.", "warning")
+            self._set_info(
+                "Cancellation requested — waiting for the current TIFF to finish.",
+                "warning",
+            )
 
     def _poll_worker(self):
         if self.worker and self.worker.is_alive():
@@ -380,14 +463,78 @@ class TiffSplitPanel:
             self.parent.after(100, self._poll_worker)
         else:
             results = self.worker.get_results() if self.worker else {}
-            self._set_info(
-                f"✓  Complete — {results.get('success', 0)} split  ·  "
-                f"{results.get('skipped', 0)} skipped  ·  {results.get('failed', 0)} failed",
-                "warning" if results.get("failed", 0) else "success",
-            )
+            cancelled = results.get("cancelled", False)
+            level = "warning" if results.get("failed", 0) or cancelled else "success"
+            if cancelled:
+                self._set_info(
+                    f"⚠  Cancelled — {results.get('success', 0)} split  ·  "
+                    f"{results.get('skipped', 0)} skipped  ·  {results.get('failed', 0)} failed",
+                    level,
+                )
+                self._log("Split job cancelled before all TIFFs were processed.", "warning")
+            else:
+                self._set_info(
+                    f"✓  Complete — {results.get('success', 0)} split  ·  "
+                    f"{results.get('skipped', 0)} skipped  ·  {results.get('failed', 0)} failed",
+                    level,
+                )
+            if results.get("errors"):
+                self._generate_error_report(results)
+                self.btn_error_report.configure(state="normal")
+                self._log("Some TIFFs failed — click 'View Errors' for details.", "warning")
             self.btn_start.configure(state="normal", text="  ▶  Start Split")
+            self.btn_new_job.configure(state="normal")
+            self.btn_cancel.configure(state="disabled")
             self.parent.operation_in_progress = False
+            self.parent.operation_type = None
             self.parent.set_status("Ready", 1.0)
+
+    def _on_clear_new_job(self):
+        if self.worker and self.worker.is_alive():
+            return
+
+        self.worker = None
+        self.selection_mode = None
+        self.selected_folder = None
+        self.selected_files = []
+        self.error_folder = None
+        self.has_errors = False
+
+        self.selection_label.configure(text="No files or folder selected", text_color=self.theme["fg_tertiary"])
+        self.count_label.grid_remove()
+        self.btn_start.configure(state="disabled", text="  ▶  Start Split")
+        self.btn_cancel.configure(state="disabled")
+        self.btn_error_report.configure(state="disabled")
+        self.btn_new_job.configure(state="normal")
+        self._set_info(
+            "Choose TIFF files or a folder. Folder mode skips single-page TIFFs automatically.",
+            "info",
+        )
+        self._clear_log()
+        self._refresh_dependency_panel()
+        self.parent.operation_in_progress = False
+        self.parent.operation_type = None
+        self.parent.set_status("Ready", 1.0)
+        self._log("Ready — choose TIFF files or a TIFF folder.", "info")
+
+    def _on_view_error_report(self):
+        if not self.error_folder or not self.error_folder.exists():
+            self._log("No TIFF split error folder found.", "warning")
+            return
+
+        import platform
+        import subprocess
+
+        try:
+            if platform.system() == "Windows":
+                subprocess.Popen(f'explorer "{self.error_folder}"')
+            elif platform.system() == "Darwin":
+                subprocess.Popen(["open", str(self.error_folder)])
+            else:
+                subprocess.Popen(["xdg-open", str(self.error_folder)])
+            self._log(f"Opened error folder: {self.error_folder}", "info")
+        except Exception as exc:
+            self._log(f"Failed to open error folder: {exc}", "error")
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
@@ -426,3 +573,41 @@ class TiffSplitPanel:
         self.log_display.insert("end", f"{prefixes.get(level, '  ·  ')}{message}\n")
         self.log_display.see("end")
         self.log_display.configure(state="disabled")
+
+    def _prepare_error_folder(self, base_folder: Path):
+        error_root = create_error_folder(base_folder)
+        if not error_root:
+            return None
+
+        error_folder = error_root / "tiff-split"
+        error_folder.mkdir(parents=True, exist_ok=True)
+        return error_folder
+
+    def _generate_error_report(self, results: dict):
+        if not self.error_folder:
+            return
+
+        report_file = self.error_folder / "TIFF_SPLIT_ERROR_REPORT.txt"
+        lines = [
+            "DPA Image Toolkit — TIFF Split Error Report",
+            "=" * 60,
+            "",
+            f"Total Errors: {len(results.get('errors', []))}",
+            "",
+        ]
+        for error in results.get("errors", []):
+            lines += [
+                f"File:  {error['file']}",
+                f"Error: {error['error']}",
+                "",
+            ]
+        lines += [
+            "=" * 60,
+            "Review these files before rerunning the split job.",
+        ]
+
+        try:
+            report_file.write_text("\n".join(lines))
+            self._log(f"Error report saved: {report_file.name}", "info")
+        except Exception as exc:
+            self._log(f"Failed to save error report: {exc}", "error")

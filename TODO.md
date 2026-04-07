@@ -38,6 +38,7 @@
 
 ## OCR Enhancements
 
+- [ ] Add a future multi-language OCR option back into the UI once the workflow and support/install story are settled
 - [ ] Tune the messy-scan heuristic against real production samples
 - [ ] Add PDF/A validation reporting in the UI
 - [ ] Offer a manual override flow for scans skipped by the OCR quality gate

@@ -17,7 +17,10 @@ from modules.ocr_pdf.core import (
 from utils.file_handler import create_error_folder, create_output_folder, pick_folder
 from utils.tool_dependencies import show_dependency_warning
 from utils.worker import OcrPdfWorker
+from .dependency_sidebar import create_status_icon_canvas, draw_status_icon
 from .styles import BUTTON, RADIUS, get_font
+
+DEFAULT_OCR_LANGUAGE = "eng"
 
 
 class OcrPdfPanel:
@@ -36,7 +39,6 @@ class OcrPdfPanel:
 
         self.skip_existing_var = ctk.BooleanVar(value=True)
         self.skip_messy_var = ctk.BooleanVar(value=True)
-        self.language_var = ctk.StringVar(value="eng")
 
         self.folder_label = None
         self.file_count_lbl = None
@@ -46,6 +48,7 @@ class OcrPdfPanel:
         self.btn_start = None
         self.btn_cancel = None
         self.btn_error_report = None
+        self.btn_new_job = None
         self.dependency_rows = []
 
     def build(self, container):
@@ -76,7 +79,7 @@ class OcrPdfPanel:
             text_color=t["fg_secondary"],
             anchor="w",
             justify="left",
-            wraplength=700,
+            wraplength=560,
         ).grid(row=1, column=0, sticky="nw", pady=(8, 0))
 
         picker_card = ctk.CTkFrame(
@@ -182,15 +185,21 @@ class OcrPdfPanel:
         dep_frame.grid_columnconfigure(0, weight=1)
 
         initial_statuses = get_ocr_dependency_statuses(
-            language=self.language_var.get().strip() or "eng",
+            language=DEFAULT_OCR_LANGUAGE,
             require_pdfa=False,
         )
 
         self.dependency_rows = []
         for index in range(len(initial_statuses)):
             row = ctk.CTkFrame(dep_frame, fg_color="transparent")
-            row.grid(row=index, column=0, sticky="ew", padx=14, pady=(12 if index == 0 else 0, 10))
-            row.grid_columnconfigure(0, weight=1)
+            row.grid(row=index, column=0, sticky="ew", padx=14, pady=(10 if index == 0 else 4, 8))
+            row.grid_columnconfigure(1, weight=1)
+
+            icon = create_status_icon_canvas(
+                row,
+                background=t["bg_glass"],
+            )
+            icon.grid(row=0, column=0, sticky="nw", padx=(0, 6), pady=(1, 0))
 
             label = ctk.CTkLabel(
                 row,
@@ -201,7 +210,7 @@ class OcrPdfPanel:
                 justify="left",
                 wraplength=220,
             )
-            label.grid(row=0, column=0, sticky="w")
+            label.grid(row=0, column=1, sticky="w")
 
             detail = ctk.CTkLabel(
                 row,
@@ -212,8 +221,8 @@ class OcrPdfPanel:
                 justify="left",
                 wraplength=220,
             )
-            detail.grid(row=1, column=0, sticky="w", pady=(4, 0))
-            self.dependency_rows.append((label, detail))
+            detail.grid(row=1, column=1, sticky="w", pady=(2, 0))
+            self.dependency_rows.append((icon, label, detail))
 
         support_card = ctk.CTkFrame(
             side_inner,
@@ -237,15 +246,37 @@ class OcrPdfPanel:
             "Searchable PDFs only need the standard OCR stack.",
             "If a dependency is missing, contact support for installation on this machine.",
         ):
+            line_row = ctk.CTkFrame(support_card, fg_color="transparent")
+            line_row.pack(fill="x", padx=14, pady=(0, 6), anchor="w")
+            line_row.grid_columnconfigure(2, weight=1)
+
             ctk.CTkLabel(
-                support_card,
-                text=f"•  {line}",
+                line_row,
+                text="•",
+                font=get_font("small"),
+                text_color=t["fg_secondary"],
+                anchor="n",
+                width=10,
+            ).grid(row=0, column=0, sticky="nw")
+
+            leading_icon, body = self._split_status_line(line)
+            if leading_icon:
+                icon = create_status_icon_canvas(
+                    line_row,
+                    background=t["accent_dim"],
+                )
+                draw_status_icon(icon, leading_icon == "✅")
+                icon.grid(row=0, column=1, sticky="nw", padx=(4, 6), pady=(1, 0))
+
+            ctk.CTkLabel(
+                line_row,
+                text=body,
                 font=get_font("small"),
                 text_color=t["fg_secondary"],
                 justify="left",
-                wraplength=240,
+                wraplength=190 if leading_icon else 228,
                 anchor="w",
-            ).pack(anchor="w", padx=14, pady=(0, 8))
+            ).grid(row=0, column=2 if leading_icon else 1, sticky="w")
 
         options_card = ctk.CTkFrame(
             panel,
@@ -268,9 +299,6 @@ class OcrPdfPanel:
         top_options_row = ctk.CTkFrame(options_card, fg_color="transparent")
         top_options_row.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 14))
         top_options_row.grid_columnconfigure(0, weight=1)
-        top_options_row.grid_columnconfigure(1, weight=1)
-        top_options_row.grid_columnconfigure(2, weight=0)
-        top_options_row.grid_columnconfigure(3, weight=0)
 
         ctk.CTkCheckBox(
             top_options_row,
@@ -278,24 +306,7 @@ class OcrPdfPanel:
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.skip_existing_var,
-        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
-
-        ctk.CTkLabel(
-            top_options_row,
-            text="OCR Language",
-            font=get_font("small"),
-            text_color=t["fg_secondary"],
-            anchor="w",
-        ).grid(row=0, column=2, sticky="e", padx=(0, 8))
-
-        language_entry = ctk.CTkEntry(
-            top_options_row,
-            textvariable=self.language_var,
-            width=140,
-        )
-        language_entry.grid(row=0, column=3, sticky="w")
-        language_entry.bind("<FocusOut>", lambda _event: self._refresh_dependency_panel())
-        language_entry.bind("<Return>", lambda _event: self._refresh_dependency_panel())
+        ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkCheckBox(
             options_card,
@@ -326,6 +337,7 @@ class OcrPdfPanel:
             "Files ending in _### are grouped into one PDF and ordered by that sequence number.",
             "Files without a trailing sequence become single-page PDFs.",
             "All output PDFs are saved into a PDFs subfolder inside the selected folder.",
+            "OCR currently runs in English only.",
             "Output PDFs keep filename-based titles with no extra metadata step.",
             "Searchable PDF is the standard output.",
             "The quality precheck may skip a PDF when its pages look too messy to produce trustworthy OCR text.",
@@ -357,9 +369,9 @@ class OcrPdfPanel:
 
         ctk.CTkLabel(
             log_hdr,
-            text="Activity Log",
+            text="ACTIVITY LOG",
             font=get_font("eyebrow"),
-            text_color=t["fg_secondary"],
+            text_color=t["fg_tertiary"],
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkButton(
@@ -416,6 +428,23 @@ class OcrPdfPanel:
         )
         self.btn_error_report.grid(row=0, column=0, sticky="w")
 
+        self.btn_new_job = ctk.CTkButton(
+            action_bar,
+            text="  ↺  Clear/New Job",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_clear_new_job,
+            state="normal",
+        )
+        self.btn_new_job.grid(row=0, column=1, sticky="e", padx=(0, 10))
+
         self.btn_cancel = ctk.CTkButton(
             action_bar,
             text="  ■  Cancel",
@@ -431,7 +460,7 @@ class OcrPdfPanel:
             command=self._on_cancel,
             state="disabled",
         )
-        self.btn_cancel.grid(row=0, column=1, sticky="e", padx=(0, 10))
+        self.btn_cancel.grid(row=0, column=2, sticky="e", padx=(0, 10))
 
         self.btn_start = ctk.CTkButton(
             action_bar,
@@ -446,7 +475,7 @@ class OcrPdfPanel:
             command=self._on_start_ocr,
             state="disabled",
         )
-        self.btn_start.grid(row=0, column=2, sticky="e")
+        self.btn_start.grid(row=0, column=3, sticky="e")
 
         self._refresh_dependency_panel()
         self._log("Ready — select a folder of images to create OCR'd PDFs.", "info")
@@ -498,13 +527,13 @@ class OcrPdfPanel:
 
     def _refresh_dependency_panel(self):
         statuses = get_ocr_dependency_statuses(
-            language=self.language_var.get().strip() or "eng",
+            language=DEFAULT_OCR_LANGUAGE,
             require_pdfa=False,
         )
 
-        for (label_widget, detail_widget), status in zip(self.dependency_rows, statuses):
-            emoji = "✅" if status["ok"] else "❌"
-            label_widget.configure(text=f"{emoji}  {status['label']}")
+        for (icon_widget, label_widget, detail_widget), status in zip(self.dependency_rows, statuses):
+            draw_status_icon(icon_widget, status["ok"])
+            label_widget.configure(text=status["label"])
             detail_widget.configure(text=status["detail"])
 
     def _on_start_ocr(self):
@@ -512,8 +541,7 @@ class OcrPdfPanel:
             self._log("Select a folder before starting OCR.", "error")
             return
 
-        language = self.language_var.get().strip() or "eng"
-        self.language_var.set(language)
+        language = DEFAULT_OCR_LANGUAGE
 
         ok, error_msg, dependency_info = check_ocr_dependencies(
             language=language,
@@ -546,6 +574,7 @@ class OcrPdfPanel:
         self.error_folder.mkdir(parents=True, exist_ok=True)
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
+        self.btn_new_job.configure(state="normal")
         self.btn_cancel.configure(state="normal")
         self.btn_error_report.configure(state="disabled")
         self.parent.operation_in_progress = True
@@ -656,10 +685,40 @@ class OcrPdfPanel:
                 self._generate_error_report(results)
                 self.btn_error_report.configure(state="normal")
 
-        self.btn_start.configure(state="normal" if self.metadata else "disabled", text="  ▶  Start OCR")
+        self.btn_start.configure(
+            state="normal" if self.selected_folder else "disabled",
+            text="  ▶  Start OCR",
+        )
+        self.btn_new_job.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
         self.parent.operation_in_progress = False
+        self.parent.operation_type = None
         self.parent.set_status("Ready", 1.0)
+
+    def _on_clear_new_job(self):
+        if self.worker and self.worker.is_alive():
+            return
+
+        self.worker = None
+        self.selected_folder = None
+        self.output_folder = None
+        self.error_folder = None
+        self.selected_files = []
+        self.has_errors = False
+
+        self.folder_label.configure(text="No folder selected", text_color=self.theme["fg_tertiary"])
+        self.file_count_lbl.grid_remove()
+        self.btn_start.configure(state="disabled", text="  ▶  Start OCR")
+        self.btn_cancel.configure(state="disabled")
+        self.btn_error_report.configure(state="disabled")
+        self.btn_new_job.configure(state="normal")
+        self._set_info("Select a folder of images to begin.", level="info")
+        self._clear_log()
+        self._refresh_dependency_panel()
+        self.parent.operation_in_progress = False
+        self.parent.operation_type = None
+        self.parent.set_status("Ready", 1.0)
+        self._log("Ready — select a folder of images to create OCR'd PDFs.", "info")
 
     def _on_view_error_report(self):
         if not self.error_folder or not self.error_folder.exists():
@@ -747,3 +806,10 @@ class OcrPdfPanel:
             self._log(f"Error report saved: {report_file.name}", "info")
         except Exception as exc:
             self._log(f"Failed to save error report: {exc}", "error")
+
+    def _split_status_line(self, text: str):
+        if text.startswith("✅ "):
+            return "✅", text[2:].lstrip()
+        if text.startswith("❌ "):
+            return "❌", text[2:].lstrip()
+        return None, text

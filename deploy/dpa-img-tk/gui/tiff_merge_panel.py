@@ -39,7 +39,9 @@ class TiffMergePanel:
         self.info_lbl = None
         self.log_display = None
         self.btn_start = None
+        self.btn_cancel = None
         self.btn_error_report = None
+        self.btn_new_job = None
         self.merge_completed = False
         self.dependency_rows = []
 
@@ -205,9 +207,9 @@ class TiffMergePanel:
 
         ctk.CTkLabel(
             log_hdr,
-            text="Activity Log",
+            text="ACTIVITY LOG",
             font=get_font("eyebrow"),
-            text_color=t["fg_secondary"],
+            text_color=t["fg_tertiary"],
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkButton(
@@ -262,6 +264,40 @@ class TiffMergePanel:
         )
         self.btn_error_report.grid(row=0, column=0, sticky="w")
 
+        self.btn_new_job = ctk.CTkButton(
+            action_bar,
+            text="  ↺  Clear/New Job",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_clear_new_job,
+            state="normal",
+        )
+        self.btn_new_job.grid(row=0, column=1, sticky="e", padx=(0, 10))
+
+        self.btn_cancel = ctk.CTkButton(
+            action_bar,
+            text="  ■  Cancel",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["warning_dim"],
+            hover_color=t["warning"],
+            text_color=t["warning"],
+            border_width=1,
+            border_color=t["warning"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_cancel,
+            state="disabled",
+        )
+        self.btn_cancel.grid(row=0, column=2, sticky="e", padx=(0, 10))
+
         self.btn_start = ctk.CTkButton(
             action_bar,
             text="  ▶  Start Merge",
@@ -275,7 +311,7 @@ class TiffMergePanel:
             command=self._on_start_merge,
             state="disabled",
         )
-        self.btn_start.grid(row=0, column=2, sticky="e")
+        self.btn_start.grid(row=0, column=3, sticky="e")
 
         self._refresh_dependency_panel()
         self._log("Ready — select a TIFF folder to get started.", "info")
@@ -366,6 +402,9 @@ class TiffMergePanel:
             return
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
+        self.btn_new_job.configure(state="normal")
+        self.btn_cancel.configure(state="normal")
+        self.btn_error_report.configure(state="disabled")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "merge"
 
@@ -412,21 +451,42 @@ class TiffMergePanel:
 
         if "✅" in message or "❌" in message or "cancelled" in message.lower():
             self.parent.operation_in_progress = False
+            self.parent.operation_type = None
             self.parent.set_status("Ready", 1.0)
 
             results = getattr(self.worker, "get_results", lambda: {})()
-            if not message.lower().endswith("cancelled") and results.get("total", 0) > 0:
+            cancelled = results.get("cancelled", False) or "cancelled" in message.lower()
+            if not cancelled and results.get("total", 0) > 0:
                 self.merge_completed = True
 
             button_text = "Finished" if self.merge_completed else "  ▶  Start Merge"
             self.btn_start.configure(state="normal", text=button_text)
+            self.btn_new_job.configure(state="normal")
+            self.btn_cancel.configure(state="disabled")
 
             if results.get("failed", 0) > 0:
                 self.btn_error_report.configure(state="normal")
                 self._log("Some groups failed — click 'View Errors' for details.", "warning")
 
+            if cancelled:
+                self._set_info(
+                    f"⚠  Cancelled — merged {results.get('success', 0)} group(s)  ·  "
+                    f"{results.get('failed', 0)} failed",
+                    level="warning",
+                )
+
     def _on_error(self, filename: str, error_message: str):
         self._log(f"{filename}: {error_message}", "error")
+
+    def _on_cancel(self):
+        if self.worker and self.worker.is_alive():
+            self.worker.cancel()
+            self.btn_cancel.configure(state="disabled")
+            self._log("Cancellation requested — waiting for active merge work to settle.", "warning")
+            self._set_info(
+                "Cancellation requested — waiting for active merge work to settle.",
+                level="warning",
+            )
 
     def _on_view_error_report(self):
         if not self.error_folder or not self.error_folder.exists():
@@ -446,6 +506,30 @@ class TiffMergePanel:
             self._log(f"Opened error folder: {self.error_folder}", "info")
         except Exception as e:
             self._log(f"Failed to open folder: {e}", "error")
+
+    def _on_clear_new_job(self):
+        if self.worker and self.worker.is_alive():
+            return
+
+        self.worker = None
+        self.selected_folder = None
+        self.error_folder = None
+        self.groups = None
+        self.merge_completed = False
+
+        self.folder_label.configure(text="No folder selected", text_color=self.theme["fg_tertiary"])
+        self.group_count_lbl.grid_remove()
+        self.btn_start.configure(state="disabled", text="  ▶  Start Merge")
+        self.btn_cancel.configure(state="disabled")
+        self.btn_error_report.configure(state="disabled")
+        self.btn_new_job.configure(state="normal")
+        self._set_info("Files must be named:  groupname_###.tif", level="info")
+        self._clear_log()
+        self._refresh_dependency_panel()
+        self.parent.operation_in_progress = False
+        self.parent.operation_type = None
+        self.parent.set_status("Ready", 1.0)
+        self._log("Ready — select a TIFF folder to get started.", "info")
 
     # ──────────────────────────────────────────────────────────────────────────
     # Validation dialog

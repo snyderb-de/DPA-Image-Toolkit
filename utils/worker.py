@@ -111,6 +111,7 @@ class AutoCropWorker(OperationWorker):
             "failed": 0,
             "skipped": 0,
             "total": 0,
+            "cancelled": False,
             "errors": [],
         }
 
@@ -138,8 +139,9 @@ class AutoCropWorker(OperationWorker):
 
             for idx, image_file in enumerate(image_files, 1):
                 if self.cancelled:
+                    self.results["cancelled"] = True
                     self.update_status("Operation cancelled")
-                    break
+                    return
 
                 self.update_progress(idx, total, image_file.name)
                 self.update_status(f"Cropping: {image_file.name}")
@@ -220,6 +222,7 @@ class TiffMergeWorker(OperationWorker):
             "success": 0,
             "failed": 0,
             "total": 0,
+            "cancelled": False,
             "errors": [],
         }
 
@@ -288,8 +291,9 @@ class TiffMergeWorker(OperationWorker):
 
                 for future in as_completed(futures):
                     if self.cancelled:
+                        self.results["cancelled"] = True
                         self.update_status("Operation cancelled")
-                        break
+                        return
 
                     result = future.result()
                     group_name = result["group"]
@@ -344,6 +348,7 @@ class TiffSplitWorker(OperationWorker):
             "failed": 0,
             "skipped": 0,
             "total": len(self.input_files),
+            "cancelled": False,
             "errors": [],
         }
 
@@ -359,8 +364,9 @@ class TiffSplitWorker(OperationWorker):
 
             for idx, file_path in enumerate(self.input_files, 1):
                 if self.cancelled:
+                    self.results["cancelled"] = True
                     self.update_status("Operation cancelled")
-                    break
+                    return
 
                 self.update_progress(idx, total, file_path.name)
                 self.update_status(f"Splitting: {file_path.name}")
@@ -421,6 +427,7 @@ class AddBorderWorker(OperationWorker):
             "success": 0,
             "failed": 0,
             "total": 0,
+            "cancelled": False,
             "errors": [],
         }
 
@@ -445,8 +452,9 @@ class AddBorderWorker(OperationWorker):
 
             for idx, image_file in enumerate(image_files, 1):
                 if self.cancelled:
+                    self.results["cancelled"] = True
                     self.update_status("Operation cancelled")
-                    break
+                    return
 
                 self.update_progress(idx, total, image_file.name)
                 self.update_status(f"Adding border: {image_file.name}")

@@ -42,6 +42,7 @@ class AutoCropPanel:
         self.btn_start = None
         self.btn_cancel = None
         self.btn_error_report = None
+        self.btn_new_job = None
         self.dependency_rows = []
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -212,9 +213,9 @@ class AutoCropPanel:
 
         ctk.CTkLabel(
             log_hdr,
-            text="Activity Log",
+            text="ACTIVITY LOG",
             font=get_font("eyebrow"),
-            text_color=t["fg_secondary"],
+            text_color=t["fg_tertiary"],
         ).grid(row=0, column=0, sticky="w")
 
         self.log_clear_btn = ctk.CTkButton(
@@ -272,6 +273,40 @@ class AutoCropPanel:
         )
         self.btn_error_report.grid(row=0, column=0, sticky="w")
 
+        self.btn_new_job = ctk.CTkButton(
+            action_bar,
+            text="  ↺  Clear/New Job",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_clear_new_job,
+            state="normal",
+        )
+        self.btn_new_job.grid(row=0, column=1, sticky="e", padx=(0, 10))
+
+        self.btn_cancel = ctk.CTkButton(
+            action_bar,
+            text="  ■  Cancel",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["warning_dim"],
+            hover_color=t["warning"],
+            text_color=t["warning"],
+            border_width=1,
+            border_color=t["warning"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_cancel,
+            state="disabled",
+        )
+        self.btn_cancel.grid(row=0, column=2, sticky="e", padx=(0, 10))
+
         self.btn_start = ctk.CTkButton(
             action_bar,
             text="  ▶  Start Auto Crop",
@@ -285,7 +320,7 @@ class AutoCropPanel:
             command=self._on_start_crop,
             state="disabled",
         )
-        self.btn_start.grid(row=0, column=2, sticky="e")
+        self.btn_start.grid(row=0, column=3, sticky="e")
 
         self._refresh_dependency_panel()
         self._log("Ready — select an image folder to get started.", "info")
@@ -353,6 +388,8 @@ class AutoCropPanel:
         error_folder = create_error_folder(self.selected_folder)
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
+        self.btn_new_job.configure(state="normal")
+        self.btn_cancel.configure(state="normal")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "crop"
         self.has_errors = False
@@ -397,6 +434,16 @@ class AutoCropPanel:
         if self.btn_error_report:
             self.btn_error_report.configure(state="normal")
 
+    def _on_cancel(self):
+        if self.worker and self.worker.is_alive():
+            self.worker.cancel()
+            self.btn_cancel.configure(state="disabled")
+            self._log("Cancellation requested — waiting for the current image to finish.", "warning")
+            self._set_info(
+                "Cancellation requested — waiting for the current image to finish.",
+                level="warning",
+            )
+
     def _poll_worker(self):
         if self.worker and self.worker.is_alive():
             self.worker.join(timeout=0.05)
@@ -407,24 +454,64 @@ class AutoCropPanel:
     def _on_worker_done(self):
         if self.worker:
             results = self.worker.get_results()
-            level = "warning" if self.has_errors else "success"
-            self._log(
-                f"Done — {results['success']} cropped, "
-                f"{results['skipped']} skipped, {results['failed']} failed.",
-                level,
-            )
-            self._set_info(
-                f"✓  Complete — {results['success']} cropped  ·  "
-                f"{results['skipped']} skipped  ·  {results['failed']} failed",
-                level=level,
-            )
+            cancelled = results.get("cancelled", False)
+            level = "warning" if self.has_errors or cancelled else "success"
+            if cancelled:
+                self._log(
+                    f"Stopped — {results['success']} cropped, "
+                    f"{results['skipped']} skipped, {results['failed']} failed before cancel completed.",
+                    level,
+                )
+                self._set_info(
+                    f"⚠  Cancelled — {results['success']} cropped  ·  "
+                    f"{results['skipped']} skipped  ·  {results['failed']} failed",
+                    level=level,
+                )
+            else:
+                self._log(
+                    f"Done — {results['success']} cropped, "
+                    f"{results['skipped']} skipped, {results['failed']} failed.",
+                    level,
+                )
+                self._set_info(
+                    f"✓  Complete — {results['success']} cropped  ·  "
+                    f"{results['skipped']} skipped  ·  {results['failed']} failed",
+                    level=level,
+                )
 
             if results.get("errors"):
                 self._generate_error_report(results)
 
         self.btn_start.configure(state="normal", text="  ▶  Start Auto Crop")
+        self.btn_new_job.configure(state="normal")
+        self.btn_cancel.configure(state="disabled")
         self.parent.operation_in_progress = False
+        self.parent.operation_type = None
         self.parent.set_status("Ready", 1.0)
+
+    def _on_clear_new_job(self):
+        if self.worker and self.worker.is_alive():
+            return
+
+        self.worker = None
+        self.selected_folder = None
+        self.output_folder = None
+        self.error_folder = None
+        self.has_errors = False
+
+        self.folder_label.configure(text="No folder selected", text_color=self.theme["fg_tertiary"])
+        self.file_count_lbl.grid_remove()
+        self.btn_start.configure(state="disabled", text="  ▶  Start Auto Crop")
+        self.btn_cancel.configure(state="disabled")
+        self.btn_error_report.configure(state="disabled")
+        self.btn_new_job.configure(state="normal")
+        self._set_info("Select a folder containing images to begin.", level="info")
+        self._clear_log()
+        self._refresh_dependency_panel()
+        self.parent.operation_in_progress = False
+        self.parent.operation_type = None
+        self.parent.set_status("Ready", 1.0)
+        self._log("Ready — select an image folder to get started.", "info")
 
     def _on_view_error_report(self):
         if not self.error_folder or not self.error_folder.exists():
