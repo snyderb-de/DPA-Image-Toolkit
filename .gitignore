@@ -21,6 +21,7 @@ dist/
 tests/crop_output/
 tests/crop_output_near_white/
 tests/tiff_merge_output/
+real-world-crop-test/
 
 # ── OS / editor artifacts ─────────────────────────────────────────────────────
 .DS_Store
