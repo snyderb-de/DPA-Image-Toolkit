@@ -109,14 +109,16 @@ All tools share the same threading pattern: a daemon `OperationWorker` thread ru
 
 ## OCR to PDF Algorithm
 
-1. Discover supported image files in the selected folder
-2. Optionally recurse into subfolders while ignoring toolkit-generated output folders
-3. Optionally run a conservative OCR readiness precheck to skip scans that are likely too blurry, low-contrast, blank, or noisy to produce useful OCR
-4. If PDF/A is enabled, process the file through OCRmyPDF using local OCR dependencies
-5. If PDF/A is disabled, fall back to direct Tesseract searchable PDF generation
-6. Write one output PDF per source image
+1. Accept one selected folder of page image files as one document
+2. Sort supported scan files in natural filename order
+3. Prompt for Title, Author, Subject, and Keywords after folder selection
+4. Optionally run a conservative OCR readiness precheck across all pages
+5. Build a temporary multi-page PDF from the ordered image set
+6. Run OCRmyPDF on that document using local OCR dependencies
+7. Write one output PDF named after the selected folder
+8. Apply the supplied document metadata during OCR output generation
 
-**Output:** `input_folder/ocr-pdf/`
+**Output:** `input_folder/ocr-pdf/<folder_name>.pdf`
 **Errors:** `input_folder/errored-files/ocr-pdf/`
 
 ### File Naming Convention

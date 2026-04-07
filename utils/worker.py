@@ -453,28 +453,28 @@ class OcrPdfWorker(OperationWorker):
         input_folder: Path,
         output_folder: Path,
         error_folder: Path,
-        recurse: bool = False,
         language: str = "eng",
         skip_existing: bool = True,
         save_pdfa: bool = True,
         skip_messy: bool = True,
+        metadata: Optional[dict] = None,
         tesseract_path: Optional[Path] = None,
     ):
         super().__init__(name="OcrPdfWorker")
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
         self.error_folder = Path(error_folder)
-        self.recurse = recurse
         self.language = language
         self.skip_existing = skip_existing
         self.save_pdfa = save_pdfa
         self.skip_messy = skip_messy
+        self.metadata = metadata or {}
         self.tesseract_path = Path(tesseract_path) if tesseract_path else None
         self.results = {
             "success": 0,
             "failed": 0,
             "skipped": 0,
-            "total": 0,
+            "total": 1,
             "cancelled": False,
             "errors": [],
             "skip_reasons": [],
@@ -486,10 +486,11 @@ class OcrPdfWorker(OperationWorker):
         from modules.ocr_pdf.core import (
             check_ocr_dependencies,
             find_ocr_input_files,
-            ocr_image_to_pdf,
+            ocr_folder_to_pdf,
         )
 
         try:
+            self.update_progress(0, 3, self.input_folder.name)
             self.update_status("Checking OCR dependencies...")
             ok, error_msg, dependency_info = check_ocr_dependencies(
                 language=self.language,
@@ -505,76 +506,62 @@ class OcrPdfWorker(OperationWorker):
                 self.report_error("dependency", error_msg)
                 return
 
-            resolved_tesseract = dependency_info.get("tesseract_path")
-
-            self.update_status("Scanning folder for OCR input files...")
-            image_files = find_ocr_input_files(
-                self.input_folder,
-                recurse=self.recurse,
-            )
+            self.update_progress(1, 3, self.input_folder.name)
+            self.update_status("Scanning folder for OCR page images...")
+            image_files = find_ocr_input_files(self.input_folder)
 
             if not image_files:
                 self.update_status("No supported image files found")
                 return
 
-            total = len(image_files)
-            self.results["total"] = total
-            self.update_status(f"Found {total} image file(s) to OCR")
+            page_count = len(image_files)
+            self.update_status(f"Found {page_count} page image(s) in the document folder")
 
-            for idx, image_file in enumerate(image_files, 1):
-                if self.cancelled:
-                    self.results["cancelled"] = True
-                    self.update_status("Operation cancelled")
-                    break
+            if self.cancelled:
+                self.results["cancelled"] = True
+                self.update_status("Operation cancelled")
+                return
 
-                display_name = image_file.name
-                try:
-                    display_name = str(image_file.relative_to(self.input_folder))
-                except ValueError:
-                    pass
+            self.update_progress(2, 3, self.input_folder.name)
+            self.update_status("Building document PDF and running OCR...")
 
-                self.update_progress(idx, total, display_name)
-                self.update_status(f"OCR: {display_name}")
+            result = ocr_folder_to_pdf(
+                input_folder=self.input_folder,
+                output_folder=self.output_folder,
+                language=self.language,
+                skip_existing=self.skip_existing,
+                save_pdfa=self.save_pdfa,
+                skip_messy=self.skip_messy,
+                metadata=self.metadata,
+            )
 
-                result = ocr_image_to_pdf(
-                    image_path=image_file,
-                    input_folder=self.input_folder,
-                    output_folder=self.output_folder,
-                    recurse=self.recurse,
-                    language=self.language,
-                    skip_existing=self.skip_existing,
-                    save_pdfa=self.save_pdfa,
-                    skip_messy=self.skip_messy,
-                    tesseract_path=resolved_tesseract,
-                    cancel_check=lambda: self.cancelled,
-                )
-
-                if result["status"] == "success":
-                    self.results["success"] += 1
-                    self.results["outputs"].append(str(result["output_path"]))
-                elif result["status"] == "skipped":
-                    self.results["skipped"] += 1
-                    skip_reason = result.get("error") or "Skipped"
-                    self.results["skip_reasons"].append({
-                        "file": display_name,
-                        "reason": skip_reason,
-                    })
-                    self.update_status(f"Skipped: {display_name} — {skip_reason}")
-                elif result["status"] == "cancelled":
-                    self.results["cancelled"] = True
-                    self.update_status("Operation cancelled")
-                    break
-                else:
-                    self.results["failed"] += 1
-                    error_msg = result.get("error") or "OCR failed"
-                    self.results["errors"].append({
-                        "file": display_name,
-                        "error": error_msg,
-                    })
-                    self.report_error(display_name, error_msg)
+            if result["status"] == "success":
+                self.results["success"] = 1
+                self.results["outputs"].append(str(result["output_path"]))
+                self.update_progress(3, 3, self.input_folder.name)
+            elif result["status"] == "skipped":
+                self.results["skipped"] = 1
+                skip_reason = result.get("error") or "Skipped"
+                self.results["skip_reasons"].append({
+                    "file": self.input_folder.name,
+                    "reason": skip_reason,
+                })
+                self.update_status(f"Skipped: {self.input_folder.name} — {skip_reason}")
+                details = result.get("details") or {}
+                for page in details.get("flagged_pages", []):
+                    reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
+                    self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
+            else:
+                self.results["failed"] = 1
+                error_msg = result.get("error") or "OCR failed"
+                self.results["errors"].append({
+                    "file": self.input_folder.name,
+                    "error": error_msg,
+                })
+                self.report_error(self.input_folder.name, error_msg)
 
             summary = (
-                f"✅ OCR'd: {self.results['success']} | "
+                f"✅ OCR'd: {self.results['success']} document | "
                 f"⚠️ Skipped: {self.results['skipped']} | "
                 f"❌ Failed: {self.results['failed']}"
             )

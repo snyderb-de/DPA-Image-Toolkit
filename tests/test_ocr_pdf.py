@@ -14,11 +14,13 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modules.ocr_pdf.core import (
+    assess_document_ocr_readiness,
     assess_ocr_readiness,
+    build_input_pdf_from_images,
     check_ocr_dependencies,
     find_ocr_input_files,
     get_output_pdf_path,
-    ocr_image_to_pdf,
+    ocr_folder_to_pdf,
 )
 
 
@@ -32,7 +34,7 @@ def _make_image(path: Path, *, size=(1600, 2200), text=False):
 
 
 class OcrPdfCoreTests(unittest.TestCase):
-    def test_find_ocr_input_files_non_recursive(self):
+    def test_find_ocr_input_files_top_level_only(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _make_image(root / "scan_001.tif")
@@ -42,41 +44,19 @@ class OcrPdfCoreTests(unittest.TestCase):
             nested.mkdir()
             _make_image(nested / "nested_scan.png")
 
-            files = find_ocr_input_files(root, recurse=False)
+            files = find_ocr_input_files(root)
 
             self.assertEqual([path.name for path in files], ["scan_001.tif", "scan_002.jpg"])
 
-    def test_find_ocr_input_files_recursive_ignores_toolkit_output_dirs(self):
+    def test_get_output_pdf_path_uses_folder_name(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            nested = root / "incoming"
-            nested.mkdir()
-            _make_image(nested / "scan_001.tif")
+            folder = Path(temp_dir) / "roll_123"
+            output = Path(temp_dir) / "ocr-pdf"
+            folder.mkdir()
 
-            ignored = root / "ocr-pdf"
-            ignored.mkdir()
-            _make_image(ignored / "already_done.jpg")
+            pdf_path = get_output_pdf_path(folder, output)
 
-            files = find_ocr_input_files(root, recurse=True)
-
-            self.assertEqual([path.name for path in files], ["scan_001.tif"])
-
-    def test_get_output_pdf_path_preserves_subfolders(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "input"
-            output = Path(temp_dir) / "output"
-            source = root / "batch_a" / "scan_001.tif"
-            source.parent.mkdir(parents=True)
-            _make_image(source)
-
-            pdf_path = get_output_pdf_path(
-                image_path=source,
-                input_folder=root,
-                output_folder=output,
-                preserve_subfolders=True,
-            )
-
-            self.assertEqual(pdf_path, output / "batch_a" / "scan_001.pdf")
+            self.assertEqual(pdf_path, output / "roll_123.pdf")
 
     def test_assess_ocr_readiness_marks_blank_pages_as_skip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -88,65 +68,95 @@ class OcrPdfCoreTests(unittest.TestCase):
             self.assertTrue(stats["skip"])
             self.assertIn("almost blank page", stats["reasons"])
 
-    def test_check_ocr_dependencies_requires_ocrmypdf_for_pdfa(self):
+    def test_assess_document_ocr_readiness_collects_flagged_pages(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            good = root / "scan_001.tif"
+            bad = root / "scan_002.tif"
+            _make_image(good, text=True)
+            _make_image(bad, text=True)
+
+            with patch(
+                "modules.ocr_pdf.core.assess_ocr_readiness",
+                side_effect=[
+                    {"score": 88.0, "skip": False, "reasons": []},
+                    {"score": 24.0, "skip": True, "reasons": ["blurry scan"]},
+                ],
+            ):
+                stats = assess_document_ocr_readiness([good, bad])
+
+        self.assertTrue(stats["should_skip"])
+        self.assertEqual(len(stats["flagged_pages"]), 1)
+        self.assertEqual(stats["flagged_pages"][0]["file"], "scan_002.tif")
+
+    def test_check_ocr_dependencies_requires_ocrmypdf(self):
         with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=Path("/tmp/tesseract")), \
              patch("modules.ocr_pdf.core.list_tesseract_languages", return_value=["eng"]), \
-             patch("modules.ocr_pdf.core.detect_ocrmypdf_command", return_value=None):
-            ok, message, details = check_ocr_dependencies(
-                language="eng",
-                require_pdfa=True,
-            )
+             patch("modules.ocr_pdf.core.detect_ocrmypdf_module", return_value=False):
+            ok, message, details = check_ocr_dependencies(language="eng")
 
         self.assertFalse(ok)
-        self.assertIn("PDF/A output requires OCRmyPDF", message)
-        self.assertIsNone(details["ocrmypdf_command"])
+        self.assertIn("OCRmyPDF is not installed", message)
+        self.assertFalse(details["ocrmypdf_available"])
 
-    def test_ocr_image_to_pdf_skips_existing_output(self):
+    def test_build_input_pdf_from_images_creates_multipage_pdf(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "input"
-            output = Path(temp_dir) / "ocr-pdf"
+            root = Path(temp_dir)
+            first = root / "scan_001.tif"
+            second = root / "scan_002.tif"
+            _make_image(first, text=True)
+            _make_image(second, text=True)
+            output_pdf = root / "input_document.pdf"
+
+            success, error = build_input_pdf_from_images([first, second], output_pdf)
+
+            self.assertTrue(success)
+            self.assertIsNone(error)
+            self.assertTrue(output_pdf.exists())
+
+    def test_ocr_folder_to_pdf_skips_existing_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "roll_001"
+            output = root / "ocr-pdf"
             root.mkdir()
             output.mkdir()
-            source = root / "scan_001.tif"
-            _make_image(source, text=True)
-            existing_pdf = output / "scan_001.pdf"
+            _make_image(root / "scan_001.tif", text=True)
+            existing_pdf = output / "roll_001.pdf"
             existing_pdf.write_text("already here")
 
-            result = ocr_image_to_pdf(
-                image_path=source,
+            result = ocr_folder_to_pdf(
                 input_folder=root,
                 output_folder=output,
                 skip_existing=True,
-                save_pdfa=False,
             )
 
             self.assertEqual(result["status"], "skipped")
             self.assertEqual(result["output_path"], existing_pdf)
 
-    def test_ocr_image_to_pdf_skips_messy_scan_when_quality_gate_enabled(self):
+    def test_ocr_folder_to_pdf_skips_document_when_quality_gate_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "input"
-            output = Path(temp_dir) / "ocr-pdf"
+            root = Path(temp_dir) / "roll_001"
+            output = root / "ocr-pdf"
             root.mkdir()
             output.mkdir()
-            source = root / "scan_001.tif"
-            _make_image(source, text=True)
+            _make_image(root / "scan_001.tif", text=True)
 
             with patch(
-                "modules.ocr_pdf.core.assess_ocr_readiness",
+                "modules.ocr_pdf.core.assess_document_ocr_readiness",
                 return_value={
-                    "score": 24.0,
-                    "skip": True,
-                    "reasons": ["blurry scan", "low contrast"],
+                    "page_count": 1,
+                    "average_score": 21.0,
+                    "flagged_pages": [{"file": "scan_001.tif", "score": 21.0, "reasons": ["blurry scan"]}],
+                    "should_skip": True,
                 },
             ):
-                result = ocr_image_to_pdf(
-                    image_path=source,
+                result = ocr_folder_to_pdf(
                     input_folder=root,
                     output_folder=output,
                     skip_existing=False,
-                    save_pdfa=False,
+                    save_pdfa=True,
                     skip_messy=True,
+                    metadata={"title": "Roll 001"},
                 )
 
         self.assertEqual(result["status"], "skipped")

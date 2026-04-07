@@ -28,13 +28,14 @@ If the team prefers, the implementation can continue from the current planning b
 
 ## Feature Summary
 
-Add a new toolkit panel that batch-processes scanned image folders into **searchable PDF files** using OCR.
+Add a new toolkit panel that treats one selected folder of scanned page images as one document and produces one **searchable PDF file** using OCR.
 
 Primary user outcome:
 
-- A staff member selects a folder of scanned images.
-- The toolkit processes the files in the background.
-- The toolkit creates one searchable PDF per source image.
+- A staff member selects a folder of scanned page images.
+- The toolkit prompts for document metadata immediately after folder selection.
+- The toolkit processes the folder in the background as one document.
+- The toolkit creates one searchable PDF for that folder.
 - The UI shows progress, logs, and a final summary.
 
 This should feel like the existing tools:
@@ -79,10 +80,10 @@ Current recommendation:
    - `.jpeg`
    - `.png`
    - `.bmp`
-3. Generate one searchable PDF per input image.
+3. Generate one searchable PDF per selected folder.
 4. Write output to a dedicated subfolder.
-5. Show progress and per-file activity in the GUI.
-6. Record per-file errors without stopping the whole batch.
+5. Show progress and document activity in the GUI.
+6. Record document and flagged-page errors without stopping the app.
 7. Support cancellation during batch processing.
 8. Detect missing OCR dependencies and show user-friendly guidance.
 
@@ -101,12 +102,12 @@ Current recommendation:
 
 1. Open DPA Image Toolkit.
 2. Click `OCR to PDF`.
-3. Select a folder of scanned images.
-4. Review detected file count.
+3. Select a folder of scanned page images.
+4. Enter document metadata after folder selection.
 5. Optionally configure:
-   - recurse into subfolders
    - OCR language
-   - skip existing outputs
+   - skip existing output
+   - save as PDF/A
 6. Click `Start OCR`.
 7. Watch progress in the log and status area.
 8. Find output PDFs in the output folder.
@@ -146,8 +147,8 @@ The new tool should match the look and interaction pattern used by the current p
 
 ### Suggested options
 
-1. `Recurse into subfolders`
-2. `Skip files with existing PDF output`
+1. `Save as PDF/A`
+2. `Skip existing output PDF`
 3. `OCR language`
 
 Keep the first version minimal. Avoid shipping a crowded settings panel.
@@ -156,7 +157,7 @@ Keep the first version minimal. Avoid shipping a crowded settings panel.
 
 The panel should tell the user:
 
-- this tool creates searchable PDFs from scanned image files
+- this tool creates one searchable PDF from one selected scan folder
 - output is written to `ocr-pdf/`
 - OCR depends on external components and may take time on large folders
 
@@ -224,18 +225,19 @@ Create `modules/ocr_pdf/core.py` as the main implementation module.
 ### Main responsibilities
 
 1. validate input folder
-2. discover supported image files
+2. discover supported page image files
 3. create output folder
-4. run OCR on each file
-5. collect structured results
-6. report meaningful errors
+4. assemble one document from the selected folder
+5. run OCR on the document
+6. apply metadata
+7. collect structured results
+8. report meaningful errors
 
 ### Suggested public functions
 
 ```python
 find_ocr_input_files(
     input_folder,
-    recurse=False,
     extensions=None,
 )
 ```
@@ -251,14 +253,9 @@ ocr_image_to_pdf(
 ```
 
 ```python
-run_ocr_batch(
-    input_folder,
-    output_folder,
-    recurse=False,
-    language="eng",
-    skip_existing=True,
-    progress_callback=None,
-    cancel_check=None,
+build_input_pdf_from_images(
+    input_files,
+    output_pdf_path,
 )
 ```
 
@@ -342,8 +339,8 @@ Suggested internal state:
 - `error_folder`
 - `worker`
 - `has_errors`
-- `recurse_enabled`
 - `skip_existing`
+- `save_pdfa`
 - `ocr_language`
 
 ### Validation behavior
@@ -430,14 +427,14 @@ Recommended v1 output behavior:
 
 ## Error Handling Rules
 
-The OCR job should continue processing after a per-file failure.
+The OCR job should fail or skip cleanly at the document level, while still reporting any flagged pages that triggered the decision.
 
 ### Error categories
 
 1. dependency failure
 2. invalid input path
 3. no supported files found
-4. per-file OCR failure
+4. document OCR failure
 5. cancellation
 6. output write failure
 
@@ -464,7 +461,7 @@ Add `tests/test_ocr_pdf.py`.
 3. respects recursive mode
 4. ignores toolkit-generated output folders
 5. skips existing output when configured
-6. reports per-file errors correctly
+6. reports document-level errors correctly
 7. returns expected summary structure
 
 ### Integration tests
@@ -536,7 +533,7 @@ When the feature lands, update:
 The feature is ready when all of the following are true:
 
 1. A user can select a folder of supported image files.
-2. The app creates one searchable PDF per input image in `ocr-pdf/`.
+2. The app creates one searchable PDF per selected folder in `ocr-pdf/`.
 3. The GUI remains responsive during processing.
 4. Progress updates show current file and percentage.
 5. Missing dependencies produce actionable user guidance.
