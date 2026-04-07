@@ -4,7 +4,9 @@ Background worker threads for long-running operations.
 Handles auto-crop and TIFF merge operations with progress callbacks.
 """
 
+import os
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, Optional, List
 
@@ -221,13 +223,46 @@ class TiffMergeWorker(OperationWorker):
             "errors": [],
         }
 
-    def run(self):
-        """Execute TIFF merge operation."""
+    def _get_worker_count(self, total_groups: int) -> int:
+        """Choose a modest worker count for parallel group merges."""
+        if total_groups <= 1:
+            return 1
+
+        cpu_count = os.cpu_count() or 2
+        return max(1, min(total_groups, cpu_count, 4))
+
+    def _merge_single_group(self, group_name: str) -> dict:
+        """Merge one TIFF group and return a structured result."""
         from modules.tiff_combine.core import merge_tiff_group
-        import shutil
 
         try:
-            group_names = list(self.groups.keys())
+            success, output_path, errors = merge_tiff_group(
+                group_name,
+                self.input_folder,
+                self.output_folder,
+                dpi_per_file=True,
+            )
+            return {
+                "group": group_name,
+                "success": success,
+                "output_path": output_path,
+                "errors": errors or [],
+            }
+        except Exception as e:
+            return {
+                "group": group_name,
+                "success": False,
+                "output_path": None,
+                "errors": [{
+                    "file": group_name,
+                    "error": f"Merge failed: {str(e)}",
+                }],
+            }
+
+    def run(self):
+        """Execute TIFF merge operation."""
+        try:
+            group_names = sorted(self.groups.keys())
             total_groups = len(group_names)
 
             if total_groups == 0:
@@ -235,43 +270,45 @@ class TiffMergeWorker(OperationWorker):
                 return
 
             self.results["total"] = total_groups
+            worker_count = self._get_worker_count(total_groups)
+            completed = 0
 
-            for idx, group_name in enumerate(group_names, 1):
-                if self.cancelled:
-                    self.update_status("Operation cancelled")
-                    break
+            if worker_count > 1:
+                self.update_status(
+                    f"Running {total_groups} groups with {worker_count} parallel workers"
+                )
+            else:
+                self.update_status(f"Running {total_groups} group(s) sequentially")
 
-                self.update_progress(idx, total_groups, group_name)
-                self.update_status(f"Merging: {group_name}")
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                futures = {
+                    executor.submit(self._merge_single_group, group_name): group_name
+                    for group_name in group_names
+                }
 
-                try:
-                    # Merge the group
-                    success, output_path, errors = merge_tiff_group(
-                        group_name,
-                        self.input_folder,
-                        self.output_folder,
-                        dpi_per_file=True,
-                    )
+                for future in as_completed(futures):
+                    if self.cancelled:
+                        self.update_status("Operation cancelled")
+                        break
 
-                    if success:
+                    result = future.result()
+                    group_name = result["group"]
+                    completed += 1
+
+                    self.update_progress(completed, total_groups, group_name)
+
+                    if result["success"]:
                         self.results["success"] += 1
+                        self.update_status(f"Merged: {group_name}")
                     else:
                         self.results["failed"] += 1
-                        for error_info in errors:
+                        self.update_status(f"Failed: {group_name}")
+                        for error_info in result["errors"]:
                             self.results["errors"].append(error_info)
                             self.report_error(
                                 error_info.get("file", group_name),
                                 error_info.get("error", "Unknown error"),
                             )
-
-                except Exception as e:
-                    self.results["failed"] += 1
-                    error_msg = f"Merge failed: {str(e)}"
-                    self.results["errors"].append({
-                        "file": group_name,
-                        "error": error_msg,
-                    })
-                    self.report_error(group_name, error_msg)
 
             # Generate summary
             summary = (
@@ -329,7 +366,7 @@ class TiffSplitWorker(OperationWorker):
                 self.update_status(f"Splitting: {file_path.name}")
 
                 if self.use_root_output and self.output_root:
-                    output_folder = self.output_root / file_path.stem
+                    output_folder = self.output_root
                 else:
                     output_folder = None
 
@@ -434,6 +471,151 @@ class AddBorderWorker(OperationWorker):
                 f"✅ Bordered: {self.results['success']} | "
                 f"❌ Failed: {self.results['failed']}"
             )
+            self.update_status(summary)
+
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
+            self.report_error("operation", str(e))
+
+    def get_results(self) -> dict:
+        """Get operation results."""
+        return self.results
+
+
+class OcrPdfWorker(OperationWorker):
+    """Worker for OCR-to-PDF operations."""
+
+    def __init__(
+        self,
+        input_folder: Path,
+        output_folder: Path,
+        error_folder: Path,
+        language: str = "eng",
+        skip_existing: bool = True,
+        save_pdfa: bool = True,
+        skip_messy: bool = True,
+        metadata: Optional[dict] = None,
+        tesseract_path: Optional[Path] = None,
+    ):
+        super().__init__(name="OcrPdfWorker")
+        self.input_folder = Path(input_folder)
+        self.output_folder = Path(output_folder)
+        self.error_folder = Path(error_folder)
+        self.language = language
+        self.skip_existing = skip_existing
+        self.save_pdfa = save_pdfa
+        self.skip_messy = skip_messy
+        self.metadata = metadata or {}
+        self.tesseract_path = Path(tesseract_path) if tesseract_path else None
+        self.results = {
+            "success": 0,
+            "failed": 0,
+            "skipped": 0,
+            "total": 1,
+            "cancelled": False,
+            "errors": [],
+            "skip_reasons": [],
+            "warnings": [],
+            "outputs": [],
+        }
+
+    def run(self):
+        """Execute OCR-to-PDF operation."""
+        from modules.ocr_pdf.core import (
+            check_ocr_dependencies,
+            find_ocr_input_files,
+            ocr_folder_to_pdf,
+        )
+
+        try:
+            self.update_progress(0, 3, self.input_folder.name)
+            self.update_status("Checking OCR dependencies...")
+            ok, error_msg, dependency_info = check_ocr_dependencies(
+                language=self.language,
+                tesseract_path=self.tesseract_path,
+                require_pdfa=self.save_pdfa,
+            )
+            if not ok:
+                self.update_status("OCR dependencies are missing")
+                self.results["errors"].append({
+                    "file": "dependency",
+                    "error": error_msg,
+                })
+                self.report_error("dependency", error_msg)
+                return
+            if error_msg:
+                self.results["warnings"].append(error_msg)
+                self.update_status(error_msg)
+
+            self.update_progress(1, 3, self.input_folder.name)
+            self.update_status("Scanning folder for OCR page images...")
+            image_files = find_ocr_input_files(self.input_folder)
+
+            if not image_files:
+                self.update_status("No supported image files found")
+                return
+
+            page_count = len(image_files)
+            self.update_status(f"Found {page_count} page image(s) in the document folder")
+
+            if self.cancelled:
+                self.results["cancelled"] = True
+                self.update_status("Operation cancelled")
+                return
+
+            self.update_progress(2, 3, self.input_folder.name)
+            self.update_status("Building document PDF and running OCR...")
+
+            result = ocr_folder_to_pdf(
+                input_folder=self.input_folder,
+                output_folder=self.output_folder,
+                language=self.language,
+                skip_existing=self.skip_existing,
+                save_pdfa=self.save_pdfa,
+                skip_messy=self.skip_messy,
+                metadata=self.metadata,
+            )
+
+            if result["status"] == "success":
+                self.results["success"] = 1
+                self.results["outputs"].append(str(result["output_path"]))
+                if self.save_pdfa and not result.get("used_pdfa"):
+                    warning = "PDF/A was unavailable on this machine — created a standard searchable PDF instead."
+                    self.results["warnings"].append(warning)
+                    self.update_status(warning)
+                self.update_progress(3, 3, self.input_folder.name)
+            elif result["status"] == "skipped":
+                self.results["skipped"] = 1
+                skip_reason = result.get("error") or "Skipped"
+                self.results["skip_reasons"].append({
+                    "file": self.input_folder.name,
+                    "reason": skip_reason,
+                })
+                self.update_status(f"Skipped: {self.input_folder.name} — {skip_reason}")
+                details = result.get("details") or {}
+                for page in details.get("flagged_pages", []):
+                    reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
+                    self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
+            else:
+                self.results["failed"] = 1
+                error_msg = result.get("error") or "OCR failed"
+                self.results["errors"].append({
+                    "file": self.input_folder.name,
+                    "error": error_msg,
+                })
+                self.report_error(self.input_folder.name, error_msg)
+
+            summary = (
+                f"✅ OCR'd: {self.results['success']} document | "
+                f"⚠️ Skipped: {self.results['skipped']} | "
+                f"❌ Failed: {self.results['failed']}"
+            )
+            if self.results["cancelled"]:
+                summary = (
+                    f"Cancelled — OCR'd: {self.results['success']} | "
+                    f"Skipped: {self.results['skipped']} | "
+                    f"Failed: {self.results['failed']}"
+                )
             self.update_status(summary)
 
         except Exception as e:

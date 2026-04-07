@@ -289,7 +289,7 @@ class TiffSplitPanel:
         self.count_label.grid(row=0, column=3, padx=(0, 14))
         self.btn_start.configure(state="normal")
         self._set_info(
-            f"✓  Found {len(self.selected_files)} TIFF file(s). Multi-page TIFFs will be extracted to extracted-pages/.",
+            f"✓  Found {len(self.selected_files)} TIFF file(s). Multi-page TIFFs will be extracted directly into extracted-pages/.",
             "success",
         )
         self._log(f"Folder: {folder}", "info")

@@ -16,6 +16,7 @@ Algorithm:
 
 from PIL import Image
 import cv2
+import numpy as np
 from pathlib import Path
 
 
@@ -26,6 +27,7 @@ DEFAULT_WHITE_THRESHOLD = 253  # Near-white threshold (254+ is white)
 DEFAULT_PADDING_PERCENT = 0.025
 DEFAULT_PADDING_MIN = 15
 DEFAULT_PADDING_MAX = 100
+DEFAULT_DOMINANT_CONTOUR_RATIO = 0.10
 
 
 def _get_meaningful_contours(contours, min_size, max_contours):
@@ -46,6 +48,25 @@ def _get_meaningful_contours(contours, min_size, max_contours):
     return meaningful_contours
 
 
+def _get_crop_contours(contours, min_size, max_contours):
+    """Keep only contours that represent the dominant content regions."""
+    meaningful_contours = _get_meaningful_contours(contours, min_size, max_contours)
+    if not meaningful_contours:
+        return []
+
+    contour_areas = [cv2.contourArea(cnt) for cnt in meaningful_contours]
+    largest_area = max(contour_areas)
+    dominant_min_area = max(
+        min_size[0] * min_size[1],
+        largest_area * DEFAULT_DOMINANT_CONTOUR_RATIO,
+    )
+
+    return [
+        cnt for cnt in meaningful_contours
+        if cv2.contourArea(cnt) >= dominant_min_area
+    ]
+
+
 def _get_combined_bounding_box(contours):
     """Return one bounding box covering all provided contours."""
     if not contours:
@@ -58,6 +79,29 @@ def _get_combined_bounding_box(contours):
     max_y = max(y + h for _, y, _, h in boxes)
 
     return min_x, min_y, max_x - min_x, max_y - min_y
+
+
+def _get_effective_white_threshold(gray_image, default_threshold):
+    """Adapt the white threshold to the observed border brightness."""
+    height, width = gray_image.shape[:2]
+    border = max(12, min(height, width) // 40)
+
+    top = gray_image[:border, :]
+    bottom = gray_image[-border:, :]
+    left = gray_image[:, :border]
+    right = gray_image[:, -border:]
+
+    border_pixels = np.concatenate([
+        top.reshape(-1),
+        bottom.reshape(-1),
+        left.reshape(-1),
+        right.reshape(-1),
+    ])
+
+    background_level = float(np.percentile(border_pixels, 90))
+    adaptive_threshold = int(background_level - 2)
+
+    return max(200, min(default_threshold, adaptive_threshold))
 
 
 def crop_image(
@@ -109,9 +153,14 @@ def crop_image(
 
         # Threshold to find non-white areas
         # threshold value of 253 means pixels with value <= 253 are considered "non-white"
-        _, thresh_image = cv2.threshold(
+        effective_threshold = _get_effective_white_threshold(
             gray_image,
             white_threshold,
+        )
+
+        _, thresh_image = cv2.threshold(
+            gray_image,
+            effective_threshold,
             255,
             cv2.THRESH_BINARY_INV,
         )
@@ -127,7 +176,7 @@ def crop_image(
             return None, "Image appears blank or fully white — nothing to crop"
 
         # Filter contours by minimum size
-        large_contours = _get_meaningful_contours(
+        large_contours = _get_crop_contours(
             contours,
             min_size,
             max_contours,
@@ -199,9 +248,14 @@ def get_crop_stats(image_path):
         height, width = image.shape[:2]
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        _, thresh_image = cv2.threshold(
+        effective_threshold = _get_effective_white_threshold(
             gray_image,
             DEFAULT_WHITE_THRESHOLD,
+        )
+
+        _, thresh_image = cv2.threshold(
+            gray_image,
+            effective_threshold,
             255,
             cv2.THRESH_BINARY_INV,
         )
@@ -217,11 +271,15 @@ def get_crop_stats(image_path):
                 "success": True,
                 "image_size": (width, height),
                 "contours_found": 0,
+                "large_contours": 0,
+                "largest_area": 0,
+                "threshold_used": effective_threshold,
+                "combined_bounding_box": None,
                 "status": "blank or fully white",
             }
 
         areas = [cv2.contourArea(cnt) for cnt in contours]
-        large_contours = _get_meaningful_contours(
+        large_contours = _get_crop_contours(
             contours,
             DEFAULT_MIN_SIZE,
             DEFAULT_MAX_CONTOURS,
@@ -245,6 +303,7 @@ def get_crop_stats(image_path):
             "contours_found": len(contours),
             "large_contours": len(large_areas),
             "largest_area": max(areas) if areas else 0,
+            "threshold_used": effective_threshold,
             "combined_bounding_box": combined_box,
             "status": "ready to crop" if large_areas else "content too small",
         }
