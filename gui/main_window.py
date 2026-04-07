@@ -69,7 +69,7 @@ class MainWindow(ctk.CTk):
 
         title_lbl = ctk.CTkLabel(
             brand_inner,
-            text="DPA Image Toolkit",
+            text="DPA\nImage\nToolkit",
             font=get_font("brand"),
             text_color=t["accent"],
             justify="left",
