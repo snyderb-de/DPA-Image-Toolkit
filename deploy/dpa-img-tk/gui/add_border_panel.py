@@ -6,12 +6,19 @@ import customtkinter as ctk
 from pathlib import Path
 
 from utils.file_handler import pick_folder, validate_image_files
+from utils.tool_dependencies import (
+    check_tool_dependencies,
+    get_tool_dependency_panel_content,
+    get_tool_dependency_statuses,
+    show_dependency_warning,
+)
 from utils.worker import AddBorderWorker
 from modules.auto_cropping.core import (
     DEFAULT_PADDING_PERCENT,
     DEFAULT_PADDING_MIN,
     DEFAULT_PADDING_MAX,
 )
+from .dependency_sidebar import build_dependency_sidebar, refresh_dependency_sidebar
 from .styles import get_font, BUTTON, RADIUS
 
 
@@ -31,6 +38,7 @@ class AddBorderPanel:
         self.info_lbl = None
         self.log_display = None
         self.btn_start = None
+        self.dependency_rows = []
 
     def build(self, container):
         t = self.theme
@@ -39,6 +47,7 @@ class AddBorderPanel:
         panel.grid(row=0, column=0, sticky="nsew")
         panel.grid_rowconfigure(4, weight=1)
         panel.grid_columnconfigure(0, weight=1)
+        panel.grid_columnconfigure(1, weight=0)
 
         hdr = ctk.CTkFrame(panel, fg_color="transparent")
         hdr.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
@@ -123,6 +132,16 @@ class AddBorderPanel:
             anchor="w",
         )
         self.info_lbl.pack(padx=16, pady=12, anchor="w")
+
+        dependency_content = get_tool_dependency_panel_content("add_border")
+        side_panel, self.dependency_rows = build_dependency_sidebar(
+            panel,
+            t,
+            heading=dependency_content["heading"],
+            statuses=get_tool_dependency_statuses("add_border"),
+            support_lines=dependency_content["support_lines"],
+        )
+        side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
 
         notes_card = ctk.CTkFrame(
             panel,
@@ -227,6 +246,7 @@ class AddBorderPanel:
         )
         self.btn_start.grid(row=0, column=1, sticky="e")
 
+        self._refresh_dependency_panel()
         self._log("Ready — select an image folder to add borders.", "info")
 
     def _on_select_folder(self):
@@ -257,6 +277,19 @@ class AddBorderPanel:
     def _on_start(self):
         if not self.selected_folder:
             self._log("No folder selected.", "error")
+            return
+
+        ok, error_msg, _details = check_tool_dependencies("add_border")
+        self._refresh_dependency_panel()
+        if not ok:
+            show_dependency_warning(self.parent, "Add Border", error_msg)
+            self._set_info(
+                "⚠  Add Border dependencies are missing. Contact support for installation.",
+                "warning",
+            )
+            self._log(error_msg, "warning")
+            self._log("Contact support for dependency installation on this machine.", "warning")
+            self.parent.set_status("Add Border dependencies are missing", 1.0)
             return
 
         self.output_folder.mkdir(parents=True, exist_ok=True)
@@ -306,6 +339,12 @@ class AddBorderPanel:
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
+
+    def _refresh_dependency_panel(self):
+        refresh_dependency_sidebar(
+            self.dependency_rows,
+            get_tool_dependency_statuses("add_border"),
+        )
 
     def _set_info(self, text, level="info"):
         t = self.theme

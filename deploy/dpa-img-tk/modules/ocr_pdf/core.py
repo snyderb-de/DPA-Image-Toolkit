@@ -301,20 +301,21 @@ def get_ocr_dependency_statuses(
                 )
             ),
         },
-        {
-            "label": "OCRmyPDF",
-            "ok": ocrmypdf_available,
-            "detail": (
-                "Optional archival backend for PDF/A"
-                if ocrmypdf_available
-                else (
-                    "Missing: standard searchable PDF still works"
-                    if not require_pdfa
-                    else "Missing: PDF/A fallback unavailable on this machine"
-                )
-            ),
-        },
     ]
+
+    if require_pdfa:
+        statuses.append(
+            {
+                "label": "OCRmyPDF",
+                "ok": ocrmypdf_available,
+                "detail": (
+                    "Optional archival backend for PDF/A"
+                    if ocrmypdf_available
+                    else "Missing: PDF/A fallback unavailable on this machine"
+                ),
+            }
+        )
+
     return statuses
 
 

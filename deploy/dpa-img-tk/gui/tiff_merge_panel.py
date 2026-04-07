@@ -9,7 +9,14 @@ import customtkinter as ctk
 from pathlib import Path
 
 from utils.file_handler import pick_folder, validate_tif_files, create_error_folder
+from utils.tool_dependencies import (
+    check_tool_dependencies,
+    get_tool_dependency_panel_content,
+    get_tool_dependency_statuses,
+    show_dependency_warning,
+)
 from modules.tiff_combine.naming import validate_naming_convention
+from .dependency_sidebar import build_dependency_sidebar, refresh_dependency_sidebar
 from .styles import get_theme, get_font, BUTTON, CARD, RADIUS
 
 
@@ -34,6 +41,7 @@ class TiffMergePanel:
         self.btn_start = None
         self.btn_error_report = None
         self.merge_completed = False
+        self.dependency_rows = []
 
     # ──────────────────────────────────────────────────────────────────────────
     # UI Build
@@ -46,6 +54,7 @@ class TiffMergePanel:
         panel.grid(row=0, column=0, sticky="nsew")
         panel.grid_rowconfigure(4, weight=1)
         panel.grid_columnconfigure(0, weight=1)
+        panel.grid_columnconfigure(1, weight=0)
 
         # ── Page header ───────────────────────────────────────────────────────
         hdr_row = ctk.CTkFrame(panel, fg_color="transparent")
@@ -134,6 +143,16 @@ class TiffMergePanel:
             anchor="w",
         )
         self.info_lbl.pack(padx=16, pady=12, anchor="w")
+
+        dependency_content = get_tool_dependency_panel_content("tiff_merge")
+        side_panel, self.dependency_rows = build_dependency_sidebar(
+            panel,
+            t,
+            heading=dependency_content["heading"],
+            statuses=get_tool_dependency_statuses("tiff_merge"),
+            support_lines=dependency_content["support_lines"],
+        )
+        side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
 
         notes_card = ctk.CTkFrame(
             panel,
@@ -258,6 +277,7 @@ class TiffMergePanel:
         )
         self.btn_start.grid(row=0, column=2, sticky="e")
 
+        self._refresh_dependency_panel()
         self._log("Ready — select a TIFF folder to get started.", "info")
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -330,6 +350,19 @@ class TiffMergePanel:
     def _on_start_merge(self):
         if not self.selected_folder or not self.groups:
             self._log("No folder selected.", "error")
+            return
+
+        ok, error_msg, _details = check_tool_dependencies("tiff_merge")
+        self._refresh_dependency_panel()
+        if not ok:
+            show_dependency_warning(self.parent, "Merge TIFF Files", error_msg)
+            self._set_info(
+                "⚠  TIFF merge dependencies are missing. Contact support for installation.",
+                level="warning",
+            )
+            self._log(error_msg, "warning")
+            self._log("Contact support for dependency installation on this machine.", "warning")
+            self.parent.set_status("TIFF merge dependencies are missing", 1.0)
             return
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
@@ -580,6 +613,12 @@ class TiffMergePanel:
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
+
+    def _refresh_dependency_panel(self):
+        refresh_dependency_sidebar(
+            self.dependency_rows,
+            get_tool_dependency_statuses("tiff_merge"),
+        )
 
     def _center_dialog(self, dialog, width: int, height: int):
         """Center a modal dialog over the main application window."""

@@ -9,7 +9,14 @@ import customtkinter as ctk
 from pathlib import Path
 
 from utils.file_handler import pick_folder, validate_image_files, create_error_folder
+from utils.tool_dependencies import (
+    check_tool_dependencies,
+    get_tool_dependency_panel_content,
+    get_tool_dependency_statuses,
+    show_dependency_warning,
+)
 from utils.worker import AutoCropWorker
+from .dependency_sidebar import build_dependency_sidebar, refresh_dependency_sidebar
 from .styles import get_theme, get_font, BUTTON, CARD, RADIUS
 
 
@@ -35,6 +42,7 @@ class AutoCropPanel:
         self.btn_start = None
         self.btn_cancel = None
         self.btn_error_report = None
+        self.dependency_rows = []
 
     # ──────────────────────────────────────────────────────────────────────────
     # UI Build
@@ -48,6 +56,7 @@ class AutoCropPanel:
         panel.grid(row=0, column=0, sticky="nsew")
         panel.grid_rowconfigure(4, weight=1)   # log stretches
         panel.grid_columnconfigure(0, weight=1)
+        panel.grid_columnconfigure(1, weight=0)
 
         # ── Page header ───────────────────────────────────────────────────────
         hdr_row = ctk.CTkFrame(panel, fg_color="transparent")
@@ -141,6 +150,16 @@ class AutoCropPanel:
             anchor="w",
         )
         self.info_lbl.pack(padx=16, pady=12, anchor="w")
+
+        dependency_content = get_tool_dependency_panel_content("auto_crop")
+        side_panel, self.dependency_rows = build_dependency_sidebar(
+            panel,
+            t,
+            heading=dependency_content["heading"],
+            statuses=get_tool_dependency_statuses("auto_crop"),
+            support_lines=dependency_content["support_lines"],
+        )
+        side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
 
         notes_card = ctk.CTkFrame(
             panel,
@@ -268,6 +287,7 @@ class AutoCropPanel:
         )
         self.btn_start.grid(row=0, column=2, sticky="e")
 
+        self._refresh_dependency_panel()
         self._log("Ready — select an image folder to get started.", "info")
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -313,6 +333,19 @@ class AutoCropPanel:
     def _on_start_crop(self):
         if not self.selected_folder:
             self._log("No folder selected.", "error")
+            return
+
+        ok, error_msg, _details = check_tool_dependencies("auto_crop")
+        self._refresh_dependency_panel()
+        if not ok:
+            show_dependency_warning(self.parent, "Auto Crop", error_msg)
+            self._set_info(
+                "⚠  Auto Crop dependencies are missing. Contact support for installation.",
+                level="warning",
+            )
+            self._log(error_msg, "warning")
+            self._log("Contact support for dependency installation on this machine.", "warning")
+            self.parent.set_status("Auto Crop dependencies are missing", 1.0)
             return
 
         self.output_folder = create_error_folder(self.selected_folder).parent / "cropped"
@@ -418,6 +451,12 @@ class AutoCropPanel:
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
+
+    def _refresh_dependency_panel(self):
+        refresh_dependency_sidebar(
+            self.dependency_rows,
+            get_tool_dependency_statuses("auto_crop"),
+        )
 
     def _set_info(self, text: str, level: str = "info"):
         t = self.theme
