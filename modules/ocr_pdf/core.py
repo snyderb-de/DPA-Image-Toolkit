@@ -18,6 +18,7 @@ from typing import Optional
 
 import cv2
 from PIL import Image
+from pypdf import PdfReader, PdfWriter
 
 
 SUPPORTED_IMAGE_SUFFIXES = (
@@ -148,9 +149,8 @@ def check_ocr_dependencies(
     """
     Validate OCR dependencies for the toolkit.
 
-    OCRmyPDF is always required for this folder-to-document workflow, since it
-    performs the OCR stage on the generated input PDF. Tesseract is required as
-    the OCR engine beneath OCRmyPDF.
+    Tesseract is required for the searchable-PDF workflow. OCRmyPDF is optional
+    and is only needed when PDF/A output is requested and available.
     """
     resolved_tesseract = detect_tesseract_path(tesseract_path)
     if not resolved_tesseract:
@@ -165,20 +165,6 @@ def check_ocr_dependencies(
                 "tesseract_path": None,
                 "languages": [],
                 "ocrmypdf_available": detect_ocrmypdf_module(),
-            },
-        )
-
-    if not detect_ocrmypdf_module():
-        return (
-            False,
-            (
-                "OCRmyPDF is not installed in this toolkit environment. "
-                "Install it with pip before running OCR to PDF."
-            ),
-            {
-                "tesseract_path": resolved_tesseract,
-                "languages": list_tesseract_languages(resolved_tesseract),
-                "ocrmypdf_available": False,
             },
         )
 
@@ -209,11 +195,16 @@ def check_ocr_dependencies(
 
     return (
         True,
-        None,
+        (
+            "PDF/A output was requested, but OCRmyPDF is not installed. "
+            "The toolkit can still create a standard searchable PDF on this machine."
+            if require_pdfa and not detect_ocrmypdf_module()
+            else None
+        ),
         {
             "tesseract_path": resolved_tesseract,
             "languages": languages,
-            "ocrmypdf_available": True,
+            "ocrmypdf_available": detect_ocrmypdf_module(),
             "require_pdfa": require_pdfa,
         },
     )
@@ -496,6 +487,154 @@ def _run_ocrmypdf(
     return "success", None
 
 
+def _run_tesseract_page_pdf(
+    image_path: str | Path,
+    output_pdf_path: str | Path,
+    language: str = "eng",
+    tesseract_path: Optional[str | Path] = None,
+) -> tuple[bool, Optional[str]]:
+    """
+    Run Tesseract on one page image and create one searchable page PDF.
+    """
+    import subprocess
+
+    resolved_tesseract = detect_tesseract_path(tesseract_path)
+    if not resolved_tesseract:
+        return False, "Tesseract OCR executable was not found."
+
+    image_path = Path(image_path)
+    output_pdf_path = Path(output_pdf_path)
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if output_pdf_path.exists():
+        output_pdf_path.unlink()
+
+    output_base = output_pdf_path.with_suffix("")
+    cmd = [
+        str(resolved_tesseract),
+        str(image_path),
+        str(output_base),
+        "-l",
+        language,
+        "pdf",
+    ]
+
+    kwargs = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "check": False,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+    try:
+        result = subprocess.run(cmd, **kwargs)
+    except OSError as exc:
+        return False, f"Failed to start Tesseract: {exc}"
+
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        if not message:
+            message = f"Tesseract exited with code {result.returncode}"
+        return False, message
+
+    if not output_pdf_path.exists():
+        return False, "Tesseract completed but no page PDF was created."
+
+    return True, None
+
+
+def _metadata_to_pdf_keys(metadata: Optional[dict]) -> dict:
+    data = metadata or {}
+    mapping = {
+        "/Title": data.get("title") or "",
+        "/Author": data.get("author") or "",
+        "/Subject": data.get("subject") or "",
+        "/Keywords": data.get("keywords") or "",
+    }
+    return {key: value for key, value in mapping.items() if value}
+
+
+def merge_page_pdfs(
+    page_pdfs: list[Path],
+    output_pdf_path: str | Path,
+    metadata: Optional[dict] = None,
+) -> tuple[bool, Optional[str]]:
+    """
+    Merge searchable page PDFs into one document PDF and add document metadata.
+    """
+    output_pdf_path = Path(output_pdf_path)
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+    writer = PdfWriter()
+    handles = []
+    try:
+        for page_pdf in page_pdfs:
+            handle = open(page_pdf, "rb")
+            handles.append(handle)
+            reader = PdfReader(handle)
+            for page in reader.pages:
+                writer.add_page(page)
+
+        pdf_metadata = _metadata_to_pdf_keys(metadata)
+        if pdf_metadata:
+            writer.add_metadata(pdf_metadata)
+
+        with open(output_pdf_path, "wb") as target:
+            writer.write(target)
+    except Exception as exc:
+        return False, f"Failed to merge OCR page PDFs: {exc}"
+    finally:
+        for handle in handles:
+            try:
+                handle.close()
+            except Exception:
+                pass
+
+    if not output_pdf_path.exists():
+        return False, "Merged output PDF was not created."
+
+    return True, None
+
+
+def _run_tesseract_document_workflow(
+    input_files: list[Path],
+    output_pdf_path: str | Path,
+    language: str = "eng",
+    metadata: Optional[dict] = None,
+    tesseract_path: Optional[str | Path] = None,
+) -> tuple[str, Optional[str]]:
+    """
+    Create a document PDF by OCRing each page image with Tesseract and then
+    merging the resulting page PDFs into one searchable PDF.
+    """
+    with tempfile.TemporaryDirectory(prefix="dpa-ocr-pages-") as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        page_pdfs = []
+        for index, image_path in enumerate(input_files, start=1):
+            page_pdf = temp_dir_path / f"page_{index:04d}.pdf"
+            ok, error = _run_tesseract_page_pdf(
+                image_path=image_path,
+                output_pdf_path=page_pdf,
+                language=language,
+                tesseract_path=tesseract_path,
+            )
+            if not ok:
+                return "failed", f"{image_path.name}: {error}"
+            page_pdfs.append(page_pdf)
+
+        ok, error = merge_page_pdfs(
+            page_pdfs=page_pdfs,
+            output_pdf_path=output_pdf_path,
+            metadata=metadata,
+        )
+        if not ok:
+            return "failed", error
+
+    return "success", None
+
+
 def ocr_folder_to_pdf(
     input_folder: str | Path,
     output_folder: str | Path,
@@ -553,23 +692,32 @@ def ocr_folder_to_pdf(
         "keywords": (metadata or {}).get("keywords") or "",
     }
 
-    with tempfile.TemporaryDirectory(prefix="dpa-ocr-") as temp_dir:
-        temp_input_pdf = Path(temp_dir) / "input_document.pdf"
-        success, error = build_input_pdf_from_images(input_files, temp_input_pdf)
-        if not success:
-            return {
-                "status": "failed",
-                "output_path": output_pdf_path,
-                "error": error,
-                "details": readiness,
-            }
+    if save_pdfa and detect_ocrmypdf_module():
+        with tempfile.TemporaryDirectory(prefix="dpa-ocr-") as temp_dir:
+            temp_input_pdf = Path(temp_dir) / "input_document.pdf"
+            success, error = build_input_pdf_from_images(input_files, temp_input_pdf)
+            if not success:
+                return {
+                    "status": "failed",
+                    "output_path": output_pdf_path,
+                    "error": error,
+                    "details": readiness,
+                }
 
-        status, error = _run_ocrmypdf(
-            input_pdf_path=temp_input_pdf,
+            status, error = _run_ocrmypdf(
+                input_pdf_path=temp_input_pdf,
+                output_pdf_path=output_pdf_path,
+                language=language,
+                metadata=document_metadata,
+                save_pdfa=True,
+            )
+    else:
+        status, error = _run_tesseract_document_workflow(
+            input_files=input_files,
             output_pdf_path=output_pdf_path,
             language=language,
             metadata=document_metadata,
-            save_pdfa=save_pdfa,
+            tesseract_path=None,
         )
 
     return {
@@ -577,4 +725,5 @@ def ocr_folder_to_pdf(
         "output_path": output_pdf_path,
         "error": error,
         "details": readiness,
+        "used_pdfa": bool(save_pdfa and detect_ocrmypdf_module()),
     }

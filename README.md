@@ -65,13 +65,14 @@ Adds a white border to every image in a folder using the same spacing logic as A
 
 ### OCR to PDF
 
-Treats one selected folder of scan images as one document and creates a single searchable PDF, with PDF/A enabled by default for archival workflows.
+Treats one selected folder of scan images as one document and creates a single searchable PDF. The tool prefers PDF/A when the optional archival stack is available.
 
 - Input: one folder of page image files
 - Output: `input_folder/ocr-pdf/<folder_name>.pdf`
 - Errors: `input_folder/errored-files/ocr-pdf/`
 - Defaults:
-  - PDF/A enabled
+  - searchable PDF always targeted first
+  - PDF/A preferred when available
   - metadata prompt after folder selection
   - skip existing output PDF
   - skip the document when any page fails a conservative OCR quality precheck
@@ -100,9 +101,9 @@ pip install customtkinter pillow opencv-python numpy
 OCR to PDF requires local OCR tooling:
 
 - Tesseract OCR
-- OCRmyPDF for searchable PDF and PDF/A output
+- OCRmyPDF for optional PDF/A output
 
-The OCR workflow depends on both tools being available on the machine.
+The guaranteed local path is Tesseract-based searchable PDF generation. PDF/A is attempted only when OCRmyPDF is available on the machine.
 
 Or:
 

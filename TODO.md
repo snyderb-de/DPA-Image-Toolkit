@@ -38,6 +38,10 @@
 - [ ] Tune the messy-scan heuristic against real production samples
 - [ ] Add PDF/A validation reporting in the UI
 - [ ] Offer a manual override flow for scans skipped by the OCR quality gate
+- [ ] Find a tenable open-source PDF/A backend that does not create an unacceptable Windows install or licensing burden
+  Description: the current OCR/PDF/A path depends on OCRmyPDF and Ghostscript, which may be too heavy or awkward for Windows deployment
+  Goal: support archival PDF/A output without requiring a brittle per-machine install story or problematic redistribution/licensing tradeoffs
+  Evaluate: Ghostscript-free options first, then reassess whether PDF/A should remain optional or become first-class again
 
 ### HCR Tool Investigation
 

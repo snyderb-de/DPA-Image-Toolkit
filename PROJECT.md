@@ -10,7 +10,7 @@ The toolkit currently ships four user-facing tools in one desktop GUI:
 - **Merge TIFFs** — Group TIFF files by naming pattern and combine each valid group into a single multi-page TIFF
 - **Split TIFFs** — Extract multi-page TIFFs into single-page TIFF files
 - **Add Border** — Add white border padding to image folders using the same spacing logic as Auto Crop
-- **OCR to PDF** — Convert scanned image folders into searchable PDFs with optional PDF/A output
+- **OCR to PDF** — Convert scanned image folders into searchable PDFs, with optional PDF/A when the archival stack is available
 
 Typical workflow:
 
@@ -156,7 +156,7 @@ The `cropped/` folder output from Auto-Crop preserves original filenames, so fil
 - **Max 999 pages** per merge group — Naming pattern uses 3-digit sequence numbers
 - **No in-app undo** — Operations write output folders but do not provide reversal controls
 - **Windows-first packaging** — The `.bat` launcher is Windows-specific, though the Python app can run cross-platform
-- **OCR dependencies are external** — Tesseract and, for PDF/A mode, OCRmyPDF plus its runtime stack must be installed on the machine
+- **OCR dependencies are external** — Tesseract is required for the searchable-PDF workflow; OCRmyPDF and its runtime stack are only needed when PDF/A output is desired
 
 ---
 

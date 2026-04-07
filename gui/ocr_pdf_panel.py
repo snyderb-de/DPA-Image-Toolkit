@@ -277,7 +277,7 @@ class OcrPdfPanel:
 
         ctk.CTkCheckBox(
             options_card,
-            text="Save as PDF/A",
+            text="Prefer PDF/A when available",
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.save_pdfa_var,
@@ -358,7 +358,7 @@ class OcrPdfPanel:
         for line in (
             "One selected folder becomes one output PDF named after the folder.",
             "Metadata entry appears after folder selection and is written into the final PDF.",
-            "PDF/A is on by default and uses local OCR tooling to produce an archival-friendly output.",
+            "Searchable PDF is the standard output; PDF/A is attempted when the optional archival stack is available.",
             "The quality precheck may skip a document when pages look too messy to produce trustworthy OCR text.",
         ):
             ctk.CTkLabel(
@@ -559,6 +559,9 @@ class OcrPdfPanel:
             self._set_info(f"✕  {error_msg}", level="error")
             self._log(error_msg, "error")
             return
+        if error_msg:
+            self._log(error_msg, "warning")
+            self._set_info(f"⚠  {error_msg}", level="warning")
 
         self.output_folder = create_output_folder(self.selected_folder, "ocr-pdf")
         error_root = create_error_folder(self.selected_folder)
@@ -581,7 +584,7 @@ class OcrPdfPanel:
         self._set_info(
             (
                 f"Running OCR on {len(self.selected_files)} page(s) into one PDF. "
-                f"PDF/A is {'on' if self.save_pdfa_var.get() else 'off'}. "
+                f"PDF/A preference is {'on' if self.save_pdfa_var.get() else 'off'}. "
                 f"Quality precheck is {'on' if self.skip_messy_var.get() else 'off'}."
             ),
             level="info",

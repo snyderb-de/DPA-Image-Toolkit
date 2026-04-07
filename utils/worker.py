@@ -478,6 +478,7 @@ class OcrPdfWorker(OperationWorker):
             "cancelled": False,
             "errors": [],
             "skip_reasons": [],
+            "warnings": [],
             "outputs": [],
         }
 
@@ -505,6 +506,9 @@ class OcrPdfWorker(OperationWorker):
                 })
                 self.report_error("dependency", error_msg)
                 return
+            if error_msg:
+                self.results["warnings"].append(error_msg)
+                self.update_status(error_msg)
 
             self.update_progress(1, 3, self.input_folder.name)
             self.update_status("Scanning folder for OCR page images...")
@@ -538,6 +542,10 @@ class OcrPdfWorker(OperationWorker):
             if result["status"] == "success":
                 self.results["success"] = 1
                 self.results["outputs"].append(str(result["output_path"]))
+                if self.save_pdfa and not result.get("used_pdfa"):
+                    warning = "PDF/A was unavailable on this machine — created a standard searchable PDF instead."
+                    self.results["warnings"].append(warning)
+                    self.update_status(warning)
                 self.update_progress(3, 3, self.input_folder.name)
             elif result["status"] == "skipped":
                 self.results["skipped"] = 1

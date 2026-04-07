@@ -89,14 +89,14 @@ class OcrPdfCoreTests(unittest.TestCase):
         self.assertEqual(len(stats["flagged_pages"]), 1)
         self.assertEqual(stats["flagged_pages"][0]["file"], "scan_002.tif")
 
-    def test_check_ocr_dependencies_requires_ocrmypdf(self):
+    def test_check_ocr_dependencies_allows_searchable_pdf_without_ocrmypdf(self):
         with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=Path("/tmp/tesseract")), \
              patch("modules.ocr_pdf.core.list_tesseract_languages", return_value=["eng"]), \
              patch("modules.ocr_pdf.core.detect_ocrmypdf_module", return_value=False):
             ok, message, details = check_ocr_dependencies(language="eng")
 
-        self.assertFalse(ok)
-        self.assertIn("OCRmyPDF is not installed", message)
+        self.assertTrue(ok)
+        self.assertIn("standard searchable PDF", message)
         self.assertFalse(details["ocrmypdf_available"])
 
     def test_build_input_pdf_from_images_creates_multipage_pdf(self):
