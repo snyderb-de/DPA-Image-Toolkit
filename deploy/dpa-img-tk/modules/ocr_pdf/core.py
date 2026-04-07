@@ -1,9 +1,9 @@
 """
 OCR-to-PDF core module.
 
-This module treats one selected folder of scanned image files as one document.
-It creates a temporary multi-page PDF from the folder contents, runs OCR on that
-document, and writes a single searchable PDF to the toolkit output folder.
+This module scans one selected folder of image files, groups sequence-based page
+sets into documents, OCRs each document, and writes searchable PDFs into a
+single output folder.
 """
 
 from __future__ import annotations
@@ -55,6 +55,27 @@ def _natural_sort_key(value: str) -> list[object]:
         int(part) if part.isdigit() else part.lower()
         for part in re.split(r"(\d+)", value)
     ]
+
+
+def extract_ocr_group_name(filename: str | Path) -> str:
+    """
+    Return the document group name for a scan filename.
+
+    Files ending with _### are treated as paged scans and grouped by the text
+    before the trailing sequence. Other files keep their full stem.
+    """
+    stem = Path(filename).stem
+    return re.sub(r"_\d{3}$", "", stem)
+
+
+def extract_ocr_sequence_number(filename: str | Path) -> Optional[int]:
+    """
+    Return the trailing three-digit page sequence for a scan filename.
+    """
+    match = re.search(r"_(\d{3})(?:\.[^.]+)?$", Path(filename).name, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return None
 
 
 def detect_tesseract_path(explicit_path: Optional[str | Path] = None) -> Optional[Path]:
@@ -318,15 +339,99 @@ def find_ocr_input_files(
 
 
 def get_output_pdf_path(
-    input_folder: str | Path,
+    input_item: str | Path,
     output_folder: str | Path,
 ) -> Path:
     """
-    Build the output PDF path for the selected document folder.
+    Build the output PDF path for one OCR document.
     """
-    input_folder = Path(input_folder)
     output_folder = Path(output_folder)
-    return output_folder / f"{input_folder.name}.pdf"
+    raw_value = str(input_item)
+    input_item = Path(input_item)
+
+    if input_item.exists() and input_item.is_dir():
+        pdf_stem = input_item.name
+    elif input_item.exists() and input_item.is_file():
+        pdf_stem = input_item.stem
+    else:
+        pdf_stem = raw_value
+
+    return output_folder / f"{pdf_stem}.pdf"
+
+
+def group_ocr_input_files(
+    input_folder: str | Path,
+) -> list[dict]:
+    """
+    Group one folder of scan images into OCR documents.
+
+    Files ending in _### are merged into one multi-page document ordered by that
+    sequence. Files without a trailing sequence become single-page documents.
+    """
+    files = find_ocr_input_files(input_folder)
+    if not files:
+        return []
+
+    grouped_files: dict[str, list[Path]] = {}
+    single_documents: list[dict] = []
+
+    for file_path in files:
+        sequence = extract_ocr_sequence_number(file_path.name)
+        if sequence is None:
+            single_documents.append(
+                {
+                    "name": file_path.stem,
+                    "files": [file_path],
+                    "page_count": 1,
+                    "is_grouped": False,
+                    "first_file": file_path.name,
+                    "last_file": file_path.name,
+                }
+            )
+            continue
+
+        group_name = extract_ocr_group_name(file_path.name)
+        grouped_files.setdefault(group_name, []).append(file_path)
+
+    documents = []
+    for group_name, page_files in grouped_files.items():
+        sorted_pages = sorted(
+            page_files,
+            key=lambda item: (
+                extract_ocr_sequence_number(item.name) or 999,
+                _natural_sort_key(item.name),
+            ),
+        )
+        documents.append(
+            {
+                "name": group_name,
+                "files": sorted_pages,
+                "page_count": len(sorted_pages),
+                "is_grouped": True,
+                "first_file": sorted_pages[0].name,
+                "last_file": sorted_pages[-1].name,
+            }
+        )
+
+    documents.extend(single_documents)
+    documents.sort(key=lambda item: _natural_sort_key(item["name"]))
+
+    return documents
+
+
+def summarize_ocr_documents(documents: list[dict]) -> dict:
+    """
+    Return summary counts for a grouped OCR job.
+    """
+    total_pages = sum(document["page_count"] for document in documents)
+    grouped_count = sum(1 for document in documents if document["is_grouped"])
+    single_count = sum(1 for document in documents if not document["is_grouped"])
+    return {
+        "document_count": len(documents),
+        "page_count": total_pages,
+        "grouped_count": grouped_count,
+        "single_count": single_count,
+    }
 
 
 def get_image_dpi(image_path: str | Path, fallback_dpi: int = DEFAULT_IMAGE_DPI) -> int:
@@ -727,9 +832,33 @@ def _run_tesseract_document_workflow(
     return "success", None
 
 
-def ocr_folder_to_pdf(
-    input_folder: str | Path,
-    output_folder: str | Path,
+def _build_document_metadata(
+    document_name: str,
+    metadata: Optional[dict] = None,
+) -> dict:
+    """
+    Build PDF metadata for one output document.
+    """
+    metadata = metadata or {}
+    title_prefix = (metadata.get("title") or "").strip()
+    document_title = (
+        f"{title_prefix} - {document_name}"
+        if title_prefix
+        else document_name
+    )
+
+    return {
+        "title": document_title,
+        "author": metadata.get("author") or "",
+        "subject": metadata.get("subject") or "",
+        "keywords": metadata.get("keywords") or "",
+    }
+
+
+def ocr_document_to_pdf(
+    input_files: list[Path],
+    output_pdf_path: str | Path,
+    document_name: str,
     language: str = "eng",
     skip_existing: bool = True,
     save_pdfa: bool = True,
@@ -737,22 +866,19 @@ def ocr_folder_to_pdf(
     metadata: Optional[dict] = None,
 ) -> dict:
     """
-    Convert one folder of image files into one OCR'd PDF document.
+    OCR one ordered document file set into one searchable PDF.
     """
-    input_folder = Path(input_folder)
-    output_folder = Path(output_folder)
-    output_folder.mkdir(parents=True, exist_ok=True)
+    output_pdf_path = Path(output_pdf_path)
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
-    input_files = find_ocr_input_files(input_folder)
     if not input_files:
         return {
             "status": "failed",
-            "output_path": None,
-            "error": "No supported image files found.",
+            "output_path": output_pdf_path,
+            "error": "No input files provided.",
             "details": None,
         }
 
-    output_pdf_path = get_output_pdf_path(input_folder, output_folder)
     if skip_existing and output_pdf_path.exists():
         return {
             "status": "skipped",
@@ -777,14 +903,13 @@ def ocr_folder_to_pdf(
             "details": readiness,
         }
 
-    document_metadata = {
-        "title": (metadata or {}).get("title") or input_folder.name,
-        "author": (metadata or {}).get("author") or "",
-        "subject": (metadata or {}).get("subject") or "",
-        "keywords": (metadata or {}).get("keywords") or "",
-    }
+    document_metadata = _build_document_metadata(
+        document_name=document_name,
+        metadata=metadata,
+    )
 
-    if save_pdfa and detect_ocrmypdf_module():
+    used_pdfa = bool(save_pdfa and detect_ocrmypdf_module())
+    if used_pdfa:
         with tempfile.TemporaryDirectory(prefix="dpa-ocr-") as temp_dir:
             temp_input_pdf = Path(temp_dir) / "input_document.pdf"
             success, error = build_input_pdf_from_images(input_files, temp_input_pdf)
@@ -794,6 +919,7 @@ def ocr_folder_to_pdf(
                     "output_path": output_pdf_path,
                     "error": error,
                     "details": readiness,
+                    "used_pdfa": used_pdfa,
                 }
 
             status, error = _run_ocrmypdf(
@@ -817,5 +943,78 @@ def ocr_folder_to_pdf(
         "output_path": output_pdf_path,
         "error": error,
         "details": readiness,
-        "used_pdfa": bool(save_pdfa and detect_ocrmypdf_module()),
+        "used_pdfa": used_pdfa,
     }
+
+
+def ocr_folder_to_pdfs(
+    input_folder: str | Path,
+    output_folder: str | Path,
+    language: str = "eng",
+    skip_existing: bool = True,
+    save_pdfa: bool = True,
+    skip_messy: bool = True,
+    metadata: Optional[dict] = None,
+) -> list[dict]:
+    """
+    OCR one folder into one or more searchable PDFs based on grouped filenames.
+    """
+    output_folder = Path(output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    documents = group_ocr_input_files(input_folder)
+    results = []
+
+    for document in documents:
+        output_pdf_path = get_output_pdf_path(document["name"], output_folder)
+        result = ocr_document_to_pdf(
+            input_files=document["files"],
+            output_pdf_path=output_pdf_path,
+            document_name=document["name"],
+            language=language,
+            skip_existing=skip_existing,
+            save_pdfa=save_pdfa,
+            skip_messy=skip_messy,
+            metadata=metadata,
+        )
+        results.append({
+            **document,
+            **result,
+        })
+
+    return results
+
+
+def ocr_folder_to_pdf(
+    input_folder: str | Path,
+    output_folder: str | Path,
+    language: str = "eng",
+    skip_existing: bool = True,
+    save_pdfa: bool = True,
+    skip_messy: bool = True,
+    metadata: Optional[dict] = None,
+) -> dict:
+    """
+    Backward-compatible wrapper that OCRs one folder into one PDF.
+    """
+    input_folder = Path(input_folder)
+    input_files = find_ocr_input_files(input_folder)
+    if not input_files:
+        return {
+            "status": "failed",
+            "output_path": None,
+            "error": "No supported image files found.",
+            "details": None,
+        }
+
+    output_pdf_path = get_output_pdf_path(input_folder, output_folder)
+    return ocr_document_to_pdf(
+        input_files=input_files,
+        output_pdf_path=output_pdf_path,
+        document_name=input_folder.name,
+        language=language,
+        skip_existing=skip_existing,
+        save_pdfa=save_pdfa,
+        skip_messy=skip_messy,
+        metadata=metadata,
+    )

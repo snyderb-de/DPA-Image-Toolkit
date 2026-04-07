@@ -2,7 +2,7 @@
 OCR-to-PDF panel for DPA Image Toolkit.
 
 This tool treats one selected folder of scan images as one document and
-produces a single searchable PDF for that folder.
+produces one or more searchable PDFs for that folder.
 """
 
 import customtkinter as ctk
@@ -12,6 +12,8 @@ from modules.ocr_pdf.core import (
     check_ocr_dependencies,
     find_ocr_input_files,
     get_ocr_dependency_statuses,
+    group_ocr_input_files,
+    summarize_ocr_documents,
 )
 from utils.file_handler import create_error_folder, create_output_folder, pick_folder
 from utils.worker import OcrPdfWorker
@@ -19,11 +21,11 @@ from .styles import BUTTON, RADIUS, get_font
 
 
 class MetadataDialog(ctk.CTkToplevel):
-    """Modal dialog for document metadata entry."""
+    """Modal dialog for shared PDF metadata entry."""
 
-    def __init__(self, parent, default_title: str, initial_metadata=None):
+    def __init__(self, parent, default_title: str = "", initial_metadata=None):
         super().__init__(parent)
-        self.title("Document Metadata")
+        self.title("PDF Metadata")
         self.geometry("520x360")
         self.resizable(False, False)
         self.transient(parent)
@@ -48,7 +50,7 @@ class MetadataDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             wrapper,
-            text="Document Metadata",
+            text="PDF Metadata",
             font=get_font("title"),
             text_color=t["fg_primary"],
             anchor="w",
@@ -56,7 +58,7 @@ class MetadataDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             wrapper,
-            text="These values will be written into the final PDF after OCR.",
+            text="Each output PDF uses its filename as the title. Add an optional title prefix plus any shared metadata here.",
             font=get_font("small"),
             text_color=t["fg_secondary"],
             anchor="w",
@@ -64,7 +66,7 @@ class MetadataDialog(ctk.CTkToplevel):
         ).grid(row=1, column=0, columnspan=2, sticky="w", padx=18, pady=(0, 18))
 
         labels = (
-            ("Title", "title", default_title),
+            ("Title Prefix (Optional)", "title", default_title),
             ("Author", "author", ""),
             ("Subject", "subject", ""),
             ("Keywords", "keywords", ""),
@@ -121,12 +123,8 @@ class MetadataDialog(ctk.CTkToplevel):
         self.entries["title"].focus_set()
 
     def _on_save(self):
-        title = self.entries["title"].get().strip()
-        if not title:
-            title = "Untitled Document"
-
         self.result = {
-            "title": title,
+            "title": self.entries["title"].get().strip(),
             "author": self.entries["author"].get().strip(),
             "subject": self.entries["subject"].get().strip(),
             "keywords": self.entries["keywords"].get().strip(),
@@ -193,7 +191,7 @@ class OcrPdfPanel:
 
         ctk.CTkLabel(
             hdr_row,
-            text="Treat one folder of scanned page images as one document and create a single OCR'd PDF",
+            text="OCR every scan in one folder, combine matching sequence sets into multi-page PDFs, and save all results into a PDFs subfolder",
             font=get_font("normal"),
             text_color=t["fg_secondary"],
             anchor="w",
@@ -351,7 +349,7 @@ class OcrPdfPanel:
         for line in (
             "✅ means the dependency is ready.",
             "❌ means the tool cannot use that dependency right now.",
-            "Searchable PDF only needs the standard OCR stack.",
+            "Searchable PDFs only need the standard OCR stack.",
             "PDF/A also needs the optional OCRmyPDF archival backend.",
         ):
             ctk.CTkLabel(
@@ -377,7 +375,7 @@ class OcrPdfPanel:
 
         ctk.CTkLabel(
             options_card,
-            text="DOCUMENT OPTIONS",
+            text="PDF OPTIONS",
             font=get_font("eyebrow"),
             text_color=t["fg_tertiary"],
             anchor="w",
@@ -469,10 +467,12 @@ class OcrPdfPanel:
         ).pack(anchor="w", padx=16, pady=(14, 2))
 
         for line in (
-            "One selected folder becomes one output PDF named after the folder.",
-            "Metadata entry appears after folder selection and is written into the final PDF.",
+            "Files ending in _### are grouped into one PDF and ordered by that sequence number.",
+            "Files without a trailing sequence become single-page PDFs.",
+            "All output PDFs are saved into a PDFs subfolder inside the selected folder.",
+            "Shared metadata applies to every output PDF; each PDF keeps its own filename-based title.",
             "Searchable PDF is the standard output; PDF/A is attempted when the optional archival stack is available.",
-            "The quality precheck may skip a document when pages look too messy to produce trustworthy OCR text.",
+            "The quality precheck may skip a PDF when its pages look too messy to produce trustworthy OCR text.",
         ):
             ctk.CTkLabel(
                 notes_card,
@@ -593,10 +593,10 @@ class OcrPdfPanel:
         self.btn_start.grid(row=0, column=2, sticky="e")
 
         self._refresh_dependency_panel()
-        self._log("Ready — select a scan folder to create one OCR'd PDF.", "info")
+        self._log("Ready — select a scan folder to create OCR'd PDFs.", "info")
 
     def _on_select_folder(self):
-        folder = pick_folder("Select folder containing page scans for one document")
+        folder = pick_folder("Select folder containing scan images to OCR into PDFs")
         if not folder:
             self._log("Folder selection cancelled.", "info")
             return
@@ -614,13 +614,23 @@ class OcrPdfPanel:
         self.selected_folder = folder
         self.selected_files = files
         self.metadata = None
+        document_groups = group_ocr_input_files(folder)
+        summary = summarize_ocr_documents(document_groups)
         self.folder_label.configure(text=str(folder), text_color=self.theme["fg_primary"])
-        self.file_count_lbl.configure(text=f"  {len(files)} pages  ")
+        self.file_count_lbl.configure(
+            text=f"  {summary['page_count']} pages / {summary['document_count']} PDFs  "
+        )
         self.file_count_lbl.grid(row=0, column=2, padx=(0, 14))
         self.btn_metadata.configure(state="normal")
 
         self._log(f"Folder: {folder}", "info")
-        self._log(f"Found {len(files)} page image(s).", "success")
+        self._log(
+            (
+                f"Found {summary['page_count']} page image(s) that will become "
+                f"{summary['document_count']} PDF(s)."
+            ),
+            "success",
+        )
         self._refresh_dependency_panel()
         self._prompt_metadata()
 
@@ -630,7 +640,7 @@ class OcrPdfPanel:
 
         dialog = MetadataDialog(
             self.parent,
-            default_title=self.selected_folder.name,
+            default_title=(self.metadata or {}).get("title", ""),
             initial_metadata=self.metadata,
         )
         self.parent.wait_window(dialog)
@@ -647,16 +657,28 @@ class OcrPdfPanel:
             return
 
         self.metadata = dialog.result
+        title_prefix = self.metadata.get("title")
         self.metadata_label.configure(
-            text=f"Title: {self.metadata['title']}",
+            text=(
+                f"Title prefix: {title_prefix}"
+                if title_prefix
+                else "Shared metadata ready"
+            ),
             text_color=self.theme["fg_primary"],
         )
         self.btn_start.configure(state="normal")
+        document_summary = summarize_ocr_documents(group_ocr_input_files(self.selected_folder))
         self._set_info(
-            f"✓  Ready to OCR {len(self.selected_files)} page(s) into one document PDF.",
+            (
+                f"✓  Ready to OCR {document_summary['page_count']} page(s) into "
+                f"{document_summary['document_count']} PDF(s)."
+            ),
             level="success",
         )
-        self._log(f"Metadata title set to '{self.metadata['title']}'.", "success")
+        if title_prefix:
+            self._log(f"PDF title prefix set to '{title_prefix}'.", "success")
+        else:
+            self._log("Shared PDF metadata saved with filename-based titles.", "success")
 
     def _on_edit_metadata(self):
         self._prompt_metadata()
@@ -693,7 +715,9 @@ class OcrPdfPanel:
             self._log(error_msg, "warning")
             self._set_info(f"⚠  {error_msg}", level="warning")
 
-        self.output_folder = create_output_folder(self.selected_folder, "ocr-pdf")
+        document_summary = summarize_ocr_documents(group_ocr_input_files(self.selected_folder))
+
+        self.output_folder = create_output_folder(self.selected_folder, "PDFs")
         error_root = create_error_folder(self.selected_folder)
         if not self.output_folder or not error_root:
             self._set_info("✕  Failed to create OCR output folders.", level="error")
@@ -713,18 +737,18 @@ class OcrPdfPanel:
         self.parent.set_status("Starting OCR to PDF…", 0.0)
         self._set_info(
             (
-                f"Running OCR on {len(self.selected_files)} page(s) into one PDF. "
+                f"Running OCR on {document_summary['page_count']} page(s) into "
+                f"{document_summary['document_count']} PDF(s). "
                 f"PDF/A preference is {'on' if self.save_pdfa_var.get() else 'off'}. "
                 f"Quality precheck is {'on' if self.skip_messy_var.get() else 'off'}."
             ),
             level="info",
         )
-        self._log("Starting document OCR…", "info")
+        self._log("Starting OCR PDF batch…", "info")
         self._log(f"Using Tesseract at: {dependency_info.get('tesseract_path')}", "info")
-        self._log(
-            f"Output metadata: Title='{self.metadata['title']}'",
-            "info",
-        )
+        if self.metadata.get("title"):
+            self._log(f"PDF title prefix: '{self.metadata['title']}'", "info")
+        self._log(f"Output folder: {self.output_folder}", "info")
 
         self.worker = OcrPdfWorker(
             input_folder=self.selected_folder,
@@ -750,7 +774,7 @@ class OcrPdfPanel:
             self.btn_cancel.configure(state="disabled")
             self._log("Cancellation requested… waiting for the current document step to stop.", "warning")
             self._set_info(
-                "Cancellation requested — waiting for the current OCR step to stop.",
+                "Cancellation requested — waiting for the current PDF OCR step to stop.",
                 level="warning",
             )
 
@@ -785,26 +809,28 @@ class OcrPdfPanel:
             level = "warning" if self.has_errors or cancelled else "success"
 
             if cancelled:
-                summary = "Stopped — document OCR was cancelled."
+                summary = "Stopped — OCR batch was cancelled."
             elif results["success"]:
-                summary = "Done — 1 document OCR'd successfully."
+                summary = (
+                    f"Done — {results['success']} PDF(s) OCR'd successfully."
+                )
             elif results["skipped"]:
-                summary = "Stopped — document was skipped."
+                summary = "Stopped — all PDFs were skipped."
             else:
-                summary = "Done — document OCR failed."
+                summary = "Done — OCR batch failed."
 
             self._log(summary, level)
             self._set_info(
                 (
-                    "✓  Complete — document PDF created successfully."
+                    f"✓  Complete — created {results['success']} OCR PDF(s)."
                     if results["success"]
                     else (
-                        "⚠  Cancelled — document OCR stopped before completion."
+                        "⚠  Cancelled — OCR batch stopped before completion."
                         if cancelled
                         else (
-                            "⚠  Skipped — document was skipped by current rules."
-                            if results["skipped"]
-                            else "✕  Failed — document OCR did not complete."
+                            "⚠  Skipped — all PDFs were skipped by current rules."
+                            if results["skipped"] and not results["failed"]
+                            else "✕  Failed — OCR batch did not complete."
                         )
                     )
                 ),

@@ -511,7 +511,7 @@ class OcrPdfWorker(OperationWorker):
             "success": 0,
             "failed": 0,
             "skipped": 0,
-            "total": 1,
+            "total": 0,
             "cancelled": False,
             "errors": [],
             "skip_reasons": [],
@@ -523,12 +523,12 @@ class OcrPdfWorker(OperationWorker):
         """Execute OCR-to-PDF operation."""
         from modules.ocr_pdf.core import (
             check_ocr_dependencies,
-            find_ocr_input_files,
-            ocr_folder_to_pdf,
+            group_ocr_input_files,
+            ocr_document_to_pdf,
+            summarize_ocr_documents,
         )
 
         try:
-            self.update_progress(0, 3, self.input_folder.name)
             self.update_status("Checking OCR dependencies...")
             ok, error_msg, dependency_info = check_ocr_dependencies(
                 language=self.language,
@@ -547,74 +547,91 @@ class OcrPdfWorker(OperationWorker):
                 self.results["warnings"].append(error_msg)
                 self.update_status(error_msg)
 
-            self.update_progress(1, 3, self.input_folder.name)
             self.update_status("Scanning folder for OCR page images...")
-            image_files = find_ocr_input_files(self.input_folder)
+            documents = group_ocr_input_files(self.input_folder)
 
-            if not image_files:
+            if not documents:
                 self.update_status("No supported image files found")
                 return
 
-            page_count = len(image_files)
-            self.update_status(f"Found {page_count} page image(s) in the document folder")
+            summary = summarize_ocr_documents(documents)
+            self.results["total"] = summary["document_count"]
+            self.update_status(
+                "Found "
+                f"{summary['page_count']} page image(s) across "
+                f"{summary['document_count']} output PDF(s)"
+            )
 
             if self.cancelled:
                 self.results["cancelled"] = True
                 self.update_status("Operation cancelled")
                 return
 
-            self.update_progress(2, 3, self.input_folder.name)
-            self.update_status("Building document PDF and running OCR...")
+            pdfa_warning_added = False
+            total_documents = len(documents)
+            for index, document in enumerate(documents, start=1):
+                if self.cancelled:
+                    self.results["cancelled"] = True
+                    self.update_status("Operation cancelled")
+                    break
 
-            result = ocr_folder_to_pdf(
-                input_folder=self.input_folder,
-                output_folder=self.output_folder,
-                language=self.language,
-                skip_existing=self.skip_existing,
-                save_pdfa=self.save_pdfa,
-                skip_messy=self.skip_messy,
-                metadata=self.metadata,
-            )
+                document_name = document["name"]
+                output_pdf_path = self.output_folder / f"{document_name}.pdf"
+                self.update_progress(index, total_documents, output_pdf_path.name)
+                self.update_status(
+                    f"OCR {index}/{total_documents}: {output_pdf_path.name} "
+                    f"from {document['page_count']} page(s)"
+                )
 
-            if result["status"] == "success":
-                self.results["success"] = 1
-                self.results["outputs"].append(str(result["output_path"]))
-                if self.save_pdfa and not result.get("used_pdfa"):
-                    warning = "PDF/A was unavailable on this machine — created a standard searchable PDF instead."
-                    self.results["warnings"].append(warning)
-                    self.update_status(warning)
-                self.update_progress(3, 3, self.input_folder.name)
-            elif result["status"] == "skipped":
-                self.results["skipped"] = 1
-                skip_reason = result.get("error") or "Skipped"
-                self.results["skip_reasons"].append({
-                    "file": self.input_folder.name,
-                    "reason": skip_reason,
-                })
-                self.update_status(f"Skipped: {self.input_folder.name} — {skip_reason}")
-                details = result.get("details") or {}
-                for page in details.get("flagged_pages", []):
-                    reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
-                    self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
-            else:
-                self.results["failed"] = 1
-                error_msg = result.get("error") or "OCR failed"
-                self.results["errors"].append({
-                    "file": self.input_folder.name,
-                    "error": error_msg,
-                })
-                self.report_error(self.input_folder.name, error_msg)
+                result = ocr_document_to_pdf(
+                    input_files=document["files"],
+                    output_pdf_path=output_pdf_path,
+                    document_name=document_name,
+                    language=self.language,
+                    skip_existing=self.skip_existing,
+                    save_pdfa=self.save_pdfa,
+                    skip_messy=self.skip_messy,
+                    metadata=self.metadata,
+                )
+
+                if result["status"] == "success":
+                    self.results["success"] += 1
+                    self.results["outputs"].append(str(result["output_path"]))
+                    if self.save_pdfa and not result.get("used_pdfa") and not pdfa_warning_added:
+                        warning = "PDF/A was unavailable on this machine — created standard searchable PDFs instead."
+                        self.results["warnings"].append(warning)
+                        self.update_status(warning)
+                        pdfa_warning_added = True
+                elif result["status"] == "skipped":
+                    self.results["skipped"] += 1
+                    skip_reason = result.get("error") or "Skipped"
+                    self.results["skip_reasons"].append({
+                        "file": output_pdf_path.name,
+                        "reason": skip_reason,
+                    })
+                    self.update_status(f"Skipped: {output_pdf_path.name} — {skip_reason}")
+                    details = result.get("details") or {}
+                    for page in details.get("flagged_pages", []):
+                        reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
+                        self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
+                else:
+                    self.results["failed"] += 1
+                    doc_error = result.get("error") or "OCR failed"
+                    self.results["errors"].append({
+                        "file": output_pdf_path.name,
+                        "error": doc_error,
+                    })
+                    self.report_error(output_pdf_path.name, doc_error)
 
             summary = (
-                f"✅ OCR'd: {self.results['success']} document | "
+                f"✅ OCR'd: {self.results['success']} PDF(s) | "
                 f"⚠️ Skipped: {self.results['skipped']} | "
                 f"❌ Failed: {self.results['failed']}"
             )
             if self.results["cancelled"]:
                 summary = (
-                    f"Cancelled — OCR'd: {self.results['success']} | "
-                    f"Skipped: {self.results['skipped']} | "
-                    f"Failed: {self.results['failed']}"
+                    f"Cancelled — OCR'd: {self.results['success']} PDF(s) | "
+                    f"Skipped: {self.results['skipped']} | Failed: {self.results['failed']}"
                 )
             self.update_status(summary)
 
