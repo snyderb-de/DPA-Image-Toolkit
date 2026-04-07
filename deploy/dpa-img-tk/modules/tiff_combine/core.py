@@ -17,6 +17,18 @@ from typing import Tuple, List, Dict, Optional
 from .naming import extract_group_name, sort_group_files
 
 
+def _list_tif_files(folder_path: Path) -> List[Path]:
+    """List .tif files in one folder without case-based duplicates."""
+    folder_path = Path(folder_path)
+    return sorted(
+        [
+            file_path for file_path in folder_path.iterdir()
+            if file_path.is_file() and file_path.suffix.lower() == ".tif"
+        ],
+        key=lambda file_path: file_path.name.lower(),
+    )
+
+
 def merge_tiff_group(
     group_name: str,
     input_folder: Path,
@@ -44,9 +56,7 @@ def merge_tiff_group(
 
     try:
         # Find all files in group
-        all_files = list(input_folder.glob("*.tif")) + list(
-            input_folder.glob("*.TIF")
-        )
+        all_files = _list_tif_files(input_folder)
         group_files = [
             f for f in all_files if extract_group_name(f.name) == group_name
         ]
@@ -244,9 +254,7 @@ def get_merge_stats(
 
     try:
         # Find files
-        all_files = list(input_folder.glob("*.tif")) + list(
-            input_folder.glob("*.TIF")
-        )
+        all_files = _list_tif_files(input_folder)
         group_files = [
             f for f in all_files if extract_group_name(f.name) == group_name
         ]

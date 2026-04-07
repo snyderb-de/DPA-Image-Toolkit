@@ -10,6 +10,20 @@ from pathlib import Path
 from .log_utils import log_message
 
 
+def _list_files_with_suffixes(folder_path, suffixes):
+    """Return files in one folder matching suffixes, case-insensitively."""
+    folder_path = Path(folder_path)
+    suffixes = {suffix.lower() for suffix in suffixes}
+
+    return sorted(
+        [
+            file_path for file_path in folder_path.iterdir()
+            if file_path.is_file() and file_path.suffix.lower() in suffixes
+        ],
+        key=lambda file_path: file_path.name.lower(),
+    )
+
+
 def pick_folder(title="Select Folder"):
     """
     Open native folder picker dialog.
@@ -74,14 +88,11 @@ def validate_tif_files(folder_path):
     if not folder_path.is_dir():
         return False, [], f"Not a directory: {folder_path}"
 
-    # Find all .tif files
-    tif_files = list(folder_path.glob("*.tif")) + list(folder_path.glob("*.TIF"))
+    # Find all .tif files case-insensitively without double-counting.
+    tif_files = _list_files_with_suffixes(folder_path, {".tif"})
 
     if not tif_files:
         return False, [], f"No .tif files found in {folder_path}"
-
-    # Sort by name
-    tif_files.sort(key=lambda f: f.name.lower())
 
     return True, tif_files, None
 
@@ -103,20 +114,13 @@ def validate_image_files(folder_path):
     if not folder_path.is_dir():
         return False, [], f"Not a directory: {folder_path}"
 
-    # Find all image files
-    extensions = ("*.tif", "*.tiff", "*.jpg", "*.jpeg", "*.png", "*.bmp")
-    image_files = []
-
-    for ext in extensions:
-        image_files.extend(folder_path.glob(ext))
-        image_files.extend(folder_path.glob(ext.upper()))
+    image_files = _list_files_with_suffixes(
+        folder_path,
+        {".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp"},
+    )
 
     if not image_files:
         return False, [], f"No image files found in {folder_path}"
-
-    # Remove duplicates and sort
-    image_files = list(set(image_files))
-    image_files.sort(key=lambda f: f.name.lower())
 
     return True, image_files, None
 

@@ -12,6 +12,18 @@ from pathlib import Path
 from collections import defaultdict
 
 
+def _list_tif_files(folder_path):
+    """List .tif files in one folder without case-based duplicates."""
+    folder_path = Path(folder_path)
+    return sorted(
+        [
+            file_path for file_path in folder_path.iterdir()
+            if file_path.is_file() and file_path.suffix.lower() == ".tif"
+        ],
+        key=lambda file_path: file_path.name.lower(),
+    )
+
+
 def validate_file_naming(file_path):
     """
     Check if file follows naming convention.
@@ -63,7 +75,8 @@ def extract_sequence_number(filename):
     Returns:
         int: Sequence number (001-999), or None if not found
     """
-    match = re.search(r'_(\d{3})', filename)
+    filename = Path(filename).name if not isinstance(filename, str) else Path(filename).name
+    match = re.search(r'_(\d{3})(?:\.[^.]+)?$', filename, re.IGNORECASE)
     if match:
         return int(match.group(1))
     return None
@@ -84,7 +97,7 @@ def sort_group_files(files, group_name=None):
         filename = str(filename) if not isinstance(filename, str) else filename
         filename = Path(filename).name
 
-        match = re.search(r'_(\d{3})', filename)
+        match = re.search(r'_(\d{3})(?:\.[^.]+)?$', filename, re.IGNORECASE)
         if match:
             return int(match.group(1))
         return 999  # Invalid files go to end
@@ -119,7 +132,7 @@ def detect_groups(folder_path):
     folder_path = Path(folder_path)
     groups = defaultdict(list)
 
-    for file_path in folder_path.glob('*.tif'):
+    for file_path in _list_tif_files(folder_path):
         # Check if file follows naming convention
         if validate_file_naming(file_path):
             group_name = extract_group_name(file_path.name)
@@ -154,8 +167,8 @@ def validate_naming_convention(folder_path):
     if not folder_path.is_dir():
         return {}, False, [f"Not a directory: {folder_path}"]
 
-    # Find all .tif files
-    all_tif_files = list(folder_path.glob('*.tif')) + list(folder_path.glob('*.TIF'))
+    # Find all .tif files case-insensitively without double-counting.
+    all_tif_files = _list_tif_files(folder_path)
 
     if not all_tif_files:
         return {}, False, ["No .tif files found in folder"]

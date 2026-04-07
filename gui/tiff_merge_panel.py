@@ -499,17 +499,6 @@ class TiffMergePanel:
                 anchor="w",
             ).grid(row=0, column=1, sticky="w")
 
-            # Count badge
-            ctk.CTkLabel(
-                gh,
-                text=f"  {len(files)} files  ",
-                font=get_font("micro"),
-                text_color=t["accent"],
-                fg_color=t["accent_dim"],
-                corner_radius=RADIUS["pill"],
-                padx=4,
-            ).grid(row=0, column=2, padx=8)
-
             preview_rows = [
                 ("First file", files[0]),
                 ("Last file", files[-1]),
