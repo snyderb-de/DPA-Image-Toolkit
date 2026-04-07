@@ -27,6 +27,7 @@ DEFAULT_WHITE_THRESHOLD = 253  # Near-white threshold (254+ is white)
 DEFAULT_PADDING_PERCENT = 0.025
 DEFAULT_PADDING_MIN = 15
 DEFAULT_PADDING_MAX = 100
+DEFAULT_DOMINANT_CONTOUR_RATIO = 0.10
 
 
 def _get_meaningful_contours(contours, min_size, max_contours):
@@ -45,6 +46,25 @@ def _get_meaningful_contours(contours, min_size, max_contours):
         )[:max_contours]
 
     return meaningful_contours
+
+
+def _get_crop_contours(contours, min_size, max_contours):
+    """Keep only contours that represent the dominant content regions."""
+    meaningful_contours = _get_meaningful_contours(contours, min_size, max_contours)
+    if not meaningful_contours:
+        return []
+
+    contour_areas = [cv2.contourArea(cnt) for cnt in meaningful_contours]
+    largest_area = max(contour_areas)
+    dominant_min_area = max(
+        min_size[0] * min_size[1],
+        largest_area * DEFAULT_DOMINANT_CONTOUR_RATIO,
+    )
+
+    return [
+        cnt for cnt in meaningful_contours
+        if cv2.contourArea(cnt) >= dominant_min_area
+    ]
 
 
 def _get_combined_bounding_box(contours):
@@ -156,7 +176,7 @@ def crop_image(
             return None, "Image appears blank or fully white — nothing to crop"
 
         # Filter contours by minimum size
-        large_contours = _get_meaningful_contours(
+        large_contours = _get_crop_contours(
             contours,
             min_size,
             max_contours,
@@ -259,7 +279,7 @@ def get_crop_stats(image_path):
             }
 
         areas = [cv2.contourArea(cnt) for cnt in contours]
-        large_contours = _get_meaningful_contours(
+        large_contours = _get_crop_contours(
             contours,
             DEFAULT_MIN_SIZE,
             DEFAULT_MAX_CONTOURS,
