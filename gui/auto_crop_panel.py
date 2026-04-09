@@ -98,7 +98,7 @@ class AutoCropPanel:
         # Folder button
         btn_folder = ctk.CTkButton(
             picker_card,
-            text="  📁  Select Image Folder",
+            text="  📁  Select Folder",
             font=get_font("normal"),
             height=BUTTON["height_md"],
             corner_radius=RADIUS["md"],

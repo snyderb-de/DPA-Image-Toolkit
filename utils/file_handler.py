@@ -72,7 +72,7 @@ def pick_files(title="Select Files", filetypes=None):
 
 def validate_tif_files(folder_path):
     """
-    Validate that folder contains .tif files.
+    Validate that folder contains .tif or .tiff files.
 
     Args:
         folder_path (Path): Folder to validate
@@ -80,7 +80,7 @@ def validate_tif_files(folder_path):
     Returns:
         tuple: (is_valid, file_list, error_message)
             - is_valid (bool): True if valid TIF files found
-            - file_list (list): List of .tif files found
+            - file_list (list): List of .tif/.tiff files found
             - error_message (str): Error message if invalid, None if valid
     """
     folder_path = Path(folder_path)
@@ -88,11 +88,11 @@ def validate_tif_files(folder_path):
     if not folder_path.is_dir():
         return False, [], f"Not a directory: {folder_path}"
 
-    # Find all .tif files case-insensitively without double-counting.
-    tif_files = _list_files_with_suffixes(folder_path, {".tif"})
+    # Find all .tif/.tiff files case-insensitively without double-counting.
+    tif_files = _list_files_with_suffixes(folder_path, {".tif", ".tiff"})
 
     if not tif_files:
-        return False, [], f"No .tif files found in {folder_path}"
+        return False, [], f"No .tif or .tiff files found in {folder_path}"
 
     return True, tif_files, None
 

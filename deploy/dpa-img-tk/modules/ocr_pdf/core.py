@@ -61,18 +61,18 @@ def extract_ocr_group_name(filename: str | Path) -> str:
     """
     Return the document group name for a scan filename.
 
-    Files ending with _### are treated as paged scans and grouped by the text
+    Files ending with _#### are treated as paged scans and grouped by the text
     before the trailing sequence. Other files keep their full stem.
     """
     stem = Path(filename).stem
-    return re.sub(r"_\d{3}$", "", stem)
+    return re.sub(r"_\d{4}$", "", stem)
 
 
 def extract_ocr_sequence_number(filename: str | Path) -> Optional[int]:
     """
-    Return the trailing three-digit page sequence for a scan filename.
+    Return the trailing four-digit page sequence for a scan filename.
     """
-    match = re.search(r"_(\d{3})(?:\.[^.]+)?$", Path(filename).name, re.IGNORECASE)
+    match = re.search(r"_(\d{4})(?:\.[^.]+)?$", Path(filename).name, re.IGNORECASE)
     if match:
         return int(match.group(1))
     return None
@@ -366,7 +366,7 @@ def group_ocr_input_files(
     """
     Group one folder of scan images into OCR documents.
 
-    Files ending in _### are merged into one multi-page document ordered by that
+    Files ending in _#### are merged into one multi-page document ordered by that
     sequence. Files without a trailing sequence become single-page documents.
     """
     files = find_ocr_input_files(input_folder)

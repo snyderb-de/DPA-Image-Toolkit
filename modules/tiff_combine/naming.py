@@ -3,8 +3,8 @@ File naming validation for tiff-combine.
 
 Validates naming convention, extracts group names, and sorts files by sequence.
 
-NAMING PATTERN: [groupname]_###.tif (exactly 3 digits)
-Example: document_001.tif, report_page_001.tif
+NAMING PATTERN: {name}_{group}_{###}.tif/.tiff
+Examples: document_batchA_001.tif, 9200-T16-000_207_003.tiff
 """
 
 import re
@@ -13,12 +13,12 @@ from collections import defaultdict
 
 
 def _list_tif_files(folder_path):
-    """List .tif files in one folder without case-based duplicates."""
+    """List .tif/.tiff files in one folder without case-based duplicates."""
     folder_path = Path(folder_path)
     return sorted(
         [
             file_path for file_path in folder_path.iterdir()
-            if file_path.is_file() and file_path.suffix.lower() == ".tif"
+            if file_path.is_file() and file_path.suffix.lower() in {".tif", ".tiff"}
         ],
         key=lambda file_path: file_path.name.lower(),
     )
@@ -28,7 +28,7 @@ def validate_file_naming(file_path):
     """
     Check if file follows naming convention.
 
-    Pattern: [groupname]_###.tif where ### is exactly 3 digits
+    Pattern: {name}_{group}_{###}.tif/.tiff where ### is exactly 3 digits
 
     Args:
         file_path (Path|str): File path to validate
@@ -39,9 +39,13 @@ def validate_file_naming(file_path):
     file_path = Path(file_path)
     filename = file_path.name
 
-    # Must end with _###.tif where # is a digit
-    pattern = r'_\d{3}\.tif$'
-    return bool(re.search(pattern, filename, re.IGNORECASE))
+    stem = file_path.stem
+    if file_path.suffix.lower() not in {".tif", ".tiff"}:
+        return False
+
+    # Require at least two underscore-delimited parts before the trailing page sequence.
+    pattern = r'^.+_.+_\d{3}$'
+    return bool(re.match(pattern, stem, re.IGNORECASE))
 
 
 def extract_group_name(filename):
@@ -49,6 +53,7 @@ def extract_group_name(filename):
     Extract group name from filename.
 
     Removes trailing _### (underscore + exactly 3 digits) to get group name.
+    This keeps both the base name and the middle group identifier.
 
     Args:
         filename (str): Filename to parse
@@ -121,7 +126,7 @@ def detect_groups(folder_path):
     """
     Detect all groups in a folder.
 
-    Groups are determined by the text before _### in filenames.
+    Groups are determined by the text before the trailing _### in filenames.
 
     Args:
         folder_path (Path|str): Folder to scan
@@ -157,7 +162,7 @@ def validate_naming_convention(folder_path):
     Returns:
         tuple: (groups_dict, is_valid, issues_list)
             - groups_dict: {'group': ['file1', 'file2'], ...}
-            - is_valid: True if all .tif files follow convention
+            - is_valid: True if all .tif/.tiff files follow convention
             - issues_list: List of problem files or error messages
     """
     folder_path = Path(folder_path)
@@ -167,11 +172,11 @@ def validate_naming_convention(folder_path):
     if not folder_path.is_dir():
         return {}, False, [f"Not a directory: {folder_path}"]
 
-    # Find all .tif files case-insensitively without double-counting.
+    # Find all .tif/.tiff files case-insensitively without double-counting.
     all_tif_files = _list_tif_files(folder_path)
 
     if not all_tif_files:
-        return {}, False, ["No .tif files found in folder"]
+        return {}, False, ["No .tif or .tiff files found in folder"]
 
     # Validate each file
     valid_files = []

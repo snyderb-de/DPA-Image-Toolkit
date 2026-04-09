@@ -18,12 +18,12 @@ from .naming import extract_group_name, sort_group_files
 
 
 def _list_tif_files(folder_path: Path) -> List[Path]:
-    """List .tif files in one folder without case-based duplicates."""
+    """List .tif/.tiff files in one folder without case-based duplicates."""
     folder_path = Path(folder_path)
     return sorted(
         [
             file_path for file_path in folder_path.iterdir()
-            if file_path.is_file() and file_path.suffix.lower() == ".tif"
+            if file_path.is_file() and file_path.suffix.lower() in {".tif", ".tiff"}
         ],
         key=lambda file_path: file_path.name.lower(),
     )

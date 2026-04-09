@@ -20,7 +20,7 @@ class MainWindow(ctk.CTk):
 
         # ── Window setup ───────────────────────────────────────────────────────
         self.title("DPA Image Toolkit")
-        self.geometry("1300x950")
+        self._set_window_geometry_top_aligned(1300, 950)
         self.minsize(1200, 860)
 
         # ── State ──────────────────────────────────────────────────────────────
@@ -45,6 +45,11 @@ class MainWindow(ctk.CTk):
     # ══════════════════════════════════════════════════════════════════════════
     # Sidebar
     # ══════════════════════════════════════════════════════════════════════════
+
+    def _set_window_geometry_top_aligned(self, width: int, height: int):
+        screen_width = self.winfo_screenwidth()
+        x = max((screen_width - width) // 2, 0)
+        self.geometry(f"{width}x{height}+{x}+0")
 
     def _build_sidebar(self):
         t = self.current_theme
@@ -734,7 +739,19 @@ class MainWindow(ctk.CTk):
         d.attributes("-topmost", True)
         d.configure(fg_color=t["bg_secondary"])
         d.grab_set()
+        self._position_dialog_top_aligned(d, width, height)
         return d
+
+    def _position_dialog_top_aligned(self, dialog, width: int, height: int):
+        self.update_idletasks()
+        dialog.update_idletasks()
+
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        x = parent_x + max((parent_width - width) // 2, 0)
+        y = max(parent_y, 0)
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
 
     def _show_warning(self, title: str, message: str):
         t = self.current_theme

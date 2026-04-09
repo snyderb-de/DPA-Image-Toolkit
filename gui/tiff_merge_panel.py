@@ -94,7 +94,7 @@ class TiffMergePanel:
 
         btn_folder = ctk.CTkButton(
             picker_card,
-            text="  📁  Select TIFF Folder",
+            text="  📁  Select Folder",
             font=get_font("normal"),
             height=BUTTON["height_md"],
             corner_radius=RADIUS["md"],
@@ -139,7 +139,7 @@ class TiffMergePanel:
 
         self.info_lbl = ctk.CTkLabel(
             self.info_card,
-            text="Files must be named:  groupname_###.tif",
+            text="Files must be named:  {name}_{group}_{###}.tif or .tiff",
             font=get_font("small"),
             text_color=t["fg_secondary"],
             anchor="w",
@@ -174,7 +174,7 @@ class TiffMergePanel:
         ).pack(anchor="w", padx=16, pady=(14, 2))
 
         for line in (
-            "Merge TIFFs groups files by shared names such as groupname_001.tif, groupname_002.tif.",
+            "Merge TIFFs groups files by names like {name}_{group}_{###}.tif or .tiff.",
             "Files in valid groups are merged in number order into a single multi-page TIFF.",
             "TIFFs that do not match a valid group name are skipped rather than stopping the run.",
         ):
@@ -359,7 +359,7 @@ class TiffMergePanel:
         )
 
         total_valid = sum(len(f) for f in groups.values())
-        single = len(files) - total_valid
+        invalid_named = len(files) - total_valid
 
         self.group_count_lbl.configure(
             text=f"  {len(groups)} groups / {total_valid} files  "
@@ -367,8 +367,8 @@ class TiffMergePanel:
         self.group_count_lbl.grid(row=0, column=2, padx=(0, 14))
 
         info = f"✓  Found {len(groups)} group(s) with {total_valid} TIFF file(s)"
-        if single:
-            info += f"  ·  {single} single file(s) will be skipped"
+        if invalid_named:
+            info += f"  ·  {invalid_named} file(s) with invalid naming will be skipped"
         self._set_info(info, level="success")
         self.btn_start.configure(state="normal")
         self.btn_start.configure(text="  ▶  Start Merge")
@@ -377,8 +377,9 @@ class TiffMergePanel:
         self._log(f"Found {len(groups)} group(s):", "success")
         for name, grp_files in groups.items():
             self._log(f"  {name}  ({len(grp_files)} files)", "info")
-        if single:
-            self._log(f"{single} file(s) without matching pattern will be skipped.", "info")
+        self._log("Valid one-file groups are allowed and will still be processed.", "info")
+        if invalid_named:
+            self._log(f"{invalid_named} file(s) with invalid naming will be skipped.", "info")
 
         # Show spot-check dialog
         self._show_validation_dialog()
@@ -523,7 +524,7 @@ class TiffMergePanel:
         self.btn_cancel.configure(state="disabled")
         self.btn_error_report.configure(state="disabled")
         self.btn_new_job.configure(state="normal")
-        self._set_info("Files must be named:  groupname_###.tif", level="info")
+        self._set_info("Files must be named:  {name}_{group}_{###}.tif or .tiff", level="info")
         self._clear_log()
         self._refresh_dependency_panel()
         self.parent.operation_in_progress = False
@@ -705,17 +706,16 @@ class TiffMergePanel:
         )
 
     def _center_dialog(self, dialog, width: int, height: int):
-        """Center a modal dialog over the main application window."""
+        """Center horizontally over the main window and align to its top edge."""
         self.parent.update_idletasks()
         dialog.update_idletasks()
 
         parent_x = self.parent.winfo_rootx()
         parent_y = self.parent.winfo_rooty()
         parent_width = self.parent.winfo_width()
-        parent_height = self.parent.winfo_height()
 
         x = parent_x + max((parent_width - width) // 2, 0)
-        y = parent_y + max((parent_height - height) // 2, 0)
+        y = max(parent_y, 0)
         dialog.geometry(f"{width}x{height}+{x}+{y}")
 
     def _set_info(self, text: str, level: str = "info"):

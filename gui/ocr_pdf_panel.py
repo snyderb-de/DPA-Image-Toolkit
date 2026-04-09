@@ -94,7 +94,7 @@ class OcrPdfPanel:
 
         ctk.CTkButton(
             picker_card,
-            text="  📁  Select Scan Folder",
+            text="  📁  Select Folder",
             font=get_font("normal"),
             height=BUTTON["height_md"],
             corner_radius=RADIUS["md"],
@@ -334,7 +334,8 @@ class OcrPdfPanel:
         ).pack(anchor="w", padx=16, pady=(14, 2))
 
         for line in (
-            "Files ending in _### are grouped into one PDF and ordered by that sequence number.",
+            "Files ending in _#### are grouped into one PDF and ordered by that sequence number.",
+            "A valid sequenced file by itself is still treated as a one-page grouped PDF.",
             "Files without a trailing sequence become single-page PDFs.",
             "All output PDFs are saved into a PDFs subfolder inside the selected folder.",
             "OCR currently runs in English only.",
