@@ -1,0 +1,1 @@
+"""Auto Crop testing suite."""

@@ -44,7 +44,7 @@ Combines grouped TIFF page files into multi-page TIFFs.
 
 - Input: TIFF folder
 - Output: `input_folder/merged/`
-- Naming rule: `groupname_###.tif`
+- Naming rule: `{name}_{group}_{###}.tif` or `.tiff`
 - Mixed folders are allowed; valid groups merge, unmatched files are skipped
 
 ### Split Multi-Page TIFFs
@@ -52,7 +52,7 @@ Combines grouped TIFF page files into multi-page TIFFs.
 Extracts each page of a multi-page TIFF into its own single-page TIFF.
 
 - File mode output: sibling `<original_name>_pages/`
-- Folder mode output: `selected_folder/extracted-pages/<original_name>/`
+- Folder mode output: `selected_folder/extracted-pages/`
 - Single-page TIFFs are skipped
 
 ### Add Border
@@ -65,17 +65,53 @@ Adds a white border to every image in a folder using the same spacing logic as A
 
 ### OCR to PDF
 
-Treats one selected folder of scan images as one document and creates a single searchable PDF. The tool prefers PDF/A when the optional archival stack is available.
+Converts a folder of scan images into searchable PDFs by grouping files that share a base name and trailing page sequence.
 
 - Input: one folder of page image files
-- Output: `input_folder/ocr-pdf/<folder_name>.pdf`
+- Output: `input_folder/PDFs/<group_name>.pdf`
 - Errors: `input_folder/errored-files/ocr-pdf/`
 - Defaults:
-  - searchable PDF always targeted first
-  - PDF/A preferred when available
-  - metadata prompt after folder selection
+  - English OCR
   - skip existing output PDF
-  - skip the document when any page fails a conservative OCR quality precheck
+  - skip a grouped PDF when any page fails a conservative OCR quality precheck
+  - valid single files are still processed as one-page PDFs
+
+## Naming Rules
+
+### Merge TIFFs
+
+Valid TIFF merge groups follow:
+
+```text
+{name}_{group}_{###}.tif
+{name}_{group}_{###}.tiff
+```
+
+Examples:
+
+```text
+9200-T16-000_207_003.tif
+9200-B31-000_001_004.tiff
+```
+
+Everything before the final `_###` is treated as the merge group name, so a valid one-file group is still processed.
+
+### OCR to PDF
+
+Valid OCR page groups follow:
+
+```text
+{name}_####.<extension>
+```
+
+Examples:
+
+```text
+packet_0001.tif
+packet_0002.jpg
+```
+
+Everything before the final `_####` becomes the output PDF base name. A valid single file still becomes a one-page PDF.
 
 ## Typical Workflow
 
@@ -84,13 +120,13 @@ Scanned images
   -> Auto Crop
   -> cropped/
   -> Merge TIFFs
-  -> merged/groupname_merged.tif
+  -> merged/groupname.tif
 ```
 
 You can also use:
 - Split TIFFs to break apart existing multi-page TIFFs
 - Add Border to add consistent margins to image sets such as book scans
-- OCR to PDF to turn a folder of page scans into one searchable access PDF
+- OCR to PDF to turn a folder of page scans into grouped searchable PDFs in `PDFs/`
 
 ## Dependencies
 
@@ -101,9 +137,9 @@ pip install customtkinter pillow opencv-python numpy
 OCR to PDF requires local OCR tooling:
 
 - Tesseract OCR
-- OCRmyPDF for optional PDF/A output
+- English language pack (`eng`)
 
-The guaranteed local path is Tesseract-based searchable PDF generation. PDF/A is attempted only when OCRmyPDF is available on the machine.
+The guaranteed local path is Tesseract-based searchable PDF generation.
 
 Or:
 
@@ -162,13 +198,23 @@ Required to run:
 - `requirements.txt`
 
 Not required for launch:
-- `tests/`
-- `merged-repos/`
+- `testing/`
 - `project-dashboard/`
 - top-level markdown docs
 
+## Repo Layout
+
+```text
+gui/        desktop UI panels and main window
+modules/    tool-specific processing logic
+utils/      shared workers, dependency checks, and file helpers
+deploy/     copy-ready Windows deployment bundle
+testing/    per-tool generators, test runners, and local test scratch space
+```
+
 ## Documentation
 
-- [PROJECT.md](PROJECT.md) — architecture, algorithms, known limitations
-- [TODO.md](TODO.md) — open issues and future enhancements
-- [project-dashboard/index.html](project-dashboard/index.html) — GitHub Pages-ready project dashboard
+- `README.md` — setup, workflow, naming rules, deployment
+- `TODO.md` — open issues and future enhancements
+- `deploy/README.md` — Windows Scripts deployment notes
+- `project-dashboard/` — optional HTML/CSS/JS project dashboard

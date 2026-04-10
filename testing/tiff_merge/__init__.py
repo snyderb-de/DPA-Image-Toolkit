@@ -1,0 +1,1 @@
+"""TIFF Merge testing suite."""

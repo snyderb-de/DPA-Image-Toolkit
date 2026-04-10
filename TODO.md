@@ -6,9 +6,10 @@
 
 ## Open Issues
 
-- [ ] **Test on Windows 10 / Windows 11** — unit tests were run in a Linux sandbox; GUI and full workflow need verification on target OS
+- [ ] **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment
 - [ ] **Test at high DPI scaling** — verify UI at 125%, 150%, 200% display scaling
-- [ ] **Replace script-style tests with real pytest coverage** — convert print-based/manual test scripts into discoverable tests with assertions for crop output, TIFF grouping, and merge results
+- [ ] **Strengthen automated test coverage** — keep converting script-style/manual checks into stronger discoverable tests with assertions for crop output, TIFF grouping, and OCR grouping
+- [ ] **Keep dashboard and docs aligned with shipped behavior** — update `README.md`, `TODO.md`, and `project-dashboard/` together when workflows change
 
 ---
 
@@ -33,6 +34,7 @@
 
 - [ ] Undo support (move output back, restore originals)
 - [ ] Keep `Finished` non-clickable after a split job completes until a new job is loaded
+- [ ] Consider a cleaner project dashboard refresh once repo cleanup settles
 
 ---
 
@@ -40,12 +42,7 @@
 
 - [ ] Add a future multi-language OCR option back into the UI once the workflow and support/install story are settled
 - [ ] Tune the messy-scan heuristic against real production samples
-- [ ] Add PDF/A validation reporting in the UI
 - [ ] Offer a manual override flow for scans skipped by the OCR quality gate
-- [ ] Find a tenable open-source PDF/A backend that does not create an unacceptable Windows install or licensing burden
-  Description: the current OCR/PDF/A path depends on OCRmyPDF and Ghostscript, which may be too heavy or awkward for Windows deployment
-  Goal: support archival PDF/A output without requiring a brittle per-machine install story or problematic redistribution/licensing tradeoffs
-  Evaluate: Ghostscript-free options first, then reassess whether PDF/A should remain optional or become first-class again
 
 ### HCR Tool Investigation
 

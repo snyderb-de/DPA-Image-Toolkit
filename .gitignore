@@ -17,13 +17,18 @@ dist/
 *.spec
 *.exe
 
-# ── Test-generated output (generated, not source) ─────────────────────────────
-tests/crop_output/
-tests/crop_output_near_white/
-tests/tiff_merge_output/
-real-world-crop-test/
-real-world-tests/
-quick-merge-test/
+# ── Test-generated output and local test packs ────────────────────────────────
+testing/local/
+testing/auto_crop/fixtures/
+testing/auto_crop/output/
+testing/tiff_merge/fixtures/
+testing/tiff_merge/output/
+testing/tiff_split/fixtures/
+testing/tiff_split/output/
+testing/add_border/fixtures/
+testing/add_border/output/
+testing/ocr_pdf/fixtures/
+testing/ocr_pdf/output/
 
 # ── OS / editor artifacts ─────────────────────────────────────────────────────
 .DS_Store
