@@ -7,7 +7,7 @@ from __future__ import annotations
 import customtkinter as ctk
 import tkinter as tk
 
-from .styles import RADIUS, get_font
+from .styles import BUTTON, RADIUS, get_font
 
 STATUS_ICON_SIZE = 20
 
@@ -18,6 +18,7 @@ def build_dependency_sidebar(
     heading: str,
     statuses: list[dict],
     support_lines: tuple[str, ...] | list[str],
+    process_notes: tuple[str, ...] | list[str] | None = None,
     width: int = 300,
 ):
     """
@@ -149,8 +150,131 @@ def build_dependency_sidebar(
             anchor="w",
         ).grid(row=0, column=2 if leading_emoji else 1, sticky="w")
 
+    if process_notes:
+        notes_card = ctk.CTkFrame(
+            side_inner,
+            fg_color=theme["accent_dim"],
+            corner_radius=RADIUS["lg"],
+            border_width=0,
+        )
+        notes_card.grid(row=4, column=0, sticky="ew", pady=(16, 0))
+
+        ctk.CTkLabel(
+            notes_card,
+            text="PROCESS NOTES",
+            font=get_font("eyebrow"),
+            text_color=theme["fg_tertiary"],
+            anchor="w",
+        ).pack(anchor="w", padx=14, pady=(14, 2))
+
+        ctk.CTkButton(
+            notes_card,
+            text="Click to View",
+            font=get_font("small"),
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=theme["bg_glass"],
+            hover_color=theme["bg_tertiary"],
+            text_color=theme["fg_primary"],
+            border_width=1,
+            border_color=theme["border_subtle"],
+            command=lambda: show_process_notes_modal(
+                parent,
+                theme,
+                heading,
+                process_notes,
+            ),
+        ).pack(anchor="w", padx=14, pady=(6, 14))
+
     refresh_dependency_sidebar(dependency_rows, statuses)
     return side_panel, dependency_rows
+
+
+def show_process_notes_modal(
+    parent,
+    theme: dict,
+    tool_heading: str,
+    process_notes: tuple[str, ...] | list[str],
+):
+    """
+    Show process notes in a centered modal dialog with scroll support.
+    """
+    root = parent.winfo_toplevel()
+    width = 560
+    height = 460
+
+    dialog = ctk.CTkToplevel(root)
+    dialog.title("Process Notes")
+    dialog.geometry(f"{width}x{height}")
+    dialog.resizable(False, False)
+    dialog.attributes("-topmost", True)
+    dialog.configure(fg_color=theme["bg_secondary"])
+    dialog.transient(root)
+    dialog.grab_set()
+
+    root.update_idletasks()
+    dialog.update_idletasks()
+    parent_x = root.winfo_rootx()
+    parent_y = root.winfo_rooty()
+    parent_width = root.winfo_width()
+    x = parent_x + max((parent_width - width) // 2, 0)
+    y = max(parent_y + 30, 0)
+    dialog.geometry(f"{width}x{height}+{x}+{y}")
+
+    header = ctk.CTkFrame(dialog, fg_color="transparent")
+    header.pack(fill="x", padx=18, pady=(16, 8))
+
+    ctk.CTkLabel(
+        header,
+        text="PROCESS NOTES",
+        font=get_font("eyebrow"),
+        text_color=theme["fg_tertiary"],
+        anchor="w",
+    ).pack(anchor="w")
+
+    ctk.CTkLabel(
+        header,
+        text=tool_heading,
+        font=get_font("normal"),
+        text_color=theme["fg_primary"],
+        anchor="w",
+    ).pack(anchor="w", pady=(4, 0))
+
+    notes_frame = ctk.CTkScrollableFrame(
+        dialog,
+        fg_color=theme["bg_glass"],
+        corner_radius=RADIUS["lg"],
+        border_width=1,
+        border_color=theme["border_subtle"],
+    )
+    notes_frame.pack(fill="both", expand=True, padx=18, pady=(0, 12))
+    notes_frame.grid_columnconfigure(0, weight=1)
+
+    for line in process_notes:
+        ctk.CTkLabel(
+            notes_frame,
+            text=f"•  {line}",
+            font=get_font("small"),
+            text_color=theme["fg_secondary"],
+            justify="left",
+            wraplength=500,
+            anchor="w",
+        ).pack(anchor="w", padx=14, pady=(8, 4))
+
+    ctk.CTkButton(
+        dialog,
+        text="Close",
+        font=get_font("small"),
+        height=BUTTON["height_sm"],
+        width=120,
+        corner_radius=RADIUS["md"],
+        fg_color=theme["accent"],
+        hover_color=theme["accent_hover"],
+        text_color=theme["accent_text"],
+        command=dialog.destroy,
+    ).pack(pady=(0, 14))
+
+    dialog.bind("<Escape>", lambda _event: dialog.destroy())
 
 
 def refresh_dependency_sidebar(dependency_rows, statuses: list[dict]):

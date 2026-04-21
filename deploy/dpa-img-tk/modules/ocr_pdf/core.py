@@ -13,10 +13,12 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import cv2
+import numpy as np
 from PIL import Image
 
 
@@ -30,6 +32,83 @@ SUPPORTED_IMAGE_SUFFIXES = (
 )
 
 DEFAULT_IMAGE_DPI = 300
+
+
+def _get_image_frame_count(image_path: str | Path) -> int:
+    """
+    Return the number of image frames/pages in a source file.
+    """
+    try:
+        with Image.open(image_path) as image:
+            frame_count = int(getattr(image, "n_frames", 1) or 1)
+            return max(1, frame_count)
+    except Exception:
+        return 1
+
+
+def _build_input_page_manifest(input_files: list[Path]) -> list[dict]:
+    """
+    Expand source files into ordered OCR input pages.
+
+    Multi-page TIFF files are expanded into one manifest entry per interior page.
+    """
+    pages = []
+    for source_path in input_files:
+        source_path = Path(source_path)
+        frame_count = _get_image_frame_count(source_path)
+        for frame_index in range(frame_count):
+            display_name = (
+                f"{source_path.name} [page {frame_index + 1}/{frame_count}]"
+                if frame_count > 1
+                else source_path.name
+            )
+            pages.append(
+                {
+                    "source_path": source_path,
+                    "source_name": source_path.name,
+                    "frame_index": frame_index,
+                    "source_page_count": frame_count,
+                    "display_name": display_name,
+                }
+            )
+    return pages
+
+
+def _load_manifest_page_rgb(page: dict) -> Image.Image:
+    """
+    Load one manifest page as an RGB PIL image.
+    """
+    source_path = Path(page["source_path"])
+    frame_index = int(page.get("frame_index", 0))
+    try:
+        with Image.open(source_path) as image:
+            if frame_index:
+                image.seek(frame_index)
+            converted = image.convert("RGB")
+            dpi = image.info.get("dpi")
+            output = converted.copy()
+            if dpi:
+                output.info["dpi"] = dpi
+            return output
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load page '{page.get('display_name', source_path.name)}': {exc}") from exc
+
+
+def _load_manifest_page_grayscale(page: dict) -> Optional[np.ndarray]:
+    """
+    Load one manifest page as a grayscale NumPy array for OCR quality checks.
+    """
+    source_path = Path(page["source_path"])
+    frame_index = int(page.get("frame_index", 0))
+
+    try:
+        with Image.open(source_path) as image:
+            if frame_index:
+                image.seek(frame_index)
+            grayscale = image.convert("L")
+            return np.array(grayscale)
+    except Exception:
+        return None
 
 
 def _normalize_suffixes(extensions=None) -> tuple[str, ...]:
@@ -379,11 +458,13 @@ def group_ocr_input_files(
     for file_path in files:
         sequence = extract_ocr_sequence_number(file_path.name)
         if sequence is None:
+            single_page_count = _get_image_frame_count(file_path)
             single_documents.append(
                 {
                     "name": file_path.stem,
                     "files": [file_path],
-                    "page_count": 1,
+                    "page_count": single_page_count,
+                    "source_file_count": 1,
                     "is_grouped": False,
                     "first_file": file_path.name,
                     "last_file": file_path.name,
@@ -403,11 +484,13 @@ def group_ocr_input_files(
                 _natural_sort_key(item.name),
             ),
         )
+        page_count = sum(_get_image_frame_count(path) for path in sorted_pages)
         documents.append(
             {
                 "name": group_name,
                 "files": sorted_pages,
-                "page_count": len(sorted_pages),
+                "page_count": page_count,
+                "source_file_count": len(sorted_pages),
                 "is_grouped": True,
                 "first_file": sorted_pages[0].name,
                 "last_file": sorted_pages[-1].name,
@@ -461,12 +544,20 @@ def get_image_dpi(image_path: str | Path, fallback_dpi: int = DEFAULT_IMAGE_DPI)
     return fallback_dpi
 
 
-def assess_ocr_readiness(image_path: str | Path) -> dict:
+def assess_ocr_readiness(
+    image_path: str | Path,
+    frame_index: int = 0,
+) -> dict:
     """
     Estimate whether an image is likely too messy to produce useful OCR.
     """
     image_path = Path(image_path)
-    image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+    image = _load_manifest_page_grayscale(
+        {
+            "source_path": image_path,
+            "frame_index": frame_index,
+        }
+    )
     if image is None:
         return {
             "score": 0,
@@ -545,19 +636,47 @@ def assess_ocr_readiness(image_path: str | Path) -> dict:
     }
 
 
-def assess_document_ocr_readiness(input_files: list[Path]) -> dict:
+def assess_document_ocr_readiness(
+    input_files: list[Path],
+    progress_callback: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> dict:
     """
     Assess every page in the selected document folder.
     """
     flagged_pages = []
     page_scores = []
+    pages = _build_input_page_manifest(input_files)
 
-    for path in input_files:
-        readiness = assess_ocr_readiness(path)
+    for page_index, page in enumerate(pages, start=1):
+        if should_cancel and should_cancel():
+            average_score = round(sum(page_scores) / len(page_scores), 1) if page_scores else 0.0
+            return {
+                "page_count": len(pages),
+                "average_score": average_score,
+                "flagged_pages": flagged_pages,
+                "should_skip": False,
+                "cancelled": True,
+            }
+
+        if progress_callback:
+            progress_callback(
+                {
+                    "event": "analyzing_page",
+                    "page_current": page_index,
+                    "page_total": len(pages),
+                    "page_label": page["display_name"],
+                }
+            )
+
+        readiness = assess_ocr_readiness(
+            page["source_path"],
+            frame_index=page["frame_index"],
+        )
         page_scores.append(readiness["score"])
         if readiness["skip"]:
             flagged_pages.append({
-                "file": path.name,
+                "file": page["display_name"],
                 "score": readiness["score"],
                 "reasons": readiness["reasons"],
             })
@@ -565,21 +684,22 @@ def assess_document_ocr_readiness(input_files: list[Path]) -> dict:
     average_score = round(sum(page_scores) / len(page_scores), 1) if page_scores else 0.0
 
     return {
-        "page_count": len(input_files),
+        "page_count": len(pages),
         "average_score": average_score,
         "flagged_pages": flagged_pages,
         "should_skip": len(flagged_pages) > 0,
+        "cancelled": False,
     }
 
 
 def _convert_image_to_pdf_page(image_path: Path) -> Image.Image:
-    with Image.open(image_path) as image:
-        converted = image.convert("RGB")
-        dpi = image.info.get("dpi")
-        page = converted.copy()
-        if dpi:
-            page.info["dpi"] = dpi
-        return page
+    return _load_manifest_page_rgb(
+        {
+            "source_path": Path(image_path),
+            "frame_index": 0,
+            "display_name": Path(image_path).name,
+        }
+    )
 
 
 def build_input_pdf_from_images(
@@ -595,13 +715,17 @@ def build_input_pdf_from_images(
     output_pdf_path = Path(output_pdf_path)
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
+    input_pages = _build_input_page_manifest(input_files)
+    if not input_pages:
+        return False, "No input pages found."
+
     pages = []
     try:
-        for path in input_files:
-            pages.append(_convert_image_to_pdf_page(path))
+        for page in input_pages:
+            pages.append(_load_manifest_page_rgb(page))
 
         first_page, *remaining_pages = pages
-        resolution = get_image_dpi(input_files[0])
+        resolution = get_image_dpi(input_pages[0]["source_path"])
         first_page.save(
             output_pdf_path,
             "PDF",
@@ -685,6 +809,7 @@ def _run_tesseract_page_pdf(
     output_pdf_path: str | Path,
     language: str = "eng",
     tesseract_path: Optional[str | Path] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> tuple[bool, Optional[str]]:
     """
     Run Tesseract on one page image and create one searchable page PDF.
@@ -716,20 +841,35 @@ def _run_tesseract_page_pdf(
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
         "text": True,
-        "check": False,
     }
     if os.name == "nt":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
     try:
-        result = subprocess.run(cmd, **kwargs)
+        process = subprocess.Popen(cmd, **kwargs)
     except OSError as exc:
         return False, f"Failed to start Tesseract: {exc}"
 
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip()
+    while process.poll() is None:
+        if should_cancel and should_cancel():
+            try:
+                process.terminate()
+                process.wait(timeout=2)
+            except Exception:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+            return False, "Operation cancelled by user."
+        time.sleep(0.1)
+
+    stdout_text = process.stdout.read() if process.stdout else ""
+    stderr_text = process.stderr.read() if process.stderr else ""
+
+    if process.returncode != 0:
+        message = stderr_text.strip() or stdout_text.strip()
         if not message:
-            message = f"Tesseract exited with code {result.returncode}"
+            message = f"Tesseract exited with code {process.returncode}"
         return False, message
 
     if not output_pdf_path.exists():
@@ -796,12 +936,43 @@ def merge_page_pdfs(
     return True, None
 
 
+def _materialize_manifest_page(
+    page: dict,
+    temp_dir: Path,
+    page_index: int,
+) -> tuple[Optional[Path], Optional[str]]:
+    """
+    Return an image path for one manifest page.
+
+    Single-page source files can be passed through directly. Multi-page source
+    files are exported into a temporary single-page image.
+    """
+    source_path = Path(page["source_path"])
+    frame_index = int(page.get("frame_index", 0))
+    source_page_count = int(page.get("source_page_count", 1))
+
+    if source_page_count <= 1 and frame_index == 0:
+        return source_path, None
+
+    target_path = temp_dir / f"page_source_{page_index:04d}.png"
+    try:
+        rendered = _load_manifest_page_rgb(page)
+        rendered.save(target_path, "PNG")
+        rendered.close()
+    except Exception as exc:
+        return None, f"{page.get('display_name', source_path.name)}: {exc}"
+
+    return target_path, None
+
+
 def _run_tesseract_document_workflow(
     input_files: list[Path],
     output_pdf_path: str | Path,
     language: str = "eng",
     metadata: Optional[dict] = None,
     tesseract_path: Optional[str | Path] = None,
+    progress_callback: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> tuple[str, Optional[str]]:
     """
     Create a document PDF by OCRing each page image with Tesseract and then
@@ -810,17 +981,46 @@ def _run_tesseract_document_workflow(
     with tempfile.TemporaryDirectory(prefix="dpa-ocr-pages-") as temp_dir:
         temp_dir_path = Path(temp_dir)
         page_pdfs = []
-        for index, image_path in enumerate(input_files, start=1):
+        input_pages = _build_input_page_manifest(input_files)
+        total_pages = len(input_pages)
+        for index, page in enumerate(input_pages, start=1):
+            if should_cancel and should_cancel():
+                return "cancelled", "Operation cancelled by user."
+
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "ocr_page",
+                        "page_current": index,
+                        "page_total": total_pages,
+                        "page_label": page["display_name"],
+                    }
+                )
+
+            image_path, image_error = _materialize_manifest_page(
+                page=page,
+                temp_dir=temp_dir_path,
+                page_index=index,
+            )
+            if image_error:
+                return "failed", image_error
+
             page_pdf = temp_dir_path / f"page_{index:04d}.pdf"
             ok, error = _run_tesseract_page_pdf(
                 image_path=image_path,
                 output_pdf_path=page_pdf,
                 language=language,
                 tesseract_path=tesseract_path,
+                should_cancel=should_cancel,
             )
             if not ok:
-                return "failed", f"{image_path.name}: {error}"
+                if should_cancel and should_cancel():
+                    return "cancelled", "Operation cancelled by user."
+                return "failed", f"{page['display_name']}: {error}"
             page_pdfs.append(page_pdf)
+
+        if should_cancel and should_cancel():
+            return "cancelled", "Operation cancelled by user."
 
         ok, error = merge_page_pdfs(
             page_pdfs=page_pdfs,
@@ -865,6 +1065,9 @@ def ocr_document_to_pdf(
     save_pdfa: bool = True,
     skip_messy: bool = True,
     metadata: Optional[dict] = None,
+    tesseract_path: Optional[str | Path] = None,
+    progress_callback: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> dict:
     """
     OCR one ordered document file set into one searchable PDF.
@@ -880,15 +1083,49 @@ def ocr_document_to_pdf(
             "details": None,
         }
 
+    input_pages = _build_input_page_manifest(input_files)
+    if not input_pages:
+        return {
+            "status": "failed",
+            "output_path": output_pdf_path,
+            "error": "No input pages found.",
+            "details": None,
+        }
+
+    if should_cancel and should_cancel():
+        return {
+            "status": "cancelled",
+            "output_path": output_pdf_path,
+            "error": "Operation cancelled by user.",
+            "details": None,
+        }
+
     if skip_existing and output_pdf_path.exists():
         return {
             "status": "skipped",
             "output_path": output_pdf_path,
             "error": "Output PDF already exists",
-            "details": None,
+            "details": {
+                "page_count": len(input_pages),
+                "average_score": 0.0,
+                "flagged_pages": [],
+                "should_skip": False,
+            },
         }
 
-    readiness = assess_document_ocr_readiness(input_files)
+    readiness = assess_document_ocr_readiness(
+        input_files,
+        progress_callback=progress_callback,
+        should_cancel=should_cancel,
+    )
+    if readiness.get("cancelled"):
+        return {
+            "status": "cancelled",
+            "output_path": output_pdf_path,
+            "error": "Operation cancelled by user.",
+            "details": readiness,
+        }
+
     if skip_messy and readiness["should_skip"]:
         flagged_names = ", ".join(page["file"] for page in readiness["flagged_pages"][:5])
         if len(readiness["flagged_pages"]) > 5:
@@ -911,6 +1148,14 @@ def ocr_document_to_pdf(
 
     used_pdfa = bool(save_pdfa and detect_ocrmypdf_module())
     if used_pdfa:
+        if should_cancel and should_cancel():
+            return {
+                "status": "cancelled",
+                "output_path": output_pdf_path,
+                "error": "Operation cancelled by user.",
+                "details": readiness,
+                "used_pdfa": used_pdfa,
+            }
         with tempfile.TemporaryDirectory(prefix="dpa-ocr-") as temp_dir:
             temp_input_pdf = Path(temp_dir) / "input_document.pdf"
             success, error = build_input_pdf_from_images(input_files, temp_input_pdf)
@@ -936,7 +1181,9 @@ def ocr_document_to_pdf(
             output_pdf_path=output_pdf_path,
             language=language,
             metadata=document_metadata,
-            tesseract_path=None,
+            tesseract_path=tesseract_path,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )
 
     return {
@@ -956,6 +1203,9 @@ def ocr_folder_to_pdfs(
     save_pdfa: bool = True,
     skip_messy: bool = True,
     metadata: Optional[dict] = None,
+    tesseract_path: Optional[str | Path] = None,
+    progress_callback: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> list[dict]:
     """
     OCR one folder into one or more searchable PDFs based on grouped filenames.
@@ -977,6 +1227,9 @@ def ocr_folder_to_pdfs(
             save_pdfa=save_pdfa,
             skip_messy=skip_messy,
             metadata=metadata,
+            tesseract_path=tesseract_path,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )
         results.append({
             **document,
@@ -994,6 +1247,9 @@ def ocr_folder_to_pdf(
     save_pdfa: bool = True,
     skip_messy: bool = True,
     metadata: Optional[dict] = None,
+    tesseract_path: Optional[str | Path] = None,
+    progress_callback: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> dict:
     """
     Backward-compatible wrapper that OCRs one folder into one PDF.
@@ -1018,4 +1274,7 @@ def ocr_folder_to_pdf(
         save_pdfa=save_pdfa,
         skip_messy=skip_messy,
         metadata=metadata,
+        tesseract_path=tesseract_path,
+        progress_callback=progress_callback,
+        should_cancel=should_cancel,
     )

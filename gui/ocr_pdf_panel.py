@@ -17,7 +17,11 @@ from modules.ocr_pdf.core import (
 from utils.file_handler import create_error_folder, create_output_folder, pick_folder
 from utils.tool_dependencies import show_dependency_warning
 from utils.worker import OcrPdfWorker
-from .dependency_sidebar import create_status_icon_canvas, draw_status_icon
+from .dependency_sidebar import (
+    create_status_icon_canvas,
+    draw_status_icon,
+    show_process_notes_modal,
+)
 from .styles import BUTTON, RADIUS, get_font
 
 DEFAULT_OCR_LANGUAGE = "eng"
@@ -36,6 +40,7 @@ class OcrPdfPanel:
         self.error_folder: Path = None
         self.selected_files: list[Path] = []
         self.has_errors = False
+        self.cancel_stage = 0
 
         self.skip_existing_var = ctk.BooleanVar(value=True)
         self.skip_messy_var = ctk.BooleanVar(value=True)
@@ -44,6 +49,10 @@ class OcrPdfPanel:
         self.file_count_lbl = None
         self.info_card = None
         self.info_lbl = None
+        self.pdf_progress_lbl = None
+        self.pdf_progress_bar = None
+        self.job_progress_lbl = None
+        self.job_progress_bar = None
         self.log_display = None
         self.btn_start = None
         self.btn_cancel = None
@@ -54,14 +63,14 @@ class OcrPdfPanel:
     def build(self, container):
         t = self.theme
 
-        panel = ctk.CTkFrame(container, fg_color="transparent")
+        panel = ctk.CTkScrollableFrame(container, fg_color="transparent", corner_radius=0)
         panel.grid(row=0, column=0, sticky="nsew")
         panel.grid_rowconfigure(5, weight=1)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=0)
 
         hdr_row = ctk.CTkFrame(panel, fg_color="transparent")
-        hdr_row.grid(row=0, column=0, sticky="ew", padx=36, pady=(28, 0))
+        hdr_row.grid(row=0, column=0, sticky="ew", padx=36, pady=(16, 0))
         hdr_row.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -80,7 +89,7 @@ class OcrPdfPanel:
             anchor="w",
             justify="left",
             wraplength=560,
-        ).grid(row=1, column=0, sticky="nw", pady=(8, 0))
+        ).grid(row=1, column=0, sticky="nw", pady=(6, 0))
 
         picker_card = ctk.CTkFrame(
             panel,
@@ -89,7 +98,7 @@ class OcrPdfPanel:
             border_width=1,
             border_color=t["border_subtle"],
         )
-        picker_card.grid(row=1, column=0, sticky="ew", padx=36, pady=(24, 0))
+        picker_card.grid(row=1, column=0, sticky="ew", padx=36, pady=(16, 0))
         picker_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkButton(
@@ -132,7 +141,7 @@ class OcrPdfPanel:
             corner_radius=RADIUS["md"],
             border_width=0,
         )
-        self.info_card.grid(row=2, column=0, sticky="ew", padx=36, pady=(12, 0))
+        self.info_card.grid(row=2, column=0, sticky="ew", padx=36, pady=(8, 0))
 
         self.info_lbl = ctk.CTkLabel(
             self.info_card,
@@ -151,11 +160,11 @@ class OcrPdfPanel:
             border_color=t["border_subtle"],
             width=300,
         )
-        side_panel.grid(row=1, column=1, rowspan=5, sticky="nsew", padx=(0, 36), pady=(24, 0))
+        side_panel.grid(row=1, column=1, rowspan=6, sticky="nsew", padx=(0, 36), pady=(16, 0))
         side_panel.grid_propagate(False)
 
         side_inner = ctk.CTkFrame(side_panel, fg_color="transparent")
-        side_inner.pack(fill="both", expand=True, padx=20, pady=20)
+        side_inner.pack(fill="both", expand=True, padx=18, pady=14)
         side_inner.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -230,7 +239,7 @@ class OcrPdfPanel:
             corner_radius=RADIUS["lg"],
             border_width=0,
         )
-        support_card.grid(row=3, column=0, sticky="ew", pady=(16, 0))
+        support_card.grid(row=3, column=0, sticky="ew", pady=(12, 0))
 
         ctk.CTkLabel(
             support_card,
@@ -278,6 +287,50 @@ class OcrPdfPanel:
                 anchor="w",
             ).grid(row=0, column=2 if leading_icon else 1, sticky="w")
 
+        process_notes = (
+            "Files ending in _#### are grouped into one PDF and ordered by that sequence number.",
+            "A valid sequenced file by itself is still treated as one grouped PDF and may contain multiple pages if the source TIFF is multi-page.",
+            "Files without a trailing sequence become single-document PDFs and may contain multiple pages when the source TIFF is multi-page.",
+            "All output PDFs are saved into a PDFs subfolder inside the selected folder.",
+            "Output PDFs keep filename-based titles with no extra metadata step.",
+            "The quality precheck may skip a PDF when its pages look too messy to produce trustworthy OCR text.",
+        )
+
+        notes_card = ctk.CTkFrame(
+            side_inner,
+            fg_color=t["accent_dim"],
+            corner_radius=RADIUS["lg"],
+            border_width=0,
+        )
+        notes_card.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+
+        ctk.CTkLabel(
+            notes_card,
+            text="PROCESS NOTES",
+            font=get_font("eyebrow"),
+            text_color=t["fg_tertiary"],
+            anchor="w",
+        ).pack(anchor="w", padx=14, pady=(14, 2))
+
+        ctk.CTkButton(
+            notes_card,
+            text="Click to View",
+            font=get_font("small"),
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            command=lambda: show_process_notes_modal(
+                panel,
+                t,
+                "OCR readiness for this machine",
+                process_notes,
+            ),
+        ).pack(anchor="w", padx=14, pady=(6, 14))
+
         options_card = ctk.CTkFrame(
             panel,
             fg_color=t["bg_secondary"],
@@ -285,7 +338,7 @@ class OcrPdfPanel:
             border_width=1,
             border_color=t["border_subtle"],
         )
-        options_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
+        options_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(8, 0))
         options_card.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -316,42 +369,61 @@ class OcrPdfPanel:
             variable=self.skip_messy_var,
         ).grid(row=2, column=0, sticky="w", padx=16, pady=(0, 14))
 
-        notes_card = ctk.CTkFrame(
+        progress_card = ctk.CTkFrame(
             panel,
             fg_color=t["bg_secondary"],
             corner_radius=RADIUS["lg"],
             border_width=1,
             border_color=t["border_subtle"],
         )
-        notes_card.grid(row=4, column=0, sticky="ew", padx=36, pady=(12, 0))
+        progress_card.grid(row=4, column=0, sticky="ew", padx=36, pady=(8, 0))
+        progress_card.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            notes_card,
-            text="PROCESS NOTES",
+            progress_card,
+            text="RUN PROGRESS",
             font=get_font("eyebrow"),
             text_color=t["fg_tertiary"],
             anchor="w",
-        ).pack(anchor="w", padx=16, pady=(14, 2))
+        ).grid(row=0, column=0, sticky="w", padx=16, pady=(12, 0))
 
-        for line in (
-            "Files ending in _#### are grouped into one PDF and ordered by that sequence number.",
-            "A valid sequenced file by itself is still treated as a one-page grouped PDF.",
-            "Files without a trailing sequence become single-page PDFs.",
-            "All output PDFs are saved into a PDFs subfolder inside the selected folder.",
-            "OCR currently runs in English only.",
-            "Output PDFs keep filename-based titles with no extra metadata step.",
-            "Searchable PDF is the standard output.",
-            "The quality precheck may skip a PDF when its pages look too messy to produce trustworthy OCR text.",
-        ):
-            ctk.CTkLabel(
-                notes_card,
-                text=f"•  {line}",
-                font=get_font("small"),
-                text_color=t["fg_secondary"],
-                justify="left",
-                wraplength=860,
-                anchor="w",
-            ).pack(anchor="w", padx=16, pady=(0, 8))
+        self.pdf_progress_lbl = ctk.CTkLabel(
+            progress_card,
+            text="Processing pg 0 of 0 - 0.00%",
+            font=get_font("small"),
+            text_color=t["fg_secondary"],
+            anchor="w",
+        )
+        self.pdf_progress_lbl.grid(row=1, column=0, sticky="ew", padx=16, pady=(8, 4))
+
+        self.pdf_progress_bar = ctk.CTkProgressBar(
+            progress_card,
+            fg_color=t["progress_track"],
+            progress_color=t["accent"],
+            corner_radius=RADIUS["pill"],
+            height=12,
+        )
+        self.pdf_progress_bar.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 6))
+        self.pdf_progress_bar.set(0.0)
+
+        self.job_progress_lbl = ctk.CTkLabel(
+            progress_card,
+            text="Job Progress - PDF 0 of 0 - 0.00%",
+            font=get_font("small"),
+            text_color=t["fg_secondary"],
+            anchor="w",
+        )
+        self.job_progress_lbl.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 2))
+
+        self.job_progress_bar = ctk.CTkProgressBar(
+            progress_card,
+            fg_color=t["progress_track"],
+            progress_color=t["success"],
+            corner_radius=RADIUS["pill"],
+            height=12,
+        )
+        self.job_progress_bar.grid(row=4, column=0, sticky="ew", padx=16, pady=(0, 12))
+        self.job_progress_bar.set(0.0)
 
         log_card = ctk.CTkFrame(
             panel,
@@ -359,8 +431,10 @@ class OcrPdfPanel:
             corner_radius=RADIUS["lg"],
             border_width=1,
             border_color=t["border_subtle"],
+            height=210,
         )
-        log_card.grid(row=5, column=0, sticky="nsew", padx=36, pady=(12, 0))
+        log_card.grid(row=5, column=0, sticky="nsew", padx=36, pady=(8, 0))
+        log_card.grid_propagate(False)
         log_card.grid_rowconfigure(2, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
@@ -404,12 +478,13 @@ class OcrPdfPanel:
             corner_radius=0,
             font=get_font("mono"),
             wrap="word",
+            height=132,
         )
         self.log_display.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
         self.log_display.configure(state="disabled")
 
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
-        action_bar.grid(row=6, column=0, sticky="ew", padx=36, pady=(12, 20))
+        action_bar.grid(row=6, column=0, sticky="ew", padx=36, pady=(8, 12))
         action_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_error_report = ctk.CTkButton(
@@ -482,10 +557,15 @@ class OcrPdfPanel:
         self._log("Ready — select a folder of images to create OCR'd PDFs.", "info")
 
     def _on_select_folder(self):
-        folder = pick_folder("Select folder containing scan images to OCR into PDFs")
+        folder = pick_folder(
+            "Select folder containing scan images to OCR into PDFs",
+            initial_dir=self.parent.get_last_source_directory(),
+        )
         if not folder:
             self._log("Folder selection cancelled.", "info")
             return
+
+        self.parent.set_last_source_directory(folder)
 
         files = find_ocr_input_files(folder)
         if not files:
@@ -495,6 +575,7 @@ class OcrPdfPanel:
             )
             self._log("No supported image files found for the selected folder.", "error")
             self.btn_start.configure(state="disabled")
+            self._reset_progress_display()
             return
 
         self.selected_folder = folder
@@ -514,6 +595,10 @@ class OcrPdfPanel:
                 f"{summary['document_count']} PDF(s)."
             ),
             "success",
+        )
+        self._reset_progress_display(
+            total_pdfs=summary["document_count"],
+            total_pages=summary["page_count"],
         )
         self._refresh_dependency_panel()
         self.btn_start.configure(state="normal")
@@ -576,11 +661,12 @@ class OcrPdfPanel:
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
         self.btn_new_job.configure(state="normal")
-        self.btn_cancel.configure(state="normal")
+        self.btn_cancel.configure(state="normal", text="  ■  Cancel")
         self.btn_error_report.configure(state="disabled")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "ocr_pdf"
         self.has_errors = False
+        self.cancel_stage = 0
 
         self.parent.set_status("Starting OCR to PDF…", 0.0)
         self._set_info(
@@ -590,6 +676,10 @@ class OcrPdfPanel:
                 f"Quality precheck is {'on' if self.skip_messy_var.get() else 'off'}."
             ),
             level="info",
+        )
+        self._reset_progress_display(
+            total_pdfs=document_summary["document_count"],
+            total_pages=document_summary["page_count"],
         )
         self._log("Starting OCR PDF batch…", "info")
         self._log(f"Using Tesseract at: {dependency_info.get('tesseract_path')}", "info")
@@ -615,20 +705,72 @@ class OcrPdfPanel:
 
     def _on_cancel(self):
         if self.worker and self.worker.is_alive():
-            self.worker.cancel()
-            self.btn_cancel.configure(state="disabled")
-            self._log("Cancellation requested… waiting for the current document step to stop.", "warning")
-            self._set_info(
-                "Cancellation requested — waiting for the current PDF OCR step to stop.",
-                level="warning",
-            )
+            if self.cancel_stage == 0:
+                self.cancel_stage = 1
+                self.worker.cancel()
+                self.btn_cancel.configure(text="  ⛔  Force Stop")
+                self._log("Cancellation requested… finishing current PDF. Click Cancel again to force stop now.", "warning")
+                self._set_info(
+                    "Cancellation requested — finishing the current PDF. Click Cancel again to force stop immediately.",
+                    level="warning",
+                )
+                return
+
+            if self.cancel_stage == 1:
+                self.cancel_stage = 2
+                self.worker.cancel(force=True)
+                self.btn_cancel.configure(state="disabled", text="  ⏳  Stopping…")
+                self._log("Force stop requested — attempting to stop OCR mid-document.", "warning")
+                self._set_info(
+                    "Force stop requested — stopping the current OCR step now.",
+                    level="warning",
+                )
 
     def _on_progress(self, progress: dict):
+        if "pdf_percent" in progress and "job_percent" in progress:
+            stage = progress.get("stage", "processing")
+            current_pdf = int(progress.get("current_pdf", 0))
+            total_pdfs = int(progress.get("total_pdfs", 0))
+            current_page = int(progress.get("current_page", 0))
+            total_pages_in_pdf = int(progress.get("total_pages_in_pdf", 0))
+            pdf_percent = float(progress.get("pdf_percent", 0.0))
+            job_percent = float(progress.get("job_percent", 0.0))
+
+            if self.pdf_progress_bar:
+                self.pdf_progress_bar.set(max(0.0, min(1.0, pdf_percent / 100.0)))
+            if self.job_progress_bar:
+                self.job_progress_bar.set(max(0.0, min(1.0, job_percent / 100.0)))
+
+            if stage == "analyzing":
+                pdf_line = progress.get("message") or (
+                    "Analyzing pages, determining pages to OCR..."
+                )
+            else:
+                pdf_line = (
+                    f"Processing pg {current_page} of {total_pages_in_pdf} - {pdf_percent:.2f}%"
+                    if total_pages_in_pdf > 0
+                    else "Processing pages..."
+                )
+
+            job_line = (
+                f"Job Progress - PDF {current_pdf} of {total_pdfs} - {job_percent:.2f}%"
+                if total_pdfs > 0
+                else f"Job Progress - {job_percent:.2f}%"
+            )
+
+            if self.pdf_progress_lbl:
+                self.pdf_progress_lbl.configure(text=pdf_line)
+            if self.job_progress_lbl:
+                self.job_progress_lbl.configure(text=job_line)
+
+            status_message = progress.get("message") or f"{pdf_line} | {job_line}"
+            self.parent.set_status(status_message, max(0.0, min(1.0, job_percent / 100.0)))
+            return
+
         current = progress["current"]
         total = progress["total"]
         pct = progress["percentage"] / 100.0
         filename = progress.get("filename", "")
-
         self.parent.set_status(f"OCR {current} / {total} — {filename}", pct)
 
     def _on_status(self, message: str):
@@ -686,14 +828,33 @@ class OcrPdfPanel:
                 self._generate_error_report(results)
                 self.btn_error_report.configure(state="normal")
 
+            total_pdfs = int(results.get("total", 0))
+            total_pages = int(results.get("total_pages", 0))
+            if not cancelled and total_pdfs > 0:
+                if self.pdf_progress_bar:
+                    self.pdf_progress_bar.set(1.0)
+                if self.job_progress_bar:
+                    self.job_progress_bar.set(1.0)
+                if self.pdf_progress_lbl:
+                    self.pdf_progress_lbl.configure(
+                        text=f"Processing pg {total_pages} of {total_pages} - 100.00%"
+                        if total_pages > 0
+                        else "Processing pg 0 of 0 - 100.00%"
+                    )
+                if self.job_progress_lbl:
+                    self.job_progress_lbl.configure(
+                        text=f"Job Progress - PDF {total_pdfs} of {total_pdfs} - 100.00%"
+                    )
+
         self.btn_start.configure(
             state="normal" if self.selected_folder else "disabled",
             text="  ▶  Start OCR",
         )
         self.btn_new_job.configure(state="normal")
-        self.btn_cancel.configure(state="disabled")
+        self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
         self.parent.operation_in_progress = False
         self.parent.operation_type = None
+        self.cancel_stage = 0
         self.parent.set_status("Ready", 1.0)
 
     def _on_clear_new_job(self):
@@ -710,7 +871,7 @@ class OcrPdfPanel:
         self.folder_label.configure(text="No folder selected", text_color=self.theme["fg_tertiary"])
         self.file_count_lbl.grid_remove()
         self.btn_start.configure(state="disabled", text="  ▶  Start OCR")
-        self.btn_cancel.configure(state="disabled")
+        self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
         self.btn_error_report.configure(state="disabled")
         self.btn_new_job.configure(state="normal")
         self._set_info("Select a folder of images to begin.", level="info")
@@ -718,6 +879,8 @@ class OcrPdfPanel:
         self._refresh_dependency_panel()
         self.parent.operation_in_progress = False
         self.parent.operation_type = None
+        self.cancel_stage = 0
+        self._reset_progress_display()
         self.parent.set_status("Ready", 1.0)
         self._log("Ready — select a folder of images to create OCR'd PDFs.", "info")
 
@@ -742,6 +905,28 @@ class OcrPdfPanel:
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
+
+    def _reset_progress_display(self, total_pdfs: int = 0, total_pages: int = 0):
+        if self.pdf_progress_bar:
+            self.pdf_progress_bar.set(0.0)
+        if self.job_progress_bar:
+            self.job_progress_bar.set(0.0)
+        if self.pdf_progress_lbl:
+            self.pdf_progress_lbl.configure(
+                text=(
+                    f"Processing pg 0 of {total_pages} - 0.00%"
+                    if total_pages > 0
+                    else "Processing pg 0 of 0 - 0.00%"
+                )
+            )
+        if self.job_progress_lbl:
+            self.job_progress_lbl.configure(
+                text=(
+                    f"Job Progress - PDF 0 of {total_pdfs} - 0.00%"
+                    if total_pdfs > 0
+                    else "Job Progress - PDF 0 of 0 - 0.00%"
+                )
+            )
 
     def _set_info(self, text: str, level: str = "info"):
         t = self.theme
