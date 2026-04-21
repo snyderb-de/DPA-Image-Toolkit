@@ -28,6 +28,7 @@ class TiffSplitPanel:
         self.selected_folder: Path = None
         self.selected_files = []
         self.worker = None
+        self.cancel_stage = 0
         self.error_folder: Path = None
         self.has_errors = False
 
@@ -45,9 +46,9 @@ class TiffSplitPanel:
     def build(self, container):
         t = self.theme
 
-        panel = ctk.CTkFrame(container, fg_color="transparent")
+        panel = ctk.CTkScrollableFrame(container, fg_color="transparent", corner_radius=0)
         panel.grid(row=0, column=0, sticky="nsew")
-        panel.grid_rowconfigure(4, weight=1)
+        panel.grid_rowconfigure(3, weight=1)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=0)
 
@@ -153,40 +154,13 @@ class TiffSplitPanel:
             heading=dependency_content["heading"],
             statuses=get_tool_dependency_statuses("tiff_split"),
             support_lines=dependency_content["support_lines"],
+            process_notes=(
+                "Split TIFFs accepts either selected TIFF files or a folder containing TIFFs.",
+                "Only multi-page TIFFs are extracted into single-page files; single-page TIFFs are skipped.",
+                "Folder mode writes output into extracted-pages/ so the source folder stays organized.",
+            ),
         )
         side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
-
-        notes_card = ctk.CTkFrame(
-            panel,
-            fg_color=t["bg_secondary"],
-            corner_radius=RADIUS["lg"],
-            border_width=1,
-            border_color=t["border_subtle"],
-        )
-        notes_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
-
-        ctk.CTkLabel(
-            notes_card,
-            text="PROCESS NOTES",
-            font=get_font("eyebrow"),
-            text_color=t["fg_tertiary"],
-            anchor="w",
-        ).pack(anchor="w", padx=16, pady=(14, 2))
-
-        for line in (
-            "Split TIFFs accepts either selected TIFF files or a folder containing TIFFs.",
-            "Only multi-page TIFFs are extracted into single-page files; single-page TIFFs are skipped.",
-            "Folder mode writes output into extracted-pages/ so the source folder stays organized.",
-        ):
-            ctk.CTkLabel(
-                notes_card,
-                text=f"•  {line}",
-                font=get_font("small"),
-                text_color=t["fg_secondary"],
-                justify="left",
-                wraplength=860,
-                anchor="w",
-            ).pack(anchor="w", padx=16, pady=(0, 8))
 
         log_card = ctk.CTkFrame(
             panel,
@@ -195,7 +169,7 @@ class TiffSplitPanel:
             border_width=1,
             border_color=t["border_subtle"],
         )
-        log_card.grid(row=4, column=0, sticky="nsew", padx=36, pady=(12, 0))
+        log_card.grid(row=3, column=0, sticky="nsew", padx=36, pady=(12, 0))
         log_card.grid_rowconfigure(2, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
@@ -241,7 +215,7 @@ class TiffSplitPanel:
         self.log_display.configure(state="disabled")
 
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
-        action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
+        action_bar.grid(row=4, column=0, sticky="ew", padx=36, pady=(12, 20))
         action_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_error_report = ctk.CTkButton(
@@ -317,6 +291,7 @@ class TiffSplitPanel:
         files = pick_files(
             "Select TIFF files to split",
             filetypes=[("TIFF files", "*.tif *.tiff *.TIF *.TIFF")],
+            initial_dir=self.parent.get_last_source_directory(),
         )
         if not files:
             self._log("File selection cancelled.", "info")
@@ -325,6 +300,7 @@ class TiffSplitPanel:
         self.selection_mode = "files"
         self.selected_folder = None
         self.selected_files = [Path(file_path) for file_path in files]
+        self.parent.set_last_source_directory(self.selected_files[0].parent)
         self.error_folder = self._prepare_error_folder(self.selected_files[0].parent)
         self.has_errors = False
         self.selection_label.configure(
@@ -342,10 +318,15 @@ class TiffSplitPanel:
         self._log(f"Selected {len(self.selected_files)} TIFF file(s).", "success")
 
     def _on_select_folder(self):
-        folder = pick_folder("Select folder with TIFF files to split")
+        folder = pick_folder(
+            "Select folder with TIFF files to split",
+            initial_dir=self.parent.get_last_source_directory(),
+        )
         if not folder:
             self._log("Folder selection cancelled.", "info")
             return
+
+        self.parent.set_last_source_directory(folder)
 
         files = sorted(
             [
@@ -399,10 +380,11 @@ class TiffSplitPanel:
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
         self.btn_new_job.configure(state="normal")
         self.btn_error_report.configure(state="disabled")
-        self.btn_cancel.configure(state="normal")
+        self.btn_cancel.configure(state="normal", text="  ■  Cancel")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "split"
         self.has_errors = False
+        self.cancel_stage = 0
 
         if not self.error_folder:
             base_folder = self.selected_folder or self.selected_files[0].parent
@@ -449,13 +431,29 @@ class TiffSplitPanel:
 
     def _on_cancel(self):
         if self.worker and self.worker.is_alive():
-            self.worker.cancel()
-            self.btn_cancel.configure(state="disabled")
-            self._log("Cancellation requested — waiting for the current TIFF to finish.", "warning")
-            self._set_info(
-                "Cancellation requested — waiting for the current TIFF to finish.",
-                "warning",
-            )
+            if self.cancel_stage == 0:
+                self.cancel_stage = 1
+                self.worker.cancel()
+                self.btn_cancel.configure(text="  ⛔  Force Stop")
+                self._log(
+                    "Cancellation requested — finishing the current TIFF. Click Cancel again to force stop now.",
+                    "warning",
+                )
+                self._set_info(
+                    "Cancellation requested — finishing the current TIFF. Click Cancel again to force stop immediately.",
+                    "warning",
+                )
+                return
+
+            if self.cancel_stage == 1:
+                self.cancel_stage = 2
+                self.worker.cancel(force=True)
+                self.btn_cancel.configure(state="disabled", text="  ⏳  Stopping…")
+                self._log("Force stop requested — attempting to stop TIFF split mid-file.", "warning")
+                self._set_info(
+                    "Force stop requested — stopping the current TIFF split step now.",
+                    "warning",
+                )
 
     def _poll_worker(self):
         if self.worker and self.worker.is_alive():
@@ -484,7 +482,8 @@ class TiffSplitPanel:
                 self._log("Some TIFFs failed — click 'View Errors' for details.", "warning")
             self.btn_start.configure(state="normal", text="  ▶  Start Split")
             self.btn_new_job.configure(state="normal")
-            self.btn_cancel.configure(state="disabled")
+            self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
+            self.cancel_stage = 0
             self.parent.operation_in_progress = False
             self.parent.operation_type = None
             self.parent.set_status("Ready", 1.0)
@@ -503,7 +502,8 @@ class TiffSplitPanel:
         self.selection_label.configure(text="No files or folder selected", text_color=self.theme["fg_tertiary"])
         self.count_label.grid_remove()
         self.btn_start.configure(state="disabled", text="  ▶  Start Split")
-        self.btn_cancel.configure(state="disabled")
+        self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
+        self.cancel_stage = 0
         self.btn_error_report.configure(state="disabled")
         self.btn_new_job.configure(state="normal")
         self._set_info(

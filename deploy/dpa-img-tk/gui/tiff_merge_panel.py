@@ -31,6 +31,7 @@ class TiffMergePanel:
         self.error_folder: Path = None
         self.groups: dict = None
         self.worker = None
+        self.cancel_stage = 0
 
         # Widget refs
         self.folder_label = None
@@ -52,9 +53,9 @@ class TiffMergePanel:
     def build(self, container):
         t = self.theme
 
-        panel = ctk.CTkFrame(container, fg_color="transparent")
+        panel = ctk.CTkScrollableFrame(container, fg_color="transparent", corner_radius=0)
         panel.grid(row=0, column=0, sticky="nsew")
-        panel.grid_rowconfigure(4, weight=1)
+        panel.grid_rowconfigure(3, weight=1)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=0)
 
@@ -153,40 +154,13 @@ class TiffMergePanel:
             heading=dependency_content["heading"],
             statuses=get_tool_dependency_statuses("tiff_merge"),
             support_lines=dependency_content["support_lines"],
+            process_notes=(
+                "Merge TIFFs groups files by names like {name}_{group}_{###}.tif or .tiff.",
+                "Files in valid groups are merged in number order into a single multi-page TIFF.",
+                "TIFFs that do not match a valid group name are skipped rather than stopping the run.",
+            ),
         )
         side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
-
-        notes_card = ctk.CTkFrame(
-            panel,
-            fg_color=t["bg_secondary"],
-            corner_radius=RADIUS["lg"],
-            border_width=1,
-            border_color=t["border_subtle"],
-        )
-        notes_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
-
-        ctk.CTkLabel(
-            notes_card,
-            text="PROCESS NOTES",
-            font=get_font("eyebrow"),
-            text_color=t["fg_tertiary"],
-            anchor="w",
-        ).pack(anchor="w", padx=16, pady=(14, 2))
-
-        for line in (
-            "Merge TIFFs groups files by names like {name}_{group}_{###}.tif or .tiff.",
-            "Files in valid groups are merged in number order into a single multi-page TIFF.",
-            "TIFFs that do not match a valid group name are skipped rather than stopping the run.",
-        ):
-            ctk.CTkLabel(
-                notes_card,
-                text=f"•  {line}",
-                font=get_font("small"),
-                text_color=t["fg_secondary"],
-                justify="left",
-                wraplength=860,
-                anchor="w",
-            ).pack(anchor="w", padx=16, pady=(0, 8))
 
         # ── Log card ──────────────────────────────────────────────────────────
         log_card = ctk.CTkFrame(
@@ -196,7 +170,7 @@ class TiffMergePanel:
             border_width=1,
             border_color=t["border_subtle"],
         )
-        log_card.grid(row=4, column=0, sticky="nsew", padx=36, pady=(12, 0))
+        log_card.grid(row=3, column=0, sticky="nsew", padx=36, pady=(12, 0))
         log_card.grid_rowconfigure(2, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
@@ -244,7 +218,7 @@ class TiffMergePanel:
 
         # ── Action bar ────────────────────────────────────────────────────────
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
-        action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
+        action_bar.grid(row=4, column=0, sticky="ew", padx=36, pady=(12, 20))
         action_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_error_report = ctk.CTkButton(
@@ -321,11 +295,16 @@ class TiffMergePanel:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _on_select_folder(self):
-        folder = pick_folder("Select folder with TIFF files to merge")
+        folder = pick_folder(
+            "Select folder with TIFF files to merge",
+            initial_dir=self.parent.get_last_source_directory(),
+        )
 
         if not folder:
             self._log("Folder selection cancelled.", "info")
             return
+
+        self.parent.set_last_source_directory(folder)
 
         is_valid, files, error = validate_tif_files(folder)
 
@@ -404,10 +383,11 @@ class TiffMergePanel:
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
         self.btn_new_job.configure(state="normal")
-        self.btn_cancel.configure(state="normal")
+        self.btn_cancel.configure(state="normal", text="  ■  Cancel")
         self.btn_error_report.configure(state="disabled")
         self.parent.operation_in_progress = True
         self.parent.operation_type = "merge"
+        self.cancel_stage = 0
 
         self.parent.set_status("Starting TIFF merge…", 0.0)
         self._log("Starting TIFF merge operation…", "info")
@@ -463,7 +443,8 @@ class TiffMergePanel:
             button_text = "Finished" if self.merge_completed else "  ▶  Start Merge"
             self.btn_start.configure(state="normal", text=button_text)
             self.btn_new_job.configure(state="normal")
-            self.btn_cancel.configure(state="disabled")
+            self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
+            self.cancel_stage = 0
 
             if results.get("failed", 0) > 0:
                 self.btn_error_report.configure(state="normal")
@@ -481,13 +462,29 @@ class TiffMergePanel:
 
     def _on_cancel(self):
         if self.worker and self.worker.is_alive():
-            self.worker.cancel()
-            self.btn_cancel.configure(state="disabled")
-            self._log("Cancellation requested — waiting for active merge work to settle.", "warning")
-            self._set_info(
-                "Cancellation requested — waiting for active merge work to settle.",
-                level="warning",
-            )
+            if self.cancel_stage == 0:
+                self.cancel_stage = 1
+                self.worker.cancel()
+                self.btn_cancel.configure(text="  ⛔  Force Stop")
+                self._log(
+                    "Cancellation requested — finishing active merge group(s). Click Cancel again to force stop now.",
+                    "warning",
+                )
+                self._set_info(
+                    "Cancellation requested — finishing active merge group(s). Click Cancel again to force stop immediately.",
+                    level="warning",
+                )
+                return
+
+            if self.cancel_stage == 1:
+                self.cancel_stage = 2
+                self.worker.cancel(force=True)
+                self.btn_cancel.configure(state="disabled", text="  ⏳  Stopping…")
+                self._log("Force stop requested — attempting to stop active merge groups now.", "warning")
+                self._set_info(
+                    "Force stop requested — stopping active merge groups now.",
+                    level="warning",
+                )
 
     def _on_view_error_report(self):
         if not self.error_folder or not self.error_folder.exists():
@@ -521,7 +518,8 @@ class TiffMergePanel:
         self.folder_label.configure(text="No folder selected", text_color=self.theme["fg_tertiary"])
         self.group_count_lbl.grid_remove()
         self.btn_start.configure(state="disabled", text="  ▶  Start Merge")
-        self.btn_cancel.configure(state="disabled")
+        self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
+        self.cancel_stage = 0
         self.btn_error_report.configure(state="disabled")
         self.btn_new_job.configure(state="normal")
         self._set_info("Files must be named:  {name}_{group}_{###}.tif or .tiff", level="info")

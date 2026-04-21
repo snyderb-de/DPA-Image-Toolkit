@@ -5,7 +5,7 @@ Extracts pages from multi-page TIFF files into individual single-page TIFFs.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from PIL import Image
 
@@ -23,6 +23,7 @@ def split_tiff_file(
     file_path: Path,
     output_folder: Optional[Path] = None,
     skip_single_page: bool = True,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> Tuple[bool, List[str], Optional[str], Dict]:
     """
     Split a TIFF file into single-page TIFF files.
@@ -51,6 +52,14 @@ def split_tiff_file(
 
             output_paths = []
             for page_index in range(page_count):
+                if should_cancel and should_cancel():
+                    return False, output_paths, "Operation cancelled by user.", {
+                        "pages": page_count,
+                        "skipped": False,
+                        "cancelled": True,
+                        "processed_pages": len(output_paths),
+                    }
+
                 img.seek(page_index)
                 frame = img.copy()
                 dpi = preserve_dpi(img, file_path)
@@ -68,7 +77,8 @@ def split_tiff_file(
             return True, output_paths, None, {
                 "pages": page_count,
                 "skipped": False,
+                "cancelled": False,
             }
 
     except Exception as e:
-        return False, [], str(e), {"pages": 0, "skipped": False}
+        return False, [], str(e), {"pages": 0, "skipped": False, "cancelled": False}

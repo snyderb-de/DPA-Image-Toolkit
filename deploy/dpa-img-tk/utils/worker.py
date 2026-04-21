@@ -6,7 +6,7 @@ Handles auto-crop and TIFF merge operations with progress callbacks.
 
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Callable, Optional, List
 
@@ -225,6 +225,7 @@ class TiffMergeWorker(OperationWorker):
             "cancelled": False,
             "errors": [],
         }
+        self.force_cancel_requested = False
 
     def _get_worker_count(self, total_groups: int) -> int:
         """Choose a modest worker count for parallel group merges."""
@@ -244,12 +245,19 @@ class TiffMergeWorker(OperationWorker):
                 self.input_folder,
                 self.output_folder,
                 dpi_per_file=True,
+                should_cancel=lambda: self.force_cancel_requested,
+            )
+            cancelled = any(
+                bool(error.get("cancelled"))
+                or "cancelled" in str(error.get("error", "")).lower()
+                for error in (errors or [])
             )
             return {
                 "group": group_name,
                 "success": success,
                 "output_path": output_path,
                 "errors": errors or [],
+                "cancelled": cancelled,
             }
         except Exception as e:
             return {
@@ -260,7 +268,19 @@ class TiffMergeWorker(OperationWorker):
                     "file": group_name,
                     "error": f"Merge failed: {str(e)}",
                 }],
+                "cancelled": False,
             }
+
+    def cancel(self, force: bool = False):
+        """
+        Request cancellation.
+
+        First request stops scheduling new groups and lets active merges finish.
+        A force request attempts to stop active merges mid-group.
+        """
+        self.cancelled = True
+        if force:
+            self.force_cancel_requested = True
 
     def run(self):
         """Execute TIFF merge operation."""
@@ -284,42 +304,70 @@ class TiffMergeWorker(OperationWorker):
                 self.update_status(f"Running {total_groups} group(s) sequentially")
 
             with ThreadPoolExecutor(max_workers=worker_count) as executor:
-                futures = {
-                    executor.submit(self._merge_single_group, group_name): group_name
-                    for group_name in group_names
-                }
+                running_futures = {}
+                next_index = 0
 
-                for future in as_completed(futures):
-                    if self.cancelled:
-                        self.results["cancelled"] = True
-                        self.update_status("Operation cancelled")
-                        return
+                def _submit_more_groups():
+                    nonlocal next_index
+                    while (
+                        not self.cancelled
+                        and next_index < total_groups
+                        and len(running_futures) < worker_count
+                    ):
+                        group_name = group_names[next_index]
+                        next_index += 1
+                        future = executor.submit(self._merge_single_group, group_name)
+                        running_futures[future] = group_name
 
-                    result = future.result()
-                    group_name = result["group"]
-                    completed += 1
+                _submit_more_groups()
 
-                    self.update_progress(completed, total_groups, group_name)
+                while running_futures:
+                    done, _pending = wait(
+                        set(running_futures.keys()),
+                        timeout=0.1,
+                        return_when=FIRST_COMPLETED,
+                    )
+                    if not done:
+                        continue
 
-                    if result["success"]:
-                        self.results["success"] += 1
-                        self.update_status(f"Merged: {group_name}")
-                    else:
-                        self.results["failed"] += 1
-                        self.update_status(f"Failed: {group_name}")
-                        for error_info in result["errors"]:
-                            self.results["errors"].append(error_info)
-                            self.report_error(
-                                error_info.get("file", group_name),
-                                error_info.get("error", "Unknown error"),
-                            )
+                    for future in done:
+                        group_name = running_futures.pop(future)
+                        result = future.result()
+                        completed += 1
+                        self.update_progress(completed, total_groups, group_name)
 
-            # Generate summary
-            summary = (
+                        if result.get("cancelled"):
+                            self.results["cancelled"] = True
+                            self.cancelled = True
+                            continue
+
+                        if result["success"]:
+                            self.results["success"] += 1
+                            self.update_status(f"Merged: {group_name}")
+                        else:
+                            self.results["failed"] += 1
+                            self.update_status(f"Failed: {group_name}")
+                            for error_info in result["errors"]:
+                                self.results["errors"].append(error_info)
+                                self.report_error(
+                                    error_info.get("file", group_name),
+                                    error_info.get("error", "Unknown error"),
+                                )
+
+                    _submit_more_groups()
+
+            if self.cancelled:
+                self.results["cancelled"] = True
+                self.update_status(
+                    f"Cancelled — Merged: {self.results['success']} | "
+                    f"Failed: {self.results['failed']}"
+                )
+                return
+
+            self.update_status(
                 f"✅ Merged: {self.results['success']} | "
                 f"❌ Failed: {self.results['failed']}"
             )
-            self.update_status(summary)
 
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
@@ -351,6 +399,18 @@ class TiffSplitWorker(OperationWorker):
             "cancelled": False,
             "errors": [],
         }
+        self.force_cancel_requested = False
+
+    def cancel(self, force: bool = False):
+        """
+        Request cancellation.
+
+        First request stops after the current TIFF file.
+        A force request attempts to stop mid-file.
+        """
+        self.cancelled = True
+        if force:
+            self.force_cancel_requested = True
 
     def run(self):
         """Execute TIFF split operation."""
@@ -380,9 +440,14 @@ class TiffSplitWorker(OperationWorker):
                     file_path,
                     output_folder=output_folder,
                     skip_single_page=True,
+                    should_cancel=lambda: self.force_cancel_requested,
                 )
 
                 if not success:
+                    if stats.get("cancelled"):
+                        self.results["cancelled"] = True
+                        self.update_status("Operation cancelled")
+                        return
                     self.results["failed"] += 1
                     self.results["errors"].append({
                         "file": file_path.name,
@@ -515,17 +580,73 @@ class OcrPdfWorker(OperationWorker):
         self.skip_messy = skip_messy
         self.metadata = metadata or {}
         self.tesseract_path = Path(tesseract_path) if tesseract_path else None
+        self.force_cancel_requested = False
         self.results = {
             "success": 0,
             "failed": 0,
             "skipped": 0,
             "total": 0,
+            "total_pages": 0,
             "cancelled": False,
             "errors": [],
             "skip_reasons": [],
             "warnings": [],
             "outputs": [],
         }
+
+    def cancel(self, force: bool = False):
+        """
+        Request cancellation.
+
+        First request performs a graceful stop after the current document.
+        A force request attempts to stop mid-document.
+        """
+        self.cancelled = True
+        if force:
+            self.force_cancel_requested = True
+
+    def _emit_ocr_progress(
+        self,
+        *,
+        stage: str,
+        message: str,
+        current_pdf: int,
+        total_pdfs: int,
+        current_page: int,
+        total_pages_in_pdf: int,
+        completed_job_pages: int,
+        total_job_pages: int,
+        filename: str,
+    ):
+        """Emit structured OCR progress payload for UI progress bars."""
+        if not self.progress_callback:
+            return
+
+        safe_pdf_total = max(total_pages_in_pdf, 1)
+        safe_job_total = max(total_job_pages, 1)
+        pdf_percent = (current_page / safe_pdf_total) * 100.0
+        job_page_current = min(completed_job_pages + current_page, total_job_pages)
+        job_percent = (job_page_current / safe_job_total) * 100.0
+
+        self.progress_callback(
+            {
+                "stage": stage,
+                "message": message,
+                "current_pdf": current_pdf,
+                "total_pdfs": total_pdfs,
+                "current_page": current_page,
+                "total_pages_in_pdf": total_pages_in_pdf,
+                "pdf_percent": pdf_percent,
+                "job_page_current": job_page_current,
+                "job_page_total": total_job_pages,
+                "job_percent": job_percent,
+                "filename": filename,
+                # Backward-compatible keys used by other panels.
+                "current": current_pdf,
+                "total": total_pdfs,
+                "percentage": job_percent,
+            }
+        )
 
     def run(self):
         """Execute OCR-to-PDF operation."""
@@ -564,6 +685,7 @@ class OcrPdfWorker(OperationWorker):
 
             summary = summarize_ocr_documents(documents)
             self.results["total"] = summary["document_count"]
+            self.results["total_pages"] = summary["page_count"]
             self.update_status(
                 "Found "
                 f"{summary['page_count']} page image(s) across "
@@ -577,6 +699,8 @@ class OcrPdfWorker(OperationWorker):
 
             pdfa_warning_added = False
             total_documents = len(documents)
+            total_pages = max(summary["page_count"], 0)
+            completed_pages = 0
             for index, document in enumerate(documents, start=1):
                 if self.cancelled:
                     self.results["cancelled"] = True
@@ -585,11 +709,69 @@ class OcrPdfWorker(OperationWorker):
 
                 document_name = document["name"]
                 output_pdf_path = self.output_folder / f"{document_name}.pdf"
-                self.update_progress(index, total_documents, output_pdf_path.name)
-                self.update_status(
-                    f"OCR {index}/{total_documents}: {output_pdf_path.name} "
-                    f"from {document['page_count']} page(s)"
+                document_pages = max(int(document.get("page_count", 0)), 1)
+
+                self._emit_ocr_progress(
+                    stage="document_start",
+                    message=(
+                        f"Analyzing pages for {output_pdf_path.name} "
+                        f"({document_pages} page(s))"
+                    ),
+                    current_pdf=index,
+                    total_pdfs=total_documents,
+                    current_page=0,
+                    total_pages_in_pdf=document_pages,
+                    completed_job_pages=completed_pages,
+                    total_job_pages=total_pages,
+                    filename=output_pdf_path.name,
                 )
+                self.update_status(
+                    f"OCR PDF {index}/{total_documents}: {output_pdf_path.name} "
+                    f"({document_pages} page(s))"
+                )
+
+                def _on_document_progress(event: dict):
+                    event_name = event.get("event")
+                    page_current = int(event.get("page_current") or 0)
+                    page_total = int(event.get("page_total") or document_pages)
+                    page_label = event.get("page_label") or output_pdf_path.name
+
+                    if event_name == "analyzing_page":
+                        message = (
+                            "Analyzing pages, determining pages to OCR, "
+                            f"page {page_current} of {page_total} - "
+                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}%"
+                        )
+                        self._emit_ocr_progress(
+                            stage="analyzing",
+                            message=message,
+                            current_pdf=index,
+                            total_pdfs=total_documents,
+                            current_page=0,
+                            total_pages_in_pdf=page_total,
+                            completed_job_pages=completed_pages,
+                            total_job_pages=total_pages,
+                            filename=output_pdf_path.name,
+                        )
+                        return
+
+                    if event_name == "ocr_page":
+                        message = (
+                            f"Processing pg {page_current} of {page_total} - "
+                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}% "
+                            f"({page_label})"
+                        )
+                        self._emit_ocr_progress(
+                            stage="processing",
+                            message=message,
+                            current_pdf=index,
+                            total_pdfs=total_documents,
+                            current_page=page_current,
+                            total_pages_in_pdf=page_total,
+                            completed_job_pages=completed_pages,
+                            total_job_pages=total_pages,
+                            filename=output_pdf_path.name,
+                        )
 
                 result = ocr_document_to_pdf(
                     input_files=document["files"],
@@ -600,6 +782,9 @@ class OcrPdfWorker(OperationWorker):
                     save_pdfa=self.save_pdfa,
                     skip_messy=self.skip_messy,
                     metadata=self.metadata,
+                    tesseract_path=self.tesseract_path,
+                    progress_callback=_on_document_progress,
+                    should_cancel=lambda: self.force_cancel_requested,
                 )
 
                 if result["status"] == "success":
@@ -622,6 +807,10 @@ class OcrPdfWorker(OperationWorker):
                     for page in details.get("flagged_pages", []):
                         reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
                         self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
+                elif result["status"] == "cancelled":
+                    self.results["cancelled"] = True
+                    self.update_status("Operation cancelled by user")
+                    break
                 else:
                     self.results["failed"] += 1
                     doc_error = result.get("error") or "OCR failed"
@@ -630,6 +819,22 @@ class OcrPdfWorker(OperationWorker):
                         "error": doc_error,
                     })
                     self.report_error(output_pdf_path.name, doc_error)
+
+                completed_pages += document_pages
+                self._emit_ocr_progress(
+                    stage="document_done",
+                    message=(
+                        f"Job Progress - PDF {index} of {total_documents} - "
+                        f"{(completed_pages / max(total_pages, 1)) * 100.0:.2f}%"
+                    ),
+                    current_pdf=index,
+                    total_pdfs=total_documents,
+                    current_page=document_pages,
+                    total_pages_in_pdf=document_pages,
+                    completed_job_pages=completed_pages - document_pages,
+                    total_job_pages=total_pages,
+                    filename=output_pdf_path.name,
+                )
 
             summary = (
                 f"✅ OCR'd: {self.results['success']} PDF(s) | "

@@ -13,7 +13,7 @@ Features:
 
 from pathlib import Path
 from PIL import Image
-from typing import Tuple, List, Dict, Optional
+from typing import Callable, Tuple, List, Dict, Optional
 from .naming import extract_group_name, sort_group_files
 
 
@@ -34,6 +34,7 @@ def merge_tiff_group(
     input_folder: Path,
     output_folder: Path,
     dpi_per_file: bool = True,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> Tuple[bool, Optional[str], List[Dict]]:
     """
     Merge a group of TIFF files into single multi-page TIFF.
@@ -53,6 +54,9 @@ def merge_tiff_group(
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
     error_list = []
+
+    def _cancelled() -> bool:
+        return bool(should_cancel and should_cancel())
 
     try:
         # Find all files in group
@@ -76,6 +80,12 @@ def merge_tiff_group(
         target_mode = None
 
         for file_path in group_files:
+            if _cancelled():
+                return False, None, error_list + [{
+                    "file": group_name,
+                    "error": "Operation cancelled by user.",
+                    "cancelled": True,
+                }]
             try:
                 img = Image.open(file_path)
 
@@ -109,6 +119,12 @@ def merge_tiff_group(
         # Convert all images to target mode
         converted_images = []
         for img, file_path, dpi in images:
+            if _cancelled():
+                return False, None, error_list + [{
+                    "file": group_name,
+                    "error": "Operation cancelled by user.",
+                    "cancelled": True,
+                }]
             try:
                 if img.mode != target_mode:
                     img = convert_image_mode(img, target_mode)
@@ -139,6 +155,12 @@ def merge_tiff_group(
 
         # Save multi-page TIFF with DPI
         try:
+            if _cancelled():
+                return False, None, error_list + [{
+                    "file": group_name,
+                    "error": "Operation cancelled by user.",
+                    "cancelled": True,
+                }]
             # Use DPI from first file
             first_img.save(
                 output_path,
