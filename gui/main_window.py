@@ -5,11 +5,74 @@ Sidebar-navigation layout with dark/light mode, card-based content panels,
 and a docked status bar with a thin progress indicator.
 """
 
+import json
+import os
+import sys
+from pathlib import Path
+
 import customtkinter as ctk
 from .styles import (
     get_theme, get_font,
     SIDEBAR_WIDTH, BUTTON, CARD, PROGRESS, RADIUS,
 )
+
+
+SETTINGS_FILENAME = "app-settings.json"
+SETTINGS_ENV_VAR = "DPA_IMAGE_TOOLKIT_SETTINGS"
+
+
+def _resolve_env_settings_path(raw_path: str) -> Path:
+    """Resolve env var path, allowing either a file or directory path."""
+    candidate = Path(raw_path).expanduser()
+    if candidate.suffix:
+        return candidate
+    return candidate / SETTINGS_FILENAME
+
+
+def _get_settings_path() -> Path:
+    """
+    Return settings file path.
+
+    Priority:
+    1. `DPA_IMAGE_TOOLKIT_SETTINGS` environment variable (file or directory)
+    2. `<launch_dir_parent>/settings/app-settings.json`
+    """
+    env_path = os.environ.get(SETTINGS_ENV_VAR, "").strip()
+    if env_path:
+        return _resolve_env_settings_path(env_path)
+
+    launch_target = Path(sys.argv[0]).resolve() if sys.argv and sys.argv[0] else Path.cwd()
+    launch_dir = launch_target.parent
+    return launch_dir.parent / "settings" / SETTINGS_FILENAME
+
+
+def _load_app_settings() -> dict:
+    """Load settings JSON. Returns empty dict if missing or invalid."""
+    path = _get_settings_path()
+    if not path.exists():
+        return {}
+
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+
+    return data if isinstance(data, dict) else {}
+
+
+def _save_app_settings(settings: dict) -> bool:
+    """Persist settings JSON atomically. Returns True on success."""
+    path = _get_settings_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        with temp_path.open("w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, sort_keys=True)
+        temp_path.replace(path)
+        return True
+    except Exception:
+        return False
 
 
 class MainWindow(ctk.CTk):
@@ -24,8 +87,9 @@ class MainWindow(ctk.CTk):
         self.minsize(1200, 860)
 
         # ── State ──────────────────────────────────────────────────────────────
-        self.dark_mode = False
-        ctk.set_appearance_mode("light")
+        self.app_settings = _load_app_settings()
+        self.dark_mode = bool(self.app_settings.get("dark_mode", False))
+        ctk.set_appearance_mode("dark" if self.dark_mode else "light")
         ctk.set_default_color_theme("blue")
         self.current_theme = get_theme(self.dark_mode)
         self.current_panel = "menu"
@@ -620,6 +684,8 @@ class MainWindow(ctk.CTk):
     def _toggle_theme(self):
         self.dark_mode = not self.dark_mode
         ctk.set_appearance_mode("dark" if self.dark_mode else "light")
+        self.app_settings["dark_mode"] = self.dark_mode
+        _save_app_settings(self.app_settings)
         self.current_theme = get_theme(self.dark_mode)
         self._apply_theme()
 
