@@ -53,9 +53,9 @@ class AutoCropPanel:
         t = self.theme
 
         # Root panel fills container
-        panel = ctk.CTkFrame(container, fg_color="transparent")
+        panel = ctk.CTkScrollableFrame(container, fg_color="transparent", corner_radius=0)
         panel.grid(row=0, column=0, sticky="nsew")
-        panel.grid_rowconfigure(4, weight=1)   # log stretches
+        panel.grid_rowconfigure(3, weight=1)   # log stretches
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=0)
 
@@ -159,40 +159,13 @@ class AutoCropPanel:
             heading=dependency_content["heading"],
             statuses=get_tool_dependency_statuses("auto_crop"),
             support_lines=dependency_content["support_lines"],
+            process_notes=(
+                "Auto Crop detects content and crops out scanner-created white space.",
+                "Best results come from pages with clear contrast against the scanner bed.",
+                "Cropped images are written to cropped/ and failed files are reported separately.",
+            ),
         )
         side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
-
-        notes_card = ctk.CTkFrame(
-            panel,
-            fg_color=t["bg_secondary"],
-            corner_radius=RADIUS["lg"],
-            border_width=1,
-            border_color=t["border_subtle"],
-        )
-        notes_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
-
-        ctk.CTkLabel(
-            notes_card,
-            text="PROCESS NOTES",
-            font=get_font("eyebrow"),
-            text_color=t["fg_tertiary"],
-            anchor="w",
-        ).pack(anchor="w", padx=16, pady=(14, 2))
-
-        for line in (
-            "Auto Crop detects content and crops out scanner-created white space.",
-            "Best results come from pages with clear contrast against the scanner bed.",
-            "Cropped images are written to cropped/ and failed files are reported separately.",
-        ):
-            ctk.CTkLabel(
-                notes_card,
-                text=f"•  {line}",
-                font=get_font("small"),
-                text_color=t["fg_secondary"],
-                justify="left",
-                wraplength=860,
-                anchor="w",
-            ).pack(anchor="w", padx=16, pady=(0, 8))
 
         # ── Log card ──────────────────────────────────────────────────────────
         log_card = ctk.CTkFrame(
@@ -202,7 +175,7 @@ class AutoCropPanel:
             border_width=1,
             border_color=t["border_subtle"],
         )
-        log_card.grid(row=4, column=0, sticky="nsew", padx=36, pady=(12, 0))
+        log_card.grid(row=3, column=0, sticky="nsew", padx=36, pady=(12, 0))
         log_card.grid_rowconfigure(2, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
@@ -253,7 +226,7 @@ class AutoCropPanel:
 
         # ── Action bar ────────────────────────────────────────────────────────
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
-        action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
+        action_bar.grid(row=4, column=0, sticky="ew", padx=36, pady=(12, 20))
         action_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_error_report = ctk.CTkButton(
@@ -330,11 +303,16 @@ class AutoCropPanel:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _on_select_folder(self):
-        folder = pick_folder("Select folder with images to auto-crop")
+        folder = pick_folder(
+            "Select folder with images to auto-crop",
+            initial_dir=self.parent.get_last_source_directory(),
+        )
 
         if not folder:
             self._log("Folder selection cancelled.", "info")
             return
+
+        self.parent.set_last_source_directory(folder)
 
         is_valid, files, error = validate_image_files(folder)
 

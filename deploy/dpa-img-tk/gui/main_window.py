@@ -106,6 +106,28 @@ class MainWindow(ctk.CTk):
         self._build_sidebar()
         self._build_right_column()
 
+    def get_last_source_directory(self):
+        """Return the last selected source directory if available."""
+        value = self.app_settings.get("last_source_directory")
+        if not isinstance(value, str) or not value.strip():
+            return None
+
+        path = Path(value).expanduser()
+        return path if path.is_dir() else None
+
+    def set_last_source_directory(self, folder_path):
+        """Persist the last selected source directory."""
+        try:
+            path = Path(folder_path).expanduser()
+        except Exception:
+            return
+
+        if not path.is_dir():
+            return
+
+        self.app_settings["last_source_directory"] = str(path)
+        _save_app_settings(self.app_settings)
+
     # ══════════════════════════════════════════════════════════════════════════
     # Sidebar
     # ══════════════════════════════════════════════════════════════════════════

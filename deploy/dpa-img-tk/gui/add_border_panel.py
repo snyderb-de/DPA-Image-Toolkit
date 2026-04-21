@@ -48,9 +48,9 @@ class AddBorderPanel:
     def build(self, container):
         t = self.theme
 
-        panel = ctk.CTkFrame(container, fg_color="transparent")
+        panel = ctk.CTkScrollableFrame(container, fg_color="transparent", corner_radius=0)
         panel.grid(row=0, column=0, sticky="nsew")
-        panel.grid_rowconfigure(4, weight=1)
+        panel.grid_rowconfigure(3, weight=1)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_columnconfigure(1, weight=0)
 
@@ -145,40 +145,13 @@ class AddBorderPanel:
             heading=dependency_content["heading"],
             statuses=get_tool_dependency_statuses("add_border"),
             support_lines=dependency_content["support_lines"],
+            process_notes=(
+                "Add Border adds a border to images such as book scans and page captures.",
+                "It uses the same padding logic as auto-crop so the spacing stays consistent.",
+                "Bordered images are written into bordered/ and the originals are left untouched.",
+            ),
         )
         side_panel.grid(row=1, column=1, rowspan=4, sticky="nsew", padx=(0, 36), pady=(24, 0))
-
-        notes_card = ctk.CTkFrame(
-            panel,
-            fg_color=t["bg_secondary"],
-            corner_radius=RADIUS["lg"],
-            border_width=1,
-            border_color=t["border_subtle"],
-        )
-        notes_card.grid(row=3, column=0, sticky="ew", padx=36, pady=(12, 0))
-
-        ctk.CTkLabel(
-            notes_card,
-            text="PROCESS NOTES",
-            font=get_font("eyebrow"),
-            text_color=t["fg_tertiary"],
-            anchor="w",
-        ).pack(anchor="w", padx=16, pady=(14, 2))
-
-        for line in (
-            "Add Border adds a border to images such as book scans and page captures.",
-            "It uses the same padding logic as auto-crop so the spacing stays consistent.",
-            "Bordered images are written into bordered/ and the originals are left untouched.",
-        ):
-            ctk.CTkLabel(
-                notes_card,
-                text=f"•  {line}",
-                font=get_font("small"),
-                text_color=t["fg_secondary"],
-                justify="left",
-                wraplength=860,
-                anchor="w",
-            ).pack(anchor="w", padx=16, pady=(0, 8))
 
         log_card = ctk.CTkFrame(
             panel,
@@ -187,7 +160,7 @@ class AddBorderPanel:
             border_width=1,
             border_color=t["border_subtle"],
         )
-        log_card.grid(row=4, column=0, sticky="nsew", padx=36, pady=(12, 0))
+        log_card.grid(row=3, column=0, sticky="nsew", padx=36, pady=(12, 0))
         log_card.grid_rowconfigure(2, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
@@ -233,7 +206,7 @@ class AddBorderPanel:
         self.log_display.configure(state="disabled")
 
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
-        action_bar.grid(row=5, column=0, sticky="ew", padx=36, pady=(12, 20))
+        action_bar.grid(row=4, column=0, sticky="ew", padx=36, pady=(12, 20))
         action_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_error_report = ctk.CTkButton(
@@ -306,10 +279,15 @@ class AddBorderPanel:
         self._log("Ready — select an image folder to add borders.", "info")
 
     def _on_select_folder(self):
-        folder = pick_folder("Select folder with images to add borders")
+        folder = pick_folder(
+            "Select folder with images to add borders",
+            initial_dir=self.parent.get_last_source_directory(),
+        )
         if not folder:
             self._log("Folder selection cancelled.", "info")
             return
+
+        self.parent.set_last_source_directory(folder)
 
         is_valid, files, error = validate_image_files(folder)
         if not is_valid:

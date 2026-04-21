@@ -24,7 +24,18 @@ def _list_files_with_suffixes(folder_path, suffixes):
     )
 
 
-def pick_folder(title="Select Folder"):
+def _resolve_initial_dir(initial_dir):
+    """Return a string path for a valid initial directory, else None."""
+    if not initial_dir:
+        return None
+    try:
+        path = Path(initial_dir).expanduser()
+    except Exception:
+        return None
+    return str(path) if path.is_dir() else None
+
+
+def pick_folder(title="Select Folder", initial_dir=None):
     """
     Open native folder picker dialog.
 
@@ -37,7 +48,11 @@ def pick_folder(title="Select Folder"):
     root = tk.Tk()
     root.withdraw()
 
-    folder = filedialog.askdirectory(title=title)
+    kwargs = {"title": title}
+    resolved_initial_dir = _resolve_initial_dir(initial_dir)
+    if resolved_initial_dir:
+        kwargs["initialdir"] = resolved_initial_dir
+    folder = filedialog.askdirectory(**kwargs)
 
     root.destroy()
 
@@ -46,7 +61,7 @@ def pick_folder(title="Select Folder"):
     return None
 
 
-def pick_files(title="Select Files", filetypes=None):
+def pick_files(title="Select Files", filetypes=None, initial_dir=None):
     """
     Open native multi-file picker dialog.
 
@@ -60,10 +75,14 @@ def pick_files(title="Select Files", filetypes=None):
     root = tk.Tk()
     root.withdraw()
 
-    files = filedialog.askopenfilenames(
-        title=title,
-        filetypes=filetypes or [("All files", "*.*")],
-    )
+    kwargs = {
+        "title": title,
+        "filetypes": filetypes or [("All files", "*.*")],
+    }
+    resolved_initial_dir = _resolve_initial_dir(initial_dir)
+    if resolved_initial_dir:
+        kwargs["initialdir"] = resolved_initial_dir
+    files = filedialog.askopenfilenames(**kwargs)
 
     root.destroy()
 
