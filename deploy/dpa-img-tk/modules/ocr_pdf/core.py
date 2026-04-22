@@ -21,6 +21,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
+from modules.pdf_tools.core import optimize_pdf_writer
+
 
 SUPPORTED_IMAGE_SUFFIXES = (
     ".tif",
@@ -893,6 +896,10 @@ def merge_page_pdfs(
     page_pdfs: list[Path],
     output_pdf_path: str | Path,
     metadata: Optional[dict] = None,
+    reduce_size_enabled: bool = True,
+    compression_profile_key: str = DEFAULT_PROFILE_KEY,
+    progress_callback: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> tuple[bool, Optional[str]]:
     """
     Merge searchable page PDFs into one document PDF and add document metadata.
@@ -918,6 +925,18 @@ def merge_page_pdfs(
         pdf_metadata = _metadata_to_pdf_keys(metadata)
         if pdf_metadata:
             writer.add_metadata(pdf_metadata)
+
+        status, error, _stats = optimize_pdf_writer(
+            writer,
+            reduce_size_enabled=reduce_size_enabled,
+            compression_profile_key=compression_profile_key,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
+        )
+        if status == "cancelled":
+            return False, "Operation cancelled by user."
+        if status != "success":
+            return False, error or "PDF optimization failed."
 
         with open(output_pdf_path, "wb") as target:
             writer.write(target)
@@ -973,6 +992,8 @@ def _run_tesseract_document_workflow(
     tesseract_path: Optional[str | Path] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    reduce_size_enabled: bool = True,
+    compression_profile_key: str = DEFAULT_PROFILE_KEY,
 ) -> tuple[str, Optional[str]]:
     """
     Create a document PDF by OCRing each page image with Tesseract and then
@@ -1026,8 +1047,14 @@ def _run_tesseract_document_workflow(
             page_pdfs=page_pdfs,
             output_pdf_path=output_pdf_path,
             metadata=metadata,
+            reduce_size_enabled=reduce_size_enabled,
+            compression_profile_key=compression_profile_key,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )
         if not ok:
+            if should_cancel and should_cancel():
+                return "cancelled", "Operation cancelled by user."
             return "failed", error
 
     return "success", None
@@ -1068,6 +1095,8 @@ def ocr_document_to_pdf(
     tesseract_path: Optional[str | Path] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    reduce_size_enabled: bool = True,
+    compression_profile_key: str = DEFAULT_PROFILE_KEY,
 ) -> dict:
     """
     OCR one ordered document file set into one searchable PDF.
@@ -1184,6 +1213,8 @@ def ocr_document_to_pdf(
             tesseract_path=tesseract_path,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
+            reduce_size_enabled=reduce_size_enabled,
+            compression_profile_key=compression_profile_key,
         )
 
     return {
@@ -1206,6 +1237,8 @@ def ocr_folder_to_pdfs(
     tesseract_path: Optional[str | Path] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    reduce_size_enabled: bool = True,
+    compression_profile_key: str = DEFAULT_PROFILE_KEY,
 ) -> list[dict]:
     """
     OCR one folder into one or more searchable PDFs based on grouped filenames.
@@ -1230,6 +1263,8 @@ def ocr_folder_to_pdfs(
             tesseract_path=tesseract_path,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
+            reduce_size_enabled=reduce_size_enabled,
+            compression_profile_key=compression_profile_key,
         )
         results.append({
             **document,
@@ -1250,6 +1285,8 @@ def ocr_folder_to_pdf(
     tesseract_path: Optional[str | Path] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    reduce_size_enabled: bool = True,
+    compression_profile_key: str = DEFAULT_PROFILE_KEY,
 ) -> dict:
     """
     Backward-compatible wrapper that OCRs one folder into one PDF.
@@ -1277,4 +1314,6 @@ def ocr_folder_to_pdf(
         tesseract_path=tesseract_path,
         progress_callback=progress_callback,
         should_cancel=should_cancel,
+        reduce_size_enabled=reduce_size_enabled,
+        compression_profile_key=compression_profile_key,
     )

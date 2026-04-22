@@ -7,6 +7,12 @@ Convert a folder of images into searchable PDFs.
 import customtkinter as ctk
 from pathlib import Path
 
+from modules.pdf_tools.compression_profiles import (
+    DEFAULT_PROFILE_KEY,
+    get_profile_key_from_label,
+    get_profile_label,
+    get_profile_labels,
+)
 from modules.ocr_pdf.core import (
     check_ocr_dependencies,
     find_ocr_input_files,
@@ -44,6 +50,8 @@ class OcrPdfPanel:
 
         self.skip_existing_var = ctk.BooleanVar(value=True)
         self.skip_messy_var = ctk.BooleanVar(value=True)
+        self.reduce_pdf_var = ctk.BooleanVar(value=True)
+        self.compression_mode_var = ctk.StringVar(value=get_profile_label(DEFAULT_PROFILE_KEY))
 
         self.folder_label = None
         self.file_count_lbl = None
@@ -58,6 +66,7 @@ class OcrPdfPanel:
         self.btn_cancel = None
         self.btn_error_report = None
         self.btn_new_job = None
+        self.compression_mode_menu = None
         self.dependency_rows = []
 
     def build(self, container):
@@ -361,13 +370,45 @@ class OcrPdfPanel:
             variable=self.skip_existing_var,
         ).grid(row=0, column=0, sticky="w")
 
+        reduce_row = ctk.CTkFrame(options_card, fg_color="transparent")
+        reduce_row.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 10))
+        reduce_row.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkCheckBox(
+            reduce_row,
+            text="Reduce PDF size",
+            font=get_font("small"),
+            text_color=t["fg_primary"],
+            variable=self.reduce_pdf_var,
+            command=self._toggle_compression_mode,
+        ).grid(row=0, column=0, sticky="w")
+
+        self.compression_mode_menu = ctk.CTkOptionMenu(
+            reduce_row,
+            values=get_profile_labels(),
+            variable=self.compression_mode_var,
+            font=get_font("small"),
+            dropdown_font=get_font("small"),
+            width=220,
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            button_color=t["bg_tertiary"],
+            button_hover_color=t["border_subtle"],
+            text_color=t["fg_primary"],
+            dropdown_fg_color=t["bg_secondary"],
+            dropdown_text_color=t["fg_primary"],
+            dropdown_hover_color=t["bg_tertiary"],
+        )
+        self.compression_mode_menu.grid(row=0, column=1, sticky="e", padx=(12, 0))
+
         ctk.CTkCheckBox(
             options_card,
             text="Skip OCR if any page fails the quality precheck",
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.skip_messy_var,
-        ).grid(row=2, column=0, sticky="w", padx=16, pady=(0, 14))
+        ).grid(row=3, column=0, sticky="w", padx=16, pady=(0, 14))
 
         progress_card = ctk.CTkFrame(
             panel,
@@ -553,6 +594,7 @@ class OcrPdfPanel:
         )
         self.btn_start.grid(row=0, column=3, sticky="e")
 
+        self._toggle_compression_mode()
         self._refresh_dependency_panel()
         self._log("Ready — select a folder of images to create OCR'd PDFs.", "info")
 
@@ -684,6 +726,13 @@ class OcrPdfPanel:
         self._log("Starting OCR PDF batch…", "info")
         self._log(f"Using Tesseract at: {dependency_info.get('tesseract_path')}", "info")
         self._log(f"Output folder: {self.output_folder}", "info")
+        if self.reduce_pdf_var.get():
+            self._log(
+                f"PDF size reduction: {self.compression_mode_var.get()}",
+                "info",
+            )
+        else:
+            self._log("PDF size reduction: Off", "info")
 
         self.worker = OcrPdfWorker(
             input_folder=self.selected_folder,
@@ -693,6 +742,8 @@ class OcrPdfPanel:
             skip_existing=self.skip_existing_var.get(),
             save_pdfa=False,
             skip_messy=self.skip_messy_var.get(),
+            reduce_size_enabled=self.reduce_pdf_var.get(),
+            compression_profile_key=get_profile_key_from_label(self.compression_mode_var.get()),
             metadata=None,
             tesseract_path=dependency_info.get("tesseract_path"),
         )
@@ -905,6 +956,12 @@ class OcrPdfPanel:
 
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
+
+    def _toggle_compression_mode(self):
+        if not self.compression_mode_menu:
+            return
+        state = "normal" if self.reduce_pdf_var.get() else "disabled"
+        self.compression_mode_menu.configure(state=state)
 
     def _reset_progress_display(self, total_pdfs: int = 0, total_pages: int = 0):
         if self.pdf_progress_bar:

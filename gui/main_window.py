@@ -194,6 +194,7 @@ class MainWindow(ctk.CTk):
             ("tiff_split","⇵",  "SPLIT TIFFS"),
             ("add_border","▣",  "ADD BORDER"),
             ("ocr_pdf",   "⎘",  "OCR TO PDF"),
+            ("pdf_conversion", "🗎", "PDF TOOLS"),
         ]
         for key, icon, label in nav_defs:
             btn = self._make_nav_button(nav_frame, icon, label, key)
@@ -307,6 +308,8 @@ class MainWindow(ctk.CTk):
             self._show_add_border_panel()
         elif key == "ocr_pdf":
             self._show_ocr_pdf_panel()
+        elif key == "pdf_conversion":
+            self._show_pdf_conversion_panel()
 
     def _update_nav_highlight(self, active_key):
         t = self.current_theme
@@ -501,6 +504,16 @@ class MainWindow(ctk.CTk):
             column=0,
         )
 
+        self._make_tool_card(
+            tools_frame,
+            icon="🗎",
+            title="PDF Conversion",
+            desc="Reduce PDF size, split pages,\nand extract selected page ranges",
+            command=self._show_pdf_conversion_panel,
+            row=2,
+            column=1,
+        )
+
         side_note = ctk.CTkFrame(
             outer,
             fg_color=t["bg_secondary"],
@@ -689,6 +702,20 @@ class MainWindow(ctk.CTk):
         from .ocr_pdf_panel import OcrPdfPanel
         OcrPdfPanel(self).build(self.panel_container)
 
+    def _show_pdf_conversion_panel(self):
+        if self.operation_in_progress:
+            self._show_warning(
+                "Operation In Progress",
+                "Please wait for the current operation to complete before switching panels.",
+            )
+            return
+        self._clear_panel()
+        self.current_panel = "pdf_conversion"
+        self._update_nav_highlight("pdf_conversion")
+        self._refresh_chrome_context()
+        from .pdf_conversion_panel import PdfConversionPanel
+        PdfConversionPanel(self).build(self.panel_container)
+
     def _on_home(self):
         if self.operation_in_progress:
             self._show_confirmation(
@@ -764,6 +791,8 @@ class MainWindow(ctk.CTk):
             self._show_add_border_panel()
         elif self.current_panel == "ocr_pdf":
             self._show_ocr_pdf_panel()
+        elif self.current_panel == "pdf_conversion":
+            self._show_pdf_conversion_panel()
 
     def _refresh_chrome_context(self):
         panel_titles = {
@@ -773,6 +802,7 @@ class MainWindow(ctk.CTk):
             "tiff_split": "Split TIFFs",
             "add_border": "Add Border",
             "ocr_pdf": "OCR to PDF",
+            "pdf_conversion": "PDF Conversion",
         }
         self.status_panel_label.configure(
             text=panel_titles.get(self.current_panel, "Home")

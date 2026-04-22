@@ -10,6 +10,8 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Callable, Optional, List
 
+from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
+from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
 
 class OperationWorker(threading.Thread):
     """Base worker thread for operations."""
@@ -567,6 +569,8 @@ class OcrPdfWorker(OperationWorker):
         skip_existing: bool = True,
         save_pdfa: bool = True,
         skip_messy: bool = True,
+        reduce_size_enabled: bool = True,
+        compression_profile_key: str = DEFAULT_PROFILE_KEY,
         metadata: Optional[dict] = None,
         tesseract_path: Optional[Path] = None,
     ):
@@ -578,6 +582,8 @@ class OcrPdfWorker(OperationWorker):
         self.skip_existing = skip_existing
         self.save_pdfa = save_pdfa
         self.skip_messy = skip_messy
+        self.reduce_size_enabled = bool(reduce_size_enabled)
+        self.compression_profile_key = str(compression_profile_key or DEFAULT_PROFILE_KEY)
         self.metadata = metadata or {}
         self.tesseract_path = Path(tesseract_path) if tesseract_path else None
         self.force_cancel_requested = False
@@ -781,6 +787,8 @@ class OcrPdfWorker(OperationWorker):
                     skip_existing=self.skip_existing,
                     save_pdfa=self.save_pdfa,
                     skip_messy=self.skip_messy,
+                    reduce_size_enabled=self.reduce_size_enabled,
+                    compression_profile_key=self.compression_profile_key,
                     metadata=self.metadata,
                     tesseract_path=self.tesseract_path,
                     progress_callback=_on_document_progress,
@@ -854,4 +862,275 @@ class OcrPdfWorker(OperationWorker):
 
     def get_results(self) -> dict:
         """Get operation results."""
+        return self.results
+
+
+class PdfConversionWorker(OperationWorker):
+    """Worker for PDF conversion operations."""
+
+    def __init__(
+        self,
+        *,
+        selection_mode: str,
+        input_path: Path,
+        operation: str,
+        reduce_size_enabled: bool = True,
+        compression_profile_key: str = DEFAULT_PROFILE_KEY,
+        split_output_type: str = "pdfs",
+        extract_page_spec: str = "",
+        remove_extracted_pages: bool = False,
+        extract_removal_mode: str = "safe",
+        pdfa_profile_key: str = DEFAULT_PDFA_PROFILE_KEY,
+    ):
+        super().__init__(name="PdfConversionWorker")
+        self.selection_mode = str(selection_mode or "file")
+        self.input_path = Path(input_path)
+        self.operation = str(operation or "reduce_size")
+        self.reduce_size_enabled = bool(reduce_size_enabled)
+        self.compression_profile_key = str(compression_profile_key or DEFAULT_PROFILE_KEY)
+        self.split_output_type = str(split_output_type or "pdfs")
+        self.extract_page_spec = str(extract_page_spec or "").strip()
+        self.remove_extracted_pages = bool(remove_extracted_pages)
+        self.extract_removal_mode = str(extract_removal_mode or "safe")
+        self.pdfa_profile_key = str(pdfa_profile_key or DEFAULT_PDFA_PROFILE_KEY)
+        self.results = {
+            "success": 0,
+            "failed": 0,
+            "total": 0,
+            "cancelled": False,
+            "errors": [],
+            "outputs": [],
+            "warnings": [],
+        }
+
+    def _set_cancelled(self):
+        self.results["cancelled"] = True
+        self.update_status("Operation cancelled")
+
+    def _record_error(self, filename: str, error: str):
+        self.results["failed"] += 1
+        self.results["errors"].append({"file": filename, "error": error})
+        self.report_error(filename, error)
+
+    def run(self):
+        """Execute selected PDF conversion operation."""
+        from modules.pdf_tools.core import (
+            convert_pdf_to_pdfa,
+            extract_pdf_pages,
+            reduce_pdf_size,
+            split_pdf_to_images,
+            split_pdf_to_single_page_pdfs,
+        )
+        import shutil
+
+        try:
+            if self.operation == "reduce_size":
+                if self.selection_mode == "folder":
+                    pdf_files = sorted(
+                        [
+                            path for path in self.input_path.iterdir()
+                            if path.is_file() and path.suffix.lower() == ".pdf"
+                        ],
+                        key=lambda path: path.name.lower(),
+                    )
+                else:
+                    pdf_files = [self.input_path]
+
+                if not pdf_files:
+                    self.update_status("No PDF files found")
+                    return
+
+                self.results["total"] = len(pdf_files)
+                output_root = (
+                    self.input_path / "reduced-pdfs"
+                    if self.selection_mode == "folder"
+                    else self.input_path.parent / "reduced-pdfs"
+                )
+                output_root.mkdir(parents=True, exist_ok=True)
+
+                for index, pdf_path in enumerate(pdf_files, start=1):
+                    if self.cancelled:
+                        self._set_cancelled()
+                        return
+
+                    self.update_progress(index, len(pdf_files), pdf_path.name)
+                    self.update_status(f"Reducing: {pdf_path.name}")
+                    output_pdf_path = output_root / pdf_path.name
+
+                    if not self.reduce_size_enabled:
+                        try:
+                            shutil.copy2(pdf_path, output_pdf_path)
+                            self.results["success"] += 1
+                            self.results["outputs"].append(str(output_pdf_path))
+                        except Exception as exc:
+                            self._record_error(pdf_path.name, str(exc))
+                        continue
+
+                    status, error, _stats = reduce_pdf_size(
+                        input_pdf_path=pdf_path,
+                        output_pdf_path=output_pdf_path,
+                        reduce_size_enabled=True,
+                        compression_profile_key=self.compression_profile_key,
+                        should_cancel=lambda: self.cancelled,
+                    )
+                    if status == "cancelled":
+                        self._set_cancelled()
+                        return
+                    if status != "success":
+                        self._record_error(pdf_path.name, error or "Reduce size failed")
+                        continue
+
+                    self.results["success"] += 1
+                    self.results["outputs"].append(str(output_pdf_path))
+
+                self.update_status(
+                    f"✅ Reduced: {self.results['success']} | ❌ Failed: {self.results['failed']}"
+                )
+                return
+
+            if self.operation == "pdfa":
+                if self.selection_mode == "folder":
+                    pdf_files = sorted(
+                        [
+                            path for path in self.input_path.iterdir()
+                            if path.is_file() and path.suffix.lower() == ".pdf"
+                        ],
+                        key=lambda path: path.name.lower(),
+                    )
+                else:
+                    pdf_files = [self.input_path]
+
+                if not pdf_files:
+                    self.update_status("No PDF files found")
+                    return
+
+                self.results["total"] = len(pdf_files)
+                output_root = (
+                    self.input_path / "pdfa-pdfs"
+                    if self.selection_mode == "folder"
+                    else self.input_path.parent / "pdfa-pdfs"
+                )
+                output_root.mkdir(parents=True, exist_ok=True)
+
+                for index, pdf_path in enumerate(pdf_files, start=1):
+                    if self.cancelled:
+                        self._set_cancelled()
+                        return
+
+                    self.update_progress(index, len(pdf_files), pdf_path.name)
+                    self.update_status(f"Converting to PDF/A: {pdf_path.name}")
+                    output_pdf_path = output_root / pdf_path.name
+                    status, error, _stats = convert_pdf_to_pdfa(
+                        input_pdf_path=pdf_path,
+                        output_pdf_path=output_pdf_path,
+                        pdfa_profile_key=self.pdfa_profile_key,
+                        should_cancel=lambda: self.cancelled,
+                    )
+                    if status == "cancelled":
+                        self._set_cancelled()
+                        return
+                    if status != "success":
+                        self._record_error(pdf_path.name, error or "PDF/A conversion failed")
+                        continue
+
+                    self.results["success"] += 1
+                    self.results["outputs"].append(str(output_pdf_path))
+
+                self.update_status(
+                    f"✅ PDF/A Converted: {self.results['success']} | ❌ Failed: {self.results['failed']}"
+                )
+                return
+
+            if self.selection_mode != "file":
+                self._record_error("operation", "This operation requires one PDF file.")
+                self.update_status("Operation requires a single file selection")
+                return
+
+            self.results["total"] = 1
+            source_pdf = self.input_path
+
+            if self.operation == "split_pdf":
+                self.update_progress(1, 1, source_pdf.name)
+                self.update_status(f"Splitting: {source_pdf.name}")
+                if self.split_output_type == "pdfs":
+                    output_folder = source_pdf.parent / f"{source_pdf.stem}_split_pdfs"
+                    status, error, stats = split_pdf_to_single_page_pdfs(
+                        input_pdf_path=source_pdf,
+                        output_folder=output_folder,
+                        should_cancel=lambda: self.cancelled,
+                    )
+                else:
+                    output_folder = source_pdf.parent / f"{source_pdf.stem}_images"
+                    format_map = {
+                        "jpeg": "JPEG",
+                        "png": "PNG",
+                        "tiff": "TIFF",
+                    }
+                    status, error, stats = split_pdf_to_images(
+                        input_pdf_path=source_pdf,
+                        output_folder=output_folder,
+                        image_format=format_map.get(self.split_output_type, "JPEG"),
+                        jpeg_quality=90,
+                        dpi=200,
+                        should_cancel=lambda: self.cancelled,
+                    )
+
+                if status == "cancelled":
+                    self._set_cancelled()
+                    return
+                if status != "success":
+                    self._record_error(source_pdf.name, error or "Split failed")
+                    self.update_status(f"Error: {error or 'Split failed'}")
+                    return
+
+                self.results["success"] = 1
+                self.results["outputs"].append(str(output_folder))
+                output_count = int(stats.get("output_count", 0))
+                self.update_status(f"✅ Created {output_count} output file(s)")
+                return
+
+            if self.operation == "extract_pages":
+                if not self.extract_page_spec:
+                    self._record_error(source_pdf.name, "Page selection is required.")
+                    self.update_status("Page selection is required")
+                    return
+
+                self.update_progress(1, 1, source_pdf.name)
+                self.update_status(f"Extracting pages: {source_pdf.name}")
+                extracted_output = source_pdf.parent / f"{source_pdf.stem}_extracted.pdf"
+                remaining_output = source_pdf.parent / f"{source_pdf.stem}_remaining.pdf"
+                status, error, stats = extract_pdf_pages(
+                    input_pdf_path=source_pdf,
+                    extracted_output_path=extracted_output,
+                    page_spec=self.extract_page_spec,
+                    remove_extracted_pages=self.remove_extracted_pages,
+                    removal_mode=self.extract_removal_mode,
+                    remaining_output_path=remaining_output,
+                    should_cancel=lambda: self.cancelled,
+                )
+                if status == "cancelled":
+                    self._set_cancelled()
+                    return
+                if status != "success":
+                    self._record_error(source_pdf.name, error or "Extract pages failed")
+                    self.update_status(f"Error: {error or 'Extract pages failed'}")
+                    return
+
+                self.results["success"] = 1
+                self.results["outputs"].append(str(extracted_output))
+                if stats.get("remaining_output"):
+                    self.results["outputs"].append(str(stats["remaining_output"]))
+                self.update_status(
+                    f"✅ Extracted {stats.get('extracted_pages', 0)} page(s)"
+                )
+                return
+
+            self._record_error("operation", f"Unknown operation: {self.operation}")
+            self.update_status(f"Unknown operation: {self.operation}")
+
+        except Exception as exc:
+            self.update_status(f"Error: {exc}")
+            self.report_error("operation", str(exc))
+
+    def get_results(self) -> dict:
         return self.results
