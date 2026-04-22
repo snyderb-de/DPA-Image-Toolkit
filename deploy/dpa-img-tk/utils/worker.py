@@ -778,6 +778,25 @@ class OcrPdfWorker(OperationWorker):
                             total_job_pages=total_pages,
                             filename=output_pdf_path.name,
                         )
+                        return
+
+                    if event_name == "skip_ocr_page":
+                        message = (
+                            f"Skipping OCR for pg {page_current} of {page_total} - "
+                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}% "
+                            f"({page_label})"
+                        )
+                        self._emit_ocr_progress(
+                            stage="processing",
+                            message=message,
+                            current_pdf=index,
+                            total_pdfs=total_documents,
+                            current_page=page_current,
+                            total_pages_in_pdf=page_total,
+                            completed_job_pages=completed_pages,
+                            total_job_pages=total_pages,
+                            filename=output_pdf_path.name,
+                        )
 
                 result = ocr_document_to_pdf(
                     input_files=document["files"],
@@ -798,8 +817,27 @@ class OcrPdfWorker(OperationWorker):
                 if result["status"] == "success":
                     self.results["success"] += 1
                     self.results["outputs"].append(str(result["output_path"]))
+                    details = result.get("details") or {}
+                    for warning in details.get("warnings", []):
+                        self.results["warnings"].append(warning)
+                        self.update_status(warning)
+                    for flagged_page in details.get("flagged_pages", []):
+                        reason_text = ", ".join(flagged_page.get("reasons", [])) or "flagged by quality precheck"
+                        page_number = flagged_page.get("page_number")
+                        page_label = flagged_page.get("file") or "page"
+                        if page_number is not None:
+                            self.update_status(
+                                f"Skipped OCR text on pg {page_number}: {page_label} ({reason_text})"
+                            )
+                        else:
+                            self.update_status(
+                                f"Skipped OCR text on {page_label} ({reason_text})"
+                            )
                     if self.save_pdfa and not result.get("used_pdfa") and not pdfa_warning_added:
-                        warning = "PDF/A was unavailable on this machine — created standard searchable PDFs instead."
+                        warning = (
+                            "PDF/A was unavailable or incompatible with selected options — "
+                            "created standard searchable PDFs instead."
+                        )
                         self.results["warnings"].append(warning)
                         self.update_status(warning)
                         pdfa_warning_added = True

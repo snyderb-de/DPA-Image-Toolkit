@@ -9,6 +9,7 @@ single output folder.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import os
 import re
 import shutil
@@ -680,6 +681,8 @@ def assess_document_ocr_readiness(
         if readiness["skip"]:
             flagged_pages.append({
                 "file": page["display_name"],
+                "page_index": page_index - 1,
+                "page_number": page_index,
                 "score": readiness["score"],
                 "reasons": readiness["reasons"],
             })
@@ -751,12 +754,50 @@ def build_input_pdf_from_images(
     return True, None
 
 
+def _page_numbers_to_spec(page_numbers: list[int]) -> str:
+    """
+    Convert sorted 1-based page numbers into an OCRmyPDF page selection string.
+    """
+    if not page_numbers:
+        return ""
+
+    ranges = []
+    start = page_numbers[0]
+    end = page_numbers[0]
+    for number in page_numbers[1:]:
+        if number == end + 1:
+            end = number
+            continue
+        ranges.append(f"{start}-{end}" if start != end else str(start))
+        start = number
+        end = number
+    ranges.append(f"{start}-{end}" if start != end else str(start))
+    return ",".join(ranges)
+
+
+def _ocrmypdf_supports_pages_option() -> bool:
+    """
+    Return True when OCRmyPDF in this environment supports page selection.
+    """
+    try:
+        import ocrmypdf
+    except Exception:
+        return False
+
+    try:
+        signature = inspect.signature(ocrmypdf.ocr)
+    except Exception:
+        return False
+    return "pages" in signature.parameters
+
+
 def _run_ocrmypdf(
     input_pdf_path: str | Path,
     output_pdf_path: str | Path,
     language: str = "eng",
     metadata: Optional[dict] = None,
     save_pdfa: bool = True,
+    ocr_page_numbers: Optional[list[int]] = None,
 ) -> tuple[str, Optional[str]]:
     """
     Run OCRmyPDF on the prepared document PDF.
@@ -787,6 +828,13 @@ def _run_ocrmypdf(
     if save_pdfa:
         kwargs["pdfa_image_compression"] = "lossless"
         kwargs["continue_on_soft_render_error"] = True
+
+    if ocr_page_numbers:
+        page_spec = _page_numbers_to_spec(
+            sorted({int(page_no) for page_no in ocr_page_numbers if int(page_no) > 0})
+        )
+        if page_spec:
+            kwargs["pages"] = page_spec
 
     try:
         result = ocrmypdf.ocr(
@@ -984,6 +1032,42 @@ def _materialize_manifest_page(
     return target_path, None
 
 
+def _create_image_only_page_pdf(
+    image_path: str | Path,
+    output_pdf_path: str | Path,
+) -> tuple[bool, Optional[str]]:
+    """
+    Create one image-only PDF page to preserve a page with no OCR text layer.
+    """
+    image_path = Path(image_path)
+    output_pdf_path = Path(output_pdf_path)
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if output_pdf_path.exists():
+        output_pdf_path.unlink()
+
+    page_image = None
+    try:
+        page_image = _convert_image_to_pdf_page(image_path)
+        page_image.save(
+            output_pdf_path,
+            "PDF",
+            resolution=get_image_dpi(image_path),
+        )
+    except Exception as exc:
+        return False, f"Failed to create image-only PDF page: {exc}"
+    finally:
+        if page_image is not None:
+            try:
+                page_image.close()
+            except Exception:
+                pass
+
+    if not output_pdf_path.exists():
+        return False, "Image-only PDF page was not created."
+    return True, None
+
+
 def _run_tesseract_document_workflow(
     input_files: list[Path],
     output_pdf_path: str | Path,
@@ -994,6 +1078,7 @@ def _run_tesseract_document_workflow(
     should_cancel: Optional[Callable[[], bool]] = None,
     reduce_size_enabled: bool = True,
     compression_profile_key: str = DEFAULT_PROFILE_KEY,
+    skip_ocr_page_indexes: Optional[set[int]] = None,
 ) -> tuple[str, Optional[str]]:
     """
     Create a document PDF by OCRing each page image with Tesseract and then
@@ -1004,6 +1089,7 @@ def _run_tesseract_document_workflow(
         page_pdfs = []
         input_pages = _build_input_page_manifest(input_files)
         total_pages = len(input_pages)
+        skip_ocr_indexes = {int(idx) for idx in (skip_ocr_page_indexes or set()) if int(idx) >= 0}
         for index, page in enumerate(input_pages, start=1):
             if should_cancel and should_cancel():
                 return "cancelled", "Operation cancelled by user."
@@ -1027,13 +1113,29 @@ def _run_tesseract_document_workflow(
                 return "failed", image_error
 
             page_pdf = temp_dir_path / f"page_{index:04d}.pdf"
-            ok, error = _run_tesseract_page_pdf(
-                image_path=image_path,
-                output_pdf_path=page_pdf,
-                language=language,
-                tesseract_path=tesseract_path,
-                should_cancel=should_cancel,
-            )
+            page_zero_index = index - 1
+            if page_zero_index in skip_ocr_indexes:
+                if progress_callback:
+                    progress_callback(
+                        {
+                            "event": "skip_ocr_page",
+                            "page_current": index,
+                            "page_total": total_pages,
+                            "page_label": page["display_name"],
+                        }
+                    )
+                ok, error = _create_image_only_page_pdf(
+                    image_path=image_path,
+                    output_pdf_path=page_pdf,
+                )
+            else:
+                ok, error = _run_tesseract_page_pdf(
+                    image_path=image_path,
+                    output_pdf_path=page_pdf,
+                    language=language,
+                    tesseract_path=tesseract_path,
+                    should_cancel=should_cancel,
+                )
             if not ok:
                 if should_cancel and should_cancel():
                     return "cancelled", "Operation cancelled by user."
@@ -1155,27 +1257,48 @@ def ocr_document_to_pdf(
             "details": readiness,
         }
 
-    if skip_messy and readiness["should_skip"]:
-        flagged_names = ", ".join(page["file"] for page in readiness["flagged_pages"][:5])
-        if len(readiness["flagged_pages"]) > 5:
-            flagged_names += ", ..."
-        return {
-            "status": "skipped",
-            "output_path": output_pdf_path,
-            "error": (
-                f"Skipped by OCR quality precheck: "
-                f"{len(readiness['flagged_pages'])} page(s) flagged"
-                + (f" ({flagged_names})" if flagged_names else "")
-            ),
-            "details": readiness,
-        }
+    flagged_page_indexes = set()
+    if skip_messy:
+        for item in readiness.get("flagged_pages", []):
+            try:
+                page_index = int(item.get("page_index"))
+            except (TypeError, ValueError):
+                continue
+            if page_index >= 0:
+                flagged_page_indexes.add(page_index)
+    readiness_warnings = []
+    if flagged_page_indexes:
+        readiness_warnings.append(
+            f"Quality precheck flagged {len(flagged_page_indexes)} page(s). "
+            "Flagged pages were included without OCR text."
+        )
+    readiness["warnings"] = readiness_warnings
 
     document_metadata = _build_document_metadata(
         document_name=document_name,
         metadata=metadata,
     )
 
-    used_pdfa = bool(save_pdfa and detect_ocrmypdf_module())
+    requested_pdfa = bool(save_pdfa and detect_ocrmypdf_module())
+    ocr_page_numbers = [
+        page_no
+        for page_no in range(1, len(input_pages) + 1)
+        if (page_no - 1) not in flagged_page_indexes
+    ]
+    used_pdfa = requested_pdfa
+    if requested_pdfa and flagged_page_indexes and not ocr_page_numbers:
+        used_pdfa = False
+        readiness_warnings.append(
+            "All pages were flagged by the quality precheck, so output was created "
+            "without OCR text."
+        )
+    elif requested_pdfa and flagged_page_indexes and not _ocrmypdf_supports_pages_option():
+        used_pdfa = False
+        readiness_warnings.append(
+            "OCRmyPDF on this machine cannot limit OCR to selected pages, so mixed-page "
+            "output was created as standard searchable PDF (not PDF/A)."
+        )
+
     if used_pdfa:
         if should_cancel and should_cancel():
             return {
@@ -1203,6 +1326,7 @@ def ocr_document_to_pdf(
                 language=language,
                 metadata=document_metadata,
                 save_pdfa=True,
+                ocr_page_numbers=ocr_page_numbers if flagged_page_indexes else None,
             )
     else:
         status, error = _run_tesseract_document_workflow(
@@ -1215,6 +1339,7 @@ def ocr_document_to_pdf(
             should_cancel=should_cancel,
             reduce_size_enabled=reduce_size_enabled,
             compression_profile_key=compression_profile_key,
+            skip_ocr_page_indexes=flagged_page_indexes if skip_messy else None,
         )
 
     return {

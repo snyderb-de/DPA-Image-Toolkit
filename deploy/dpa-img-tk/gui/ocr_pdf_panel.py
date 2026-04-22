@@ -5,7 +5,9 @@ Convert a folder of images into searchable PDFs.
 """
 
 import customtkinter as ctk
+from datetime import datetime
 from pathlib import Path
+from tkinter import filedialog
 
 from modules.pdf_tools.compression_profiles import (
     DEFAULT_PROFILE_KEY,
@@ -65,6 +67,7 @@ class OcrPdfPanel:
         self.btn_start = None
         self.btn_cancel = None
         self.btn_error_report = None
+        self.btn_save_log = None
         self.btn_new_job = None
         self.compression_mode_menu = None
         self.dependency_rows = []
@@ -302,7 +305,7 @@ class OcrPdfPanel:
             "Files without a trailing sequence become single-document PDFs and may contain multiple pages when the source TIFF is multi-page.",
             "All output PDFs are saved into a PDFs subfolder inside the selected folder.",
             "Output PDFs keep filename-based titles with no extra metadata step.",
-            "The quality precheck may skip a PDF when its pages look too messy to produce trustworthy OCR text.",
+            "When quality precheck is enabled, flagged pages stay in the PDF but are included without OCR text.",
         )
 
         notes_card = ctk.CTkFrame(
@@ -404,7 +407,7 @@ class OcrPdfPanel:
 
         ctk.CTkCheckBox(
             options_card,
-            text="Skip OCR if any page fails the quality precheck",
+            text="Skip OCR on pages that fail quality precheck (keep page in PDF)",
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.skip_messy_var,
@@ -526,7 +529,7 @@ class OcrPdfPanel:
 
         action_bar = ctk.CTkFrame(panel, fg_color="transparent")
         action_bar.grid(row=6, column=0, sticky="ew", padx=36, pady=(8, 12))
-        action_bar.grid_columnconfigure(1, weight=1)
+        action_bar.grid_columnconfigure(2, weight=1)
 
         self.btn_error_report = ctk.CTkButton(
             action_bar,
@@ -545,6 +548,23 @@ class OcrPdfPanel:
         )
         self.btn_error_report.grid(row=0, column=0, sticky="w")
 
+        self.btn_save_log = ctk.CTkButton(
+            action_bar,
+            text="  💾  Save Log",
+            font=get_font("small"),
+            height=BUTTON["height_md"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            hover_color=t["bg_tertiary"],
+            text_color=t["fg_primary"],
+            border_width=1,
+            border_color=t["border_subtle"],
+            text_color_disabled=t["button_disabled_text"],
+            command=self._on_save_log,
+            state="normal",
+        )
+        self.btn_save_log.grid(row=0, column=1, sticky="w", padx=(10, 0))
+
         self.btn_new_job = ctk.CTkButton(
             action_bar,
             text="  ↺  Clear/New Job",
@@ -560,7 +580,7 @@ class OcrPdfPanel:
             command=self._on_clear_new_job,
             state="normal",
         )
-        self.btn_new_job.grid(row=0, column=1, sticky="e", padx=(0, 10))
+        self.btn_new_job.grid(row=0, column=2, sticky="e", padx=(0, 10))
 
         self.btn_cancel = ctk.CTkButton(
             action_bar,
@@ -577,7 +597,7 @@ class OcrPdfPanel:
             command=self._on_cancel,
             state="disabled",
         )
-        self.btn_cancel.grid(row=0, column=2, sticky="e", padx=(0, 10))
+        self.btn_cancel.grid(row=0, column=3, sticky="e", padx=(0, 10))
 
         self.btn_start = ctk.CTkButton(
             action_bar,
@@ -592,7 +612,7 @@ class OcrPdfPanel:
             command=self._on_start_ocr,
             state="disabled",
         )
-        self.btn_start.grid(row=0, column=3, sticky="e")
+        self.btn_start.grid(row=0, column=4, sticky="e")
 
         self._toggle_compression_mode()
         self._refresh_dependency_panel()
@@ -954,6 +974,38 @@ class OcrPdfPanel:
         except Exception as exc:
             self._log(f"Failed to open error folder: {exc}", "error")
 
+    def _on_save_log(self):
+        log_text = self._get_log_text().strip()
+        if not log_text:
+            self._log("No log output to save yet.", "warning")
+            return
+
+        initial_dir = (
+            self.error_folder
+            or self.output_folder
+            or self.selected_folder
+            or Path.home()
+        )
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"OCR_JOB_OUTPUT_{timestamp}.txt"
+
+        target_path = filedialog.asksaveasfilename(
+            title="Save OCR Job Output",
+            initialdir=str(initial_dir),
+            initialfile=filename,
+            defaultextension=".txt",
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
+        )
+        if not target_path:
+            self._log("Save log cancelled.", "info")
+            return
+
+        try:
+            Path(target_path).write_text(log_text + "\n", encoding="utf-8")
+            self._log(f"Saved log output: {target_path}", "success")
+        except Exception as exc:
+            self._log(f"Failed to save log output: {exc}", "error")
+
     def _dispatch(self, callback, *args):
         self.parent.after(0, lambda: callback(*args))
 
@@ -1001,6 +1053,15 @@ class OcrPdfPanel:
         self.log_display.configure(state="normal")
         self.log_display.delete("1.0", "end")
         self.log_display.configure(state="disabled")
+
+    def _get_log_text(self) -> str:
+        previous_state = self.log_display.cget("state")
+        if previous_state == "disabled":
+            self.log_display.configure(state="normal")
+        text = self.log_display.get("1.0", "end")
+        if previous_state == "disabled":
+            self.log_display.configure(state="disabled")
+        return text
 
     def _log(self, message: str, level: str = "info"):
         prefixes = {
