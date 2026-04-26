@@ -238,6 +238,8 @@ def show_process_notes_modal(
         font=get_font("normal"),
         text_color=theme["fg_primary"],
         anchor="w",
+        justify="left",
+        wraplength=500,
     ).pack(anchor="w", pady=(4, 0))
 
     notes_frame = ctk.CTkScrollableFrame(
@@ -250,8 +252,9 @@ def show_process_notes_modal(
     notes_frame.pack(fill="both", expand=True, padx=18, pady=(0, 12))
     notes_frame.grid_columnconfigure(0, weight=1)
 
+    note_labels = []
     for line in process_notes:
-        ctk.CTkLabel(
+        note_label = ctk.CTkLabel(
             notes_frame,
             text=f"•  {line}",
             font=get_font("small"),
@@ -259,7 +262,17 @@ def show_process_notes_modal(
             justify="left",
             wraplength=500,
             anchor="w",
-        ).pack(anchor="w", padx=14, pady=(8, 4))
+        )
+        note_label.pack(fill="x", anchor="w", padx=14, pady=(8, 4))
+        note_labels.append(note_label)
+
+    def _refresh_wraplength(_event=None):
+        available_width = max(notes_frame.winfo_width() - 36, 280)
+        for label in note_labels:
+            label.configure(wraplength=available_width)
+
+    notes_frame.bind("<Configure>", _refresh_wraplength)
+    dialog.after(50, _refresh_wraplength)
 
     ctk.CTkButton(
         dialog,
