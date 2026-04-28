@@ -1,7 +1,7 @@
 """
 Main application window for DPA Image Toolkit.
 
-Sidebar-navigation layout with dark/light mode, card-based content panels,
+Sidebar-navigation layout with light/dark/system appearance, card-based content panels,
 and a docked status bar with a thin progress indicator.
 """
 
@@ -19,6 +19,15 @@ from .styles import (
 
 SETTINGS_FILENAME = "app-settings.json"
 SETTINGS_ENV_VAR = "DPA_IMAGE_TOOLKIT_SETTINGS"
+APPEARANCE_MODES = {"light", "dark", "system"}
+APPEARANCE_MENU_LABELS = {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+}
+APPEARANCE_MENU_LABEL_TO_MODE = {
+    label: mode for mode, label in APPEARANCE_MENU_LABELS.items()
+}
 
 
 def _resolve_env_settings_path(raw_path: str) -> Path:
@@ -75,6 +84,14 @@ def _save_app_settings(settings: dict) -> bool:
         return False
 
 
+def _normalize_appearance_mode(raw_value) -> str:
+    """Normalize appearance mode input to one of: system, light, dark."""
+    value = str(raw_value or "").strip().lower()
+    if value in APPEARANCE_MODES:
+        return value
+    return "light"
+
+
 class MainWindow(ctk.CTk):
     """Main application window."""
 
@@ -88,10 +105,14 @@ class MainWindow(ctk.CTk):
 
         # ── State ──────────────────────────────────────────────────────────────
         self.app_settings = _load_app_settings()
-        self.dark_mode = bool(self.app_settings.get("dark_mode", False))
-        ctk.set_appearance_mode("dark" if self.dark_mode else "light")
+        saved_mode = self.app_settings.get("appearance_mode")
+        if isinstance(saved_mode, str):
+            self.appearance_mode = _normalize_appearance_mode(saved_mode)
+        else:
+            self.appearance_mode = "dark" if bool(self.app_settings.get("dark_mode", False)) else "light"
+        ctk.set_appearance_mode(self.appearance_mode)
         ctk.set_default_color_theme("blue")
-        self.current_theme = get_theme(self.dark_mode)
+        self.current_theme = get_theme(self._is_effective_dark_mode())
         self.current_panel = "menu"
         self.operation_in_progress = False
         self.operation_type = None
@@ -127,6 +148,34 @@ class MainWindow(ctk.CTk):
 
         self.app_settings["last_source_directory"] = str(path)
         _save_app_settings(self.app_settings)
+
+    def _is_effective_dark_mode(self) -> bool:
+        """
+        Return whether the currently active appearance is dark.
+
+        CustomTkinter resolves "system" mode internally to dark or light.
+        """
+        resolved = str(ctk.get_appearance_mode() or "").strip().lower()
+        if resolved == "dark":
+            return True
+        if resolved == "light":
+            return False
+        return self.appearance_mode == "dark"
+
+    def _persist_appearance_setting(self):
+        """Save appearance mode, while preserving legacy dark_mode compatibility."""
+        self.app_settings["appearance_mode"] = self.appearance_mode
+        self.app_settings["dark_mode"] = self.appearance_mode == "dark"
+        _save_app_settings(self.app_settings)
+
+    def _set_appearance_mode(self, mode: str, persist: bool = True):
+        """Apply appearance mode, refresh theme, and optionally persist setting."""
+        self.appearance_mode = _normalize_appearance_mode(mode)
+        ctk.set_appearance_mode(self.appearance_mode)
+        if persist:
+            self._persist_appearance_setting()
+        self.current_theme = get_theme(self._is_effective_dark_mode())
+        self._apply_theme()
 
     # ══════════════════════════════════════════════════════════════════════════
     # Sidebar
@@ -207,44 +256,51 @@ class MainWindow(ctk.CTk):
         # Divider
         self._sidebar_divider(row=3)
 
-        # ── Theme toggle ───────────────────────────────────────────────────────
+        # ── Appearance mode ────────────────────────────────────────────────────
         bottom_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         bottom_frame.grid(row=4, column=0, sticky="ew", padx=0, pady=(0, 20))
 
         theme_row = ctk.CTkFrame(bottom_frame, fg_color="transparent")
         theme_row.pack(fill="x", padx=20, pady=12)
 
-        self.theme_icon_lbl = ctk.CTkLabel(
-            theme_row,
-            text="🌙" if self.dark_mode else "☀",
-            font=("Segoe UI", 16),
-            text_color=t["fg_secondary"],
-        )
-        self.theme_icon_lbl.pack(side="left")
+        theme_header = ctk.CTkFrame(theme_row, fg_color="transparent")
+        theme_header.pack(fill="x")
 
         theme_lbl = ctk.CTkLabel(
-            theme_row,
-            text="Dark mode" if self.dark_mode else "Light mode",
+            theme_header,
+            text="Appearance",
             font=get_font("small"),
             text_color=t["fg_secondary"],
         )
-        theme_lbl.pack(side="left", padx=(8, 0))
+        theme_lbl.pack(side="left")
         self.theme_text_lbl = theme_lbl
 
-        self.theme_switch = ctk.CTkSwitch(
-            theme_row,
-            text="",
-            width=40,
-            command=self._toggle_theme,
-            progress_color=t["accent"],
-            button_color="#FFFFFF",
-            button_hover_color="#FFFFFF",
+        self.theme_mode_var = ctk.StringVar(
+            value=APPEARANCE_MENU_LABELS.get(self.appearance_mode, "Light")
         )
-        self.theme_switch.pack(side="right")
-        if self.dark_mode:
-            self.theme_switch.select()
-        else:
-            self.theme_switch.deselect()
+        self.theme_mode_menu = ctk.CTkOptionMenu(
+            theme_row,
+            values=[
+                APPEARANCE_MENU_LABELS["system"],
+                APPEARANCE_MENU_LABELS["light"],
+                APPEARANCE_MENU_LABELS["dark"],
+            ],
+            variable=self.theme_mode_var,
+            command=self._on_appearance_mode_selected,
+            font=get_font("small"),
+            dropdown_font=get_font("small"),
+            height=BUTTON["height_sm"],
+            corner_radius=RADIUS["md"],
+            fg_color=t["bg_glass"],
+            button_color=t["bg_tertiary"],
+            button_hover_color=t["border_subtle"],
+            text_color=t["fg_primary"],
+            dropdown_fg_color=t["bg_secondary"],
+            dropdown_text_color=t["fg_primary"],
+            dropdown_hover_color=t["bg_tertiary"],
+            dynamic_resizing=False,
+        )
+        self.theme_mode_menu.pack(fill="x", pady=(8, 0))
 
         # Version tag
         ver_lbl = ctk.CTkLabel(
@@ -730,28 +786,28 @@ class MainWindow(ctk.CTk):
     # Theme
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _toggle_theme(self):
-        self.dark_mode = not self.dark_mode
-        ctk.set_appearance_mode("dark" if self.dark_mode else "light")
-        self.app_settings["dark_mode"] = self.dark_mode
-        _save_app_settings(self.app_settings)
-        self.current_theme = get_theme(self.dark_mode)
-        self._apply_theme()
+    def _on_appearance_mode_selected(self, selected_label: str):
+        selected_mode = APPEARANCE_MENU_LABEL_TO_MODE.get(selected_label, "light")
+        if selected_mode == self.appearance_mode:
+            return
+        self._set_appearance_mode(selected_mode, persist=True)
 
     def _apply_theme(self):
         t = self.current_theme
 
         # Icon + label update
-        self.theme_icon_lbl.configure(
-            text="🌙" if self.dark_mode else "☀",
-            text_color=t["fg_secondary"],
+        self.theme_mode_var.set(
+            APPEARANCE_MENU_LABELS.get(self.appearance_mode, "Light")
         )
-        self.theme_switch.configure(
-            progress_color=t["accent"],
-            button_color="#FFFFFF",
-            button_hover_color="#FFFFFF",
+        self.theme_mode_menu.configure(
+            fg_color=t["bg_glass"],
+            button_color=t["bg_tertiary"],
+            button_hover_color=t["border_subtle"],
+            text_color=t["fg_primary"],
+            dropdown_fg_color=t["bg_secondary"],
+            dropdown_text_color=t["fg_primary"],
+            dropdown_hover_color=t["bg_tertiary"],
         )
-        self.theme_text_lbl.configure(text="Dark mode" if self.dark_mode else "Light mode")
         self.theme_text_lbl.configure(text_color=t["fg_secondary"])
 
         # Sidebar

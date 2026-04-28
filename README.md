@@ -218,3 +218,4 @@ testing/    per-tool generators, test runners, and local test scratch space
 - `TODO.md` — open issues and future enhancements
 - `deploy/README.md` — Windows Scripts deployment notes
 - `project-dashboard/` — optional HTML/CSS/JS project dashboard
+- CustomTkinter offline docs/code reference (local fork): `/Users/baghead/code/CustomTkinter`
