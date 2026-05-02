@@ -16,8 +16,9 @@ Layout
 Run From Repo Root
 ------------------
 
-- `python3 testing/auto_crop/test_auto_crop.py`
-- `python3 testing/tiff_merge/test_tiff_merge.py`
+- `python3 -m unittest discover -s testing -p "test_*.py"`
+- `python3 -m unittest testing.auto_crop.test_auto_crop`
+- `python3 -m unittest testing.tiff_merge.test_tiff_merge`
 - `python3 -m unittest testing.tiff_split.test_tiff_split`
 - `python3 -m unittest testing.add_border.test_add_border`
 - `python3 -m unittest testing.ocr_pdf.test_ocr_pdf`
@@ -27,5 +28,6 @@ Notes
 -----
 
 - Each tool owns its own `generate_fixtures.py` and `test_*.py`.
+- Test files are assertion-based `unittest` suites so they run under discover.
 - Generated fixtures and outputs stay local and are ignored by Git.
 - Personal scratch data or machine-only sample sets should live under `testing/local/`.

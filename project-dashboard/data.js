@@ -4,13 +4,13 @@ window.DPA_DASHBOARD_DATA = {
     "tagline": "Desktop toolkit for archival image cleanup and TIFF workflow management",
     "version": "1.0",
     "status": "Functional and actively refined",
-    "summary": "A Windows-first desktop toolkit for archival imaging workflows. The app combines Auto Crop, Merge TIFFs, Split TIFFs, Add Border, and OCR to PDF in one CustomTkinter GUI, with deploy-ready copies kept under deploy/."
+    "summary": "A Windows-first desktop toolkit for archival imaging workflows. The app combines Auto Crop, Merge TIFFs, Split TIFFs, Add Border, OCR to PDF, and PDF Conversion in one CustomTkinter GUI, with deploy-ready copies kept under deploy/."
   },
   "highlights": [
     {
       "label": "Tools",
-      "value": "5",
-      "detail": "Auto Crop, Merge TIFFs, Split TIFFs, Add Border, OCR to PDF"
+      "value": "6",
+      "detail": "Auto Crop, Merge TIFFs, Split TIFFs, Add Border, OCR to PDF, PDF Conversion"
     },
     {
       "label": "Primary Stack",
@@ -24,14 +24,14 @@ window.DPA_DASHBOARD_DATA = {
     },
     {
       "label": "Current Focus",
-      "value": "Repo cleanup + verification",
-      "detail": "Windows workflow validation, doc accuracy, testing organization"
+      "value": "Validation + parity",
+      "detail": "Windows workflow validation, higher-confidence tests, and docs/dashboard accuracy"
     }
   ],
   "tools": [
     {
       "name": "Auto Crop",
-      "icon": "✂",
+      "icon": "\u2702",
       "summary": "Detects content and crops away scanner-created white space while retaining all meaningful detected content in one crop region.",
       "inputs": "Folder of TIFF, JPEG, PNG, BMP, or GIF images",
       "outputs": [
@@ -46,7 +46,7 @@ window.DPA_DASHBOARD_DATA = {
     },
     {
       "name": "Merge TIFFs",
-      "icon": "⊞",
+      "icon": "\u229e",
       "summary": "Builds multi-page TIFFs from page files grouped by naming pattern.",
       "inputs": "Folder of TIFF files named like {name}_{group}_{###}.tif or .tiff",
       "outputs": [
@@ -61,7 +61,7 @@ window.DPA_DASHBOARD_DATA = {
     },
     {
       "name": "Split TIFFs",
-      "icon": "⇵",
+      "icon": "\u21f5",
       "summary": "Extracts each page of a multi-page TIFF into an individual single-page TIFF.",
       "inputs": "Selected TIFF files or a folder containing TIFF files",
       "outputs": [
@@ -76,7 +76,7 @@ window.DPA_DASHBOARD_DATA = {
     },
     {
       "name": "Add Border",
-      "icon": "▣",
+      "icon": "\u25a3",
       "summary": "Adds a white border around every image in a selected folder using the same spacing logic as Auto Crop.",
       "inputs": "Folder of supported image files",
       "outputs": [
@@ -90,7 +90,7 @@ window.DPA_DASHBOARD_DATA = {
     },
     {
       "name": "OCR to PDF",
-      "icon": "⎙",
+      "icon": "\u2398",
       "summary": "Groups scan files by trailing four-digit sequence and creates searchable PDFs in a PDFs subfolder.",
       "inputs": "Folder of supported scan images named like {name}_####.<extension>",
       "outputs": [
@@ -100,7 +100,26 @@ window.DPA_DASHBOARD_DATA = {
       "notes": [
         "Valid single files are still processed as one-page PDFs.",
         "Defaults to English OCR on the local Tesseract install.",
-        "Can skip grouped PDFs when the OCR quality precheck flags a page."
+        "With quality precheck enabled, flagged pages stay in output PDFs but are included without OCR text.",
+        "Supports per-page and per-job progress plus exported run logs."
+      ]
+    },
+    {
+      "name": "PDF Conversion",
+      "icon": "\ud83d\uddce",
+      "summary": "Reduce PDF size, split pages, export page images, and extract page ranges.",
+      "inputs": "Single PDF file or a folder of PDFs (operation-dependent)",
+      "outputs": [
+        "reduce: reduced-pdfs/",
+        "split PDF: split-pdfs/<pdf_name>/",
+        "split images: split-images/<pdf_name>/",
+        "extract pages: extracted-pages/"
+      ],
+      "notes": [
+        "Uses the same compression profiles as OCR PDF for consistent output expectations.",
+        "Split PDF and Extract Pages are single-file operations in the current UI.",
+        "Extract can optionally remove extracted pages from the source PDF.",
+        "JPEG/PNG/TIFF page export uses pypdfium2 rendering."
       ]
     }
   ],
@@ -110,21 +129,23 @@ window.DPA_DASHBOARD_DATA = {
     "Optionally run Add Border to add consistent margins",
     "Merge correctly named TIFF page files into multi-page TIFFs",
     "Use Split TIFFs when existing multi-page TIFFs need to be broken apart",
-    "Use OCR to PDF to build searchable grouped PDFs from page-image folders"
+    "Use OCR to PDF to build searchable grouped PDFs from page-image folders",
+    "Use PDF Conversion for size reduction, page extraction, and page-level exports"
   ],
   "architecture": [
-    "main.py — entry point for the app",
-    "dpa-image-toolkit.py — user-facing launcher wrapper",
-    "image-toolkit.bat — Windows batch launcher",
-    "gui/ — main window, panel controllers, shared dependency sidebar, theme system",
-    "modules/auto_cropping/ — OpenCV and Pillow crop logic",
-    "modules/tiff_combine/ — TIFF merge, grouping, validation",
-    "modules/tiff_split/ — multi-page TIFF extraction",
-    "modules/image_border/ — border generation logic",
-    "modules/ocr_pdf/ — OCR grouping, quality checks, searchable PDF generation",
-    "utils/worker.py — background workers, cancel flow, and progress callbacks",
-    "deploy/ — synchronized Windows deployment bundle",
-    "testing/ — per-tool generators, smoke tests, and local test scratch space"
+    "main.py \u2014 entry point for the app",
+    "dpa-image-toolkit.py \u2014 user-facing launcher wrapper",
+    "image-toolkit.bat \u2014 Windows batch launcher",
+    "gui/ \u2014 main window, panel controllers, shared dependency sidebar, theme system",
+    "modules/auto_cropping/ \u2014 OpenCV and Pillow crop logic",
+    "modules/tiff_combine/ \u2014 TIFF merge, grouping, validation",
+    "modules/tiff_split/ \u2014 multi-page TIFF extraction",
+    "modules/image_border/ \u2014 border generation logic",
+    "modules/ocr_pdf/ \u2014 OCR grouping, quality checks, searchable PDF generation",
+    "modules/pdf_tools/ \u2014 PDF size reduction, split, extract, and conversion logic",
+    "utils/worker.py \u2014 background workers, cancel flow, and progress callbacks",
+    "deploy/ \u2014 synchronized Windows deployment bundle",
+    "testing/ \u2014 per-tool fixture generators and assertion-based unittest suites"
   ],
   "languages": [
     {
@@ -174,10 +195,10 @@ window.DPA_DASHBOARD_DATA = {
   "openIssues": [
     "Continue Windows 10 / Windows 11 workflow validation on the target environment",
     "High-DPI UI verification at 125%, 150%, and 200% scaling",
-    "Strengthen automated test coverage for crop, TIFF grouping, and OCR grouping",
-    "Keep dashboard and docs aligned with shipped behavior",
+    "Batch preview mode for Auto Crop",
     "Per-page DPI preservation for TIFF merge",
-    "Batch preview mode for Auto Crop"
+    "Tune OCR messy-scan heuristics against production samples",
+    "Define manual override flow for OCR quality-flagged pages"
   ],
   "futureIdeas": [
     "Future multi-language OCR option once install/support workflow is settled",
@@ -198,7 +219,9 @@ window.DPA_DASHBOARD_DATA = {
     "customtkinter>=5.0.0",
     "Pillow>=10.0.0",
     "opencv-python>=4.8.0",
-    "numpy>=1.24.0"
+    "numpy>=1.24.0",
+    "pypdf>=5.0.0",
+    "pypdfium2>=4.30.0"
   ],
   "docs": [
     {
@@ -230,14 +253,14 @@ window.DPA_DASHBOARD_DATA = {
     "testing/"
   ],
   "recentCommits": [
-    "02c9206 Update naming rules and window placement",
-    "d85876b Polish tool controls and dependency sidebars",
-    "1a09ef9 Add shared dependency panels across tools",
-    "2ae5e57 Refine OCR batch PDF grouping flow",
-    "6c86c86 Stack sidebar app title vertically",
-    "a1ff2ec Fix Windows TIFF group double counting",
-    "16fc2be Refine TIFF group verification preview",
-    "4138a26 Update app window, title, and disabled button styling"
+    "2969e55 Clean up appearance selector UI and keep CustomTkinter reference note",
+    "4fc5865 Fix process notes modal text wrapping",
+    "822ba92 Refine OCR page skip behavior and add log export",
+    "66921db Add PDF conversion tool and shared OCR/PDF compression profiles",
+    "73d189a Improve OCR progress/cancellation and add process notes modal",
+    "af3342f Persist source folder and streamline auto-crop/add-border panels",
+    "098f79f Add two-stage cancel flow for TIFF split and merge",
+    "d75d630 Persist theme preference with inline GUI settings storage"
   ]
 }
 ;

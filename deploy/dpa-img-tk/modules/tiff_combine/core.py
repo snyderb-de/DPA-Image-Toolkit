@@ -302,22 +302,22 @@ def get_merge_stats(
 
         for file_path in group_files:
             try:
-                img = Image.open(file_path)
-                file_size = file_path.stat().st_size
-                dpi = preserve_dpi(img, file_path)
+                with Image.open(file_path) as img:
+                    file_size = file_path.stat().st_size
+                    dpi = preserve_dpi(img, file_path)
 
-                file_info.append(
-                    {
-                        "filename": file_path.name,
-                        "size_bytes": file_size,
-                        "dimensions": img.size,
-                        "mode": img.mode,
-                        "dpi": dpi,
-                    }
-                )
+                    file_info.append(
+                        {
+                            "filename": file_path.name,
+                            "size_bytes": file_size,
+                            "dimensions": img.size,
+                            "mode": img.mode,
+                            "dpi": dpi,
+                        }
+                    )
 
-                total_size += file_size
-                modes_found.add(img.mode)
+                    total_size += file_size
+                    modes_found.add(img.mode)
 
             except Exception as e:
                 file_info.append(

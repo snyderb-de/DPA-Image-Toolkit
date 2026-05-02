@@ -8,8 +8,8 @@
 
 - [ ] **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment
 - [ ] **Test at high DPI scaling** — verify UI at 125%, 150%, 200% display scaling
-- [ ] **Strengthen automated test coverage** — keep converting script-style/manual checks into stronger discoverable tests with assertions for crop output, TIFF grouping, and OCR grouping
-- [ ] **Keep dashboard and docs aligned with shipped behavior** — update `README.md`, `TODO.md`, and `project-dashboard/` together when workflows change
+- [x] **Strengthen automated test coverage** — converted crop/TIFF grouping/OCR grouping checks into discoverable assertion-based test suites
+- [x] **Keep dashboard and docs aligned with shipped behavior** — refreshed `README.md`, `TODO.md`, and `project-dashboard/` for current tool behavior
 
 ---
 

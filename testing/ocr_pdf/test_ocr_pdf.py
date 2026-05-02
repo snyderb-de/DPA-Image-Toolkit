@@ -134,6 +134,8 @@ class OcrPdfCoreTests(unittest.TestCase):
         self.assertTrue(stats["should_skip"])
         self.assertEqual(len(stats["flagged_pages"]), 1)
         self.assertEqual(stats["flagged_pages"][0]["file"], "scan_002.tif")
+        self.assertEqual(stats["flagged_pages"][0]["page_index"], 1)
+        self.assertEqual(stats["flagged_pages"][0]["page_number"], 2)
 
     def test_check_ocr_dependencies_allows_searchable_pdf_without_ocrmypdf(self):
         with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=Path("/tmp/tesseract")), \
@@ -181,7 +183,7 @@ class OcrPdfCoreTests(unittest.TestCase):
             self.assertEqual(result["status"], "skipped")
             self.assertEqual(result["output_path"], existing_pdf)
 
-    def test_ocr_document_to_pdf_skips_document_when_quality_gate_fails(self):
+    def test_ocr_document_to_pdf_keeps_flagged_pages_without_ocr_text(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "roll_001"
             output = root / "ocr-pdf"
@@ -195,21 +197,37 @@ class OcrPdfCoreTests(unittest.TestCase):
                 return_value={
                     "page_count": 1,
                     "average_score": 21.0,
-                    "flagged_pages": [{"file": "scan_0001.tif", "score": 21.0, "reasons": ["blurry scan"]}],
+                    "flagged_pages": [{
+                        "file": "scan_0001.tif",
+                        "score": 21.0,
+                        "reasons": ["blurry scan"],
+                        "page_index": 0,
+                        "page_number": 1,
+                    }],
                     "should_skip": True,
                 },
-            ):
+            ), patch(
+                "modules.ocr_pdf.core._run_tesseract_document_workflow",
+                return_value=("success", None),
+            ) as mocked_workflow:
                 result = ocr_document_to_pdf(
                     input_files=[input_file],
                     output_pdf_path=output / "roll_001.pdf",
                     document_name="roll_001",
-                    save_pdfa=True,
+                    save_pdfa=False,
                     skip_messy=True,
                     metadata={"title": "Roll 001"},
                 )
 
-        self.assertEqual(result["status"], "skipped")
-        self.assertIn("Skipped by OCR quality precheck", result["error"])
+        self.assertEqual(result["status"], "success")
+        self.assertIsNone(result["error"])
+        self.assertIn("warnings", result["details"])
+        self.assertIn("included without OCR text", result["details"]["warnings"][0])
+        mocked_workflow.assert_called_once()
+        self.assertEqual(
+            mocked_workflow.call_args.kwargs.get("skip_ocr_page_indexes"),
+            {0},
+        )
 
     def test_ocr_folder_to_pdfs_returns_one_result_per_group(self):
         with tempfile.TemporaryDirectory() as temp_dir:

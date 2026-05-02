@@ -1,128 +1,82 @@
 """
-Test TIFF merge functionality.
-
-Tests the merge_tiff_group function with various group configurations.
+Assertion-based tests for TIFF merge grouping and output behavior.
 """
 
 from pathlib import Path
 import sys
+import unittest
 
-# Add app root to path for imports
+from PIL import Image
+
+
 APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from modules.tiff_combine.core import merge_tiff_group, get_merge_stats
+from modules.tiff_combine.core import get_merge_stats, merge_tiff_group
 from modules.tiff_combine.naming import validate_naming_convention
 from testing.tiff_merge.generate_fixtures import generate_tiff_merge_fixtures
 
 
-def run_merge_tests():
-    """Run TIFF merge tests."""
+EXPECTED_GROUPS = {
+    "archive_box1": 2,
+    "document_batchA": 3,
+    "scan_batchB": 4,
+}
 
-    tool_dir = Path(__file__).resolve().parent
-    test_dir = generate_tiff_merge_fixtures()
-    output_dir = tool_dir / "output" / "results"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for existing_file in output_dir.glob("*.tif*"):
-        existing_file.unlink()
 
-    print("\n" + "=" * 80)
-    print("TIFF MERGE TEST SUITE")
-    print("=" * 80)
+class TiffMergeCoreTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tool_dir = Path(__file__).resolve().parent
+        cls.fixture_dir = generate_tiff_merge_fixtures()
+        cls.output_dir = cls.tool_dir / "output" / "results"
+        cls.output_dir.mkdir(parents=True, exist_ok=True)
+        for existing_file in cls.output_dir.glob("*.tif*"):
+            existing_file.unlink()
 
-    # Step 1: Validate naming
-    print("\n1️⃣  Validating file naming convention...")
-    groups, is_valid, issues = validate_naming_convention(test_dir)
+    def test_validate_naming_detects_expected_groups(self):
+        groups, is_valid, issues = validate_naming_convention(self.fixture_dir)
 
-    expected_groups = {
-        "archive_box1": 2,
-        "document_batchA": 3,
-        "scan_batchB": 4,
-    }
+        self.assertTrue(is_valid)
+        self.assertEqual(issues, [])
+        self.assertEqual(set(groups.keys()), set(EXPECTED_GROUPS.keys()))
+        for group_name, expected_count in EXPECTED_GROUPS.items():
+            self.assertEqual(len(groups[group_name]), expected_count)
+            self.assertEqual(
+                groups[group_name],
+                [f"{group_name}_{index:03d}.tif" for index in range(1, expected_count + 1)],
+            )
 
-    if is_valid:
-        print(f"✅ Naming validation passed")
-        print(f"   Found {len(groups)} group(s):")
-        for group_name, files in groups.items():
-            print(f"   • {group_name}: {len(files)} file(s)")
-    else:
-        print(f"❌ Naming validation failed")
-        for issue in issues:
-            print(f"   ❌ {issue}")
-        return []
+    def test_get_merge_stats_reports_file_count_and_ready_status(self):
+        stats = get_merge_stats("document_batchA", self.fixture_dir)
 
-    if groups != {
-        group_name: [f"{group_name}_{index:03d}.tif" for index in range(1, count + 1)]
-        for group_name, count in expected_groups.items()
-    }:
-        print("❌ Group detection did not match expected fixtures")
-        return []
+        self.assertTrue(stats["success"])
+        self.assertEqual(stats["status"], "ready to merge")
+        self.assertEqual(stats["file_count"], EXPECTED_GROUPS["document_batchA"])
+        self.assertGreater(stats["total_size_bytes"], 0)
+        self.assertTrue(stats["modes_found"])
 
-    # Step 2: Analyze groups
-    print("\n2️⃣  Analyzing groups...")
-    for group_name in groups.keys():
-        stats = get_merge_stats(group_name, test_dir)
-        if stats["success"]:
-            print(f"\n   📊 {group_name}:")
-            print(f"      Files: {stats['file_count']}")
-            print(f"      Total size: {stats['total_size_bytes']:,} bytes")
-            print(f"      Modes: {', '.join(stats['modes_found'])}")
-        else:
-            print(f"   ❌ {group_name}: {stats['error']}")
+    def test_merge_tiff_group_creates_multipage_outputs_with_expected_frame_counts(self):
+        for group_name, expected_pages in EXPECTED_GROUPS.items():
+            success, output_path, errors = merge_tiff_group(
+                group_name=group_name,
+                input_folder=self.fixture_dir,
+                output_folder=self.output_dir,
+                dpi_per_file=True,
+            )
+            self.assertTrue(success, msg=f"{group_name}: {errors}")
+            self.assertEqual(errors, [])
+            self.assertIsNotNone(output_path)
 
-    # Step 3: Merge groups
-    print("\n3️⃣  Merging groups...")
-    merge_results = []
-    success_count = 0
-    failed_count = 0
+            output_file = Path(output_path)
+            self.assertTrue(output_file.exists())
+            self.assertEqual(output_file.name, f"{group_name}.tif")
 
-    for group_name in sorted(groups.keys()):
-        print(f"\n   🔗 Merging '{group_name}'...")
-        success, output_path, errors = merge_tiff_group(
-            group_name,
-            test_dir,
-            output_dir,
-            dpi_per_file=True,
-        )
-
-        merge_results.append({
-            "group": group_name,
-            "success": success,
-            "output": output_path,
-            "errors": errors,
-        })
-
-        if success:
-            print(f"      ✅ Merged successfully")
-            print(f"      📁 Output: {Path(output_path).name}")
-            print(f"      📦 Size: {Path(output_path).stat().st_size:,} bytes")
-            success_count += 1
-        else:
-            print(f"      ❌ Merge failed")
-            for error in errors:
-                print(f"         • {error.get('file')}: {error.get('error')}")
-            failed_count += 1
-
-    # Step 4: Summary
-    print("\n" + "=" * 80)
-    print("TEST SUMMARY")
-    print("=" * 80)
-
-    print(f"\n📊 Results:")
-    print(f"   ✅ Successful: {success_count}")
-    print(f"   ❌ Failed: {failed_count}")
-    print(f"   📁 Output folder: {output_dir}")
-
-    if success_count == len(groups):
-        print(f"\n🎉 ALL TESTS PASSED!")
-    else:
-        print(f"\n⚠️  SOME TESTS FAILED")
-
-    print("=" * 80 + "\n")
-
-    return merge_results
+            with Image.open(output_file) as merged:
+                frame_count = int(getattr(merged, "n_frames", 1) or 1)
+                self.assertEqual(frame_count, expected_pages)
 
 
 if __name__ == "__main__":
-    run_merge_tests()
+    unittest.main()

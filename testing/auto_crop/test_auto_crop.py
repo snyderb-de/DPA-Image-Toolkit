@@ -1,13 +1,15 @@
 """
-Test auto-crop functionality.
-
-Tests the core cropping algorithm on both single-object and multi-object test images.
+Assertion-based tests for auto-crop core behavior.
 """
 
 from pathlib import Path
 import sys
+import tempfile
+import unittest
 
-# Add app root to path
+from PIL import Image, ImageDraw
+
+
 APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
@@ -16,103 +18,73 @@ from modules.auto_cropping.core import crop_image, get_crop_stats
 from testing.auto_crop.generate_fixtures import generate_auto_crop_fixtures
 
 
-def run_dataset(label, test_dir, output_dir):
-    """Run auto-crop checks for one image dataset."""
-    error_dir = output_dir / "errors"
-
-    if not test_dir.exists():
-        print(f"❌ {label}: test images not found at {test_dir}")
-        return 0, 0, 0, 0
-
-    test_images = sorted(test_dir.glob("*.jpg"))
-    print(f"\n📊 {label}: testing {len(test_images)} images")
-    print(f"   Source: {test_dir}")
-    print(f"   Output: {output_dir}\n")
-
-    success_count = 0
-    skip_count = 0
-    error_count = 0
-
-    for img_file in test_images:
-        # Get stats first
-        stats = get_crop_stats(img_file)
-
-        if stats["success"]:
-            print(f"📷 {img_file.name}")
-            print(f"   Size: {stats['image_size']}")
-            print(f"   Contours: {stats['contours_found']} (large: {stats['large_contours']})")
-
-            # Try to crop
-            output_path, error_msg = crop_image(img_file, output_dir)
-
-            if error_msg:
-                print(f"   ⚠️ Skipped: {error_msg}")
-                skip_count += 1
-            else:
-                print(f"   ✅ Cropped: {output_path}")
-                success_count += 1
-        else:
-            print(f"❌ {img_file.name}")
-            print(f"   Error: {stats['error']}")
-            error_count += 1
-
-        print()
-
-    print(f"📁 Output: {output_dir}")
-    print(f"📁 Errors: {error_dir}")
-
-    if output_dir.exists():
-        cropped = list(output_dir.glob("*.jpg"))
-        print(f"📊 Cropped images created: {len(cropped)}")
-
-    return len(test_images), success_count, skip_count, error_count
+def _make_document_image(path: Path, size=(1600, 1200), margin=260):
+    image = Image.new("RGB", size, color=(255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle(
+        [margin, margin, size[0] - margin, size[1] - margin],
+        fill=(20, 20, 20),
+        outline=(20, 20, 20),
+    )
+    image.save(path, "JPEG", quality=92, dpi=(72, 72))
 
 
-def test_auto_crop():
-    """Test auto-crop on both single-object and multi-object image sets."""
-    tool_dir = Path(__file__).resolve().parent
-    generate_auto_crop_fixtures()
-    datasets = [
-        (
-            "Single-object dataset",
-            tool_dir / "fixtures" / "single_object",
-            tool_dir / "output" / "results" / "single_object",
-        ),
-        (
-            "Multi-object dataset",
-            tool_dir / "fixtures" / "multi_object",
-            tool_dir / "output" / "results" / "multi_object",
-        ),
-    ]
+class AutoCropCoreTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        fixture_info = generate_auto_crop_fixtures()
+        cls.single_object_dir = fixture_info["single_object_dir"]
+        cls.multi_object_dir = fixture_info["multi_object_dir"]
 
-    totals = {
-        "images": 0,
-        "success": 0,
-        "skipped": 0,
-        "errors": 0,
-    }
+    def test_fixture_generator_creates_expected_datasets(self):
+        self.assertTrue(self.single_object_dir.exists())
+        self.assertTrue(self.multi_object_dir.exists())
+        self.assertGreaterEqual(len(list(self.single_object_dir.glob("*.jpg"))), 20)
+        self.assertGreaterEqual(len(list(self.multi_object_dir.glob("*.jpg"))), 8)
 
-    for label, test_dir, output_dir in datasets:
-        image_count, success_count, skip_count, error_count = run_dataset(
-            label,
-            test_dir,
-            output_dir,
-        )
-        totals["images"] += image_count
-        totals["success"] += success_count
-        totals["skipped"] += skip_count
-        totals["errors"] += error_count
+    def test_get_crop_stats_reports_ready_image(self):
+        sample = self.single_object_dir / "test_01_rectangle_255_0_0.jpg"
+        stats = get_crop_stats(sample)
 
-    # Summary
-    print("=" * 60)
-    print("AUTO-CROP TEST SUMMARY")
-    print("=" * 60)
-    print(f"✅ Cropped:  {totals['success']}")
-    print(f"⚠️ Skipped:  {totals['skipped']}")
-    print(f"❌ Errors:   {totals['errors']}")
-    print(f"Total:       {totals['images']}")
-    print("=" * 60)
+        self.assertTrue(stats["success"])
+        self.assertEqual(stats["status"], "ready to crop")
+        self.assertIsNotNone(stats["combined_bounding_box"])
+        self.assertGreater(stats["large_contours"], 0)
+
+    def test_crop_image_reduces_canvas_for_synthetic_document(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "source.jpg"
+            output_dir = root / "cropped"
+            _make_document_image(source_path)
+
+            output_path, error = crop_image(source_path, output_dir)
+
+            self.assertIsNone(error)
+            self.assertIsNotNone(output_path)
+            self.assertTrue(Path(output_path).exists())
+
+            with Image.open(source_path) as source_img, Image.open(output_path) as cropped_img:
+                self.assertLess(cropped_img.size[0], source_img.size[0])
+                self.assertLess(cropped_img.size[1], source_img.size[1])
+
+    def test_crop_image_returns_blank_message_for_white_image(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "blank.jpg"
+            output_dir = root / "cropped"
+            Image.new("RGB", (1200, 1200), color=(255, 255, 255)).save(
+                source_path,
+                "JPEG",
+                quality=92,
+            )
+
+            output_path, error = crop_image(source_path, output_dir)
+
+            self.assertIsNone(output_path)
+            self.assertIsNotNone(error)
+            self.assertIn("blank", error.lower())
 
 
 if __name__ == "__main__":
-    test_auto_crop()
+    unittest.main()

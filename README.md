@@ -2,12 +2,13 @@
 
 Desktop toolkit for archival image cleanup and TIFF workflow management.
 
-The app currently includes five tools:
+The app currently includes six tools:
 - Auto Crop
 - Merge TIFFs
 - Split Multi-Page TIFFs
 - Add Border
 - OCR to PDF
+- PDF Conversion
 
 ## Quick Start
 
@@ -73,8 +74,17 @@ Converts a folder of scan images into searchable PDFs by grouping files that sha
 - Defaults:
   - English OCR
   - skip existing output PDF
-  - skip a grouped PDF when any page fails a conservative OCR quality precheck
+  - when quality precheck is enabled, flagged pages stay in the output PDF but are included without OCR text
   - valid single files are still processed as one-page PDFs
+
+### PDF Conversion
+
+Converts and reshapes PDF files with single-file or folder workflows.
+
+- Reduce PDF size using shared compression profiles
+- Split one PDF into one-PDF-per-page outputs
+- Export PDF pages to image formats
+- Extract selected pages into a new PDF (with optional source-page removal)
 
 ## Naming Rules
 
@@ -219,3 +229,11 @@ testing/    per-tool generators, test runners, and local test scratch space
 - `deploy/README.md` — Windows Scripts deployment notes
 - `project-dashboard/` — optional HTML/CSS/JS project dashboard
 - CustomTkinter offline docs/code reference (local fork): `/Users/baghead/code/CustomTkinter`
+
+## Testing
+
+- Run all automated tests from repo root:
+
+```bash
+python3 -m unittest discover -s testing -p "test_*.py"
+```
