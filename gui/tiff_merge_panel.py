@@ -7,6 +7,7 @@ dialog, live log, and a docked action bar.
 
 import customtkinter as ctk
 from pathlib import Path
+from tkinter import messagebox
 
 from utils.file_handler import pick_folder, validate_tif_files, create_error_folder
 from utils.tool_dependencies import (
@@ -304,6 +305,9 @@ class TiffMergePanel:
             self._log("Folder selection cancelled.", "info")
             return
 
+        if not self._confirm_existing_output_folders(folder):
+            return
+
         self.parent.set_last_source_directory(folder)
 
         is_valid, files, error = validate_tif_files(folder)
@@ -440,8 +444,10 @@ class TiffMergePanel:
             if not cancelled and results.get("total", 0) > 0:
                 self.merge_completed = True
 
-            button_text = "Finished" if self.merge_completed else "  ▶  Start Merge"
-            self.btn_start.configure(state="normal", text=button_text)
+            if self.merge_completed:
+                self.btn_start.configure(state="disabled", text="Finished")
+            else:
+                self.btn_start.configure(state="normal", text="  ▶  Start Merge")
             self.btn_new_job.configure(state="normal")
             self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
             self.cancel_stage = 0
@@ -529,6 +535,42 @@ class TiffMergePanel:
         self.parent.operation_type = None
         self.parent.set_status("Ready", 1.0)
         self._log("Ready — select a TIFF folder to get started.", "info")
+
+    def _confirm_existing_output_folders(self, folder: Path) -> bool:
+        existing = []
+        if (folder / "merged").exists():
+            existing.append("merged/")
+        if (folder / "errored-files").exists():
+            existing.append("errored-files/")
+
+        if not existing:
+            return True
+
+        list_text = " and ".join(existing)
+        proceed = messagebox.askyesno(
+            "Existing Merge Output Detected",
+            (
+                f"This folder already contains {list_text}.\n\n"
+                "That usually means a merge job already ran here.\n\n"
+                "Continue with this folder anyway?"
+            ),
+        )
+        if proceed:
+            self._log(
+                f"Existing output folder(s) detected ({list_text}) — continuing by user choice.",
+                "warning",
+            )
+            return True
+
+        self._log(
+            f"Folder selection cancelled because {list_text} already exists.",
+            "warning",
+        )
+        self._set_info(
+            "⚠  Folder not loaded. Choose another folder or clear previous merge output first.",
+            level="warning",
+        )
+        return False
 
     # ──────────────────────────────────────────────────────────────────────────
     # Validation dialog

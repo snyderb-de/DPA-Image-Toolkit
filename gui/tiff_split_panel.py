@@ -31,6 +31,7 @@ class TiffSplitPanel:
         self.cancel_stage = 0
         self.error_folder: Path = None
         self.has_errors = False
+        self.split_completed = False
 
         self.selection_label = None
         self.count_label = None
@@ -303,6 +304,7 @@ class TiffSplitPanel:
         self.parent.set_last_source_directory(self.selected_files[0].parent)
         self.error_folder = self._prepare_error_folder(self.selected_files[0].parent)
         self.has_errors = False
+        self.split_completed = False
         self.selection_label.configure(
             text=f"{len(self.selected_files)} file(s) selected",
             text_color=self.theme["fg_primary"],
@@ -347,6 +349,7 @@ class TiffSplitPanel:
         self.selected_files = list(files)
         self.error_folder = self._prepare_error_folder(folder)
         self.has_errors = False
+        self.split_completed = False
         self.selection_label.configure(text=str(folder), text_color=self.theme["fg_primary"])
         self.count_label.configure(text=f"  {len(self.selected_files)} TIFFs  ")
         self.count_label.grid(row=0, column=3, padx=(0, 14))
@@ -385,6 +388,7 @@ class TiffSplitPanel:
         self.parent.operation_type = "split"
         self.has_errors = False
         self.cancel_stage = 0
+        self.split_completed = False
 
         if not self.error_folder:
             base_folder = self.selected_folder or self.selected_files[0].parent
@@ -470,17 +474,22 @@ class TiffSplitPanel:
                     level,
                 )
                 self._log("Split job cancelled before all TIFFs were processed.", "warning")
+                self.split_completed = False
             else:
                 self._set_info(
                     f"✓  Complete — {results.get('success', 0)} split  ·  "
                     f"{results.get('skipped', 0)} skipped  ·  {results.get('failed', 0)} failed",
                     level,
                 )
+                self.split_completed = True
             if results.get("errors"):
                 self._generate_error_report(results)
                 self.btn_error_report.configure(state="normal")
                 self._log("Some TIFFs failed — click 'View Errors' for details.", "warning")
-            self.btn_start.configure(state="normal", text="  ▶  Start Split")
+            if self.split_completed:
+                self.btn_start.configure(state="disabled", text="Finished")
+            else:
+                self.btn_start.configure(state="normal", text="  ▶  Start Split")
             self.btn_new_job.configure(state="normal")
             self.btn_cancel.configure(state="disabled", text="  ■  Cancel")
             self.cancel_stage = 0
@@ -498,6 +507,7 @@ class TiffSplitPanel:
         self.selected_files = []
         self.error_folder = None
         self.has_errors = False
+        self.split_completed = False
 
         self.selection_label.configure(text="No files or folder selected", text_color=self.theme["fg_tertiary"])
         self.count_label.grid_remove()
