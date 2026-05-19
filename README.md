@@ -209,7 +209,7 @@ Required to run:
 
 Not required for launch:
 - `testing/`
-- `project-dashboard/`
+- `docs/`
 - top-level markdown docs
 
 ## Repo Layout
@@ -227,7 +227,7 @@ testing/    per-tool generators, test runners, and local test scratch space
 - `README.md` — setup, workflow, naming rules, deployment
 - `TODO.md` — open issues and future enhancements
 - `deploy/README.md` — Windows Scripts deployment notes
-- `project-dashboard/` — optional HTML/CSS/JS project dashboard
+- `docs/` — GitHub Pages project dashboard (HTML/CSS/JS)
 - CustomTkinter offline docs/code reference (local fork): `/Users/baghead/code/CustomTkinter`
 
 ## Testing
