@@ -23,6 +23,8 @@ C:\Users\<user>\Scripts\
    ├─ dpa-image-toolkit.py
    ├─ main.py
    ├─ requirements.txt
+   ├─ app-settings.json      ← created automatically on first run
+   ├─ user-manual.html
    ├─ gui\
    ├─ modules\
    └─ utils\

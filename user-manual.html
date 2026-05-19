@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPA Image Toolkit — User Manual</title>
+  <style>
+    /* ── Design tokens ────────────────────────────────────────── */
+    :root {
+      --bg: #f4f1e8;
+      --panel: rgba(255, 253, 248, 0.88);
+      --panel-border: rgba(64, 55, 44, 0.12);
+      --text: #2f261d;
+      --muted: #6b6054;
+      --accent: #205b52;
+      --accent-soft: rgba(32, 91, 82, 0.12);
+      --shadow: 0 18px 38px rgba(60, 46, 27, 0.1);
+      --nav-bg: rgba(255, 253, 248, 0.94);
+      --nav-width: 220px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1a1612;
+      --panel: rgba(30, 26, 20, 0.92);
+      --panel-border: rgba(255, 240, 210, 0.1);
+      --text: #f0e8d8;
+      --muted: #a89880;
+      --accent: #5aaa96;
+      --accent-soft: rgba(90, 170, 150, 0.14);
+      --shadow: 0 18px 38px rgba(0, 0, 0, 0.4);
+      --nav-bg: rgba(26, 22, 18, 0.96);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.25s, color 0.25s;
+    }
+
+    [data-theme="light"] body,
+    :root body {
+      background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.6), transparent 32%),
+        linear-gradient(180deg, #f8f5ee 0%, #efe8db 100%);
+    }
+
+    [data-theme="dark"] body {
+      background:
+        radial-gradient(circle at top left, rgba(60, 50, 35, 0.4), transparent 32%),
+        linear-gradient(180deg, #1e1a14 0%, #141008 100%);
+    }
+
+    /* ── Layout shell ────────────────────────────────────────── */
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Left nav ────────────────────────────────────────────── */
+
+    .nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      width: var(--nav-width);
+      flex-shrink: 0;
+      background: var(--nav-bg);
+      border-right: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      backdrop-filter: blur(10px);
+      transition: background 0.25s, border-color 0.25s;
+      z-index: 10;
+    }
+
+    .nav-brand {
+      padding: 22px 18px 14px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .nav-brand p {
+      margin: 0 0 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .nav-brand strong {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    .nav-links {
+      flex: 1;
+      padding: 12px 0;
+    }
+
+    .nav-group-label {
+      padding: 10px 18px 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .nav-link {
+      display: block;
+      padding: 7px 18px;
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    /* ── Theme toggle ────────────────────────────────────────── */
+
+    .nav-footer {
+      padding: 14px 18px;
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .nav-footer label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .theme-toggle {
+      display: flex;
+      gap: 6px;
+    }
+
+    .theme-btn {
+      flex: 1;
+      padding: 6px 0;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .theme-btn:hover {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .theme-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* ── Main content ────────────────────────────────────────── */
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 40px 44px 64px 44px;
+      max-width: 860px;
+    }
+
+    /* ── Search tip bar ──────────────────────────────────────── */
+
+    .search-tip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      margin-bottom: 24px;
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-sm);
+      background: var(--accent-soft);
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .search-tip kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      border: 1px solid var(--panel-border);
+      border-radius: 5px;
+      background: var(--panel);
+      font-family: "SF Mono", Consolas, Menlo, monospace;
+      font-size: 0.82em;
+      color: var(--accent);
+      font-style: normal;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+
+    .hero {
+      padding: 36px 40px;
+      border: 1px solid var(--panel-border);
+      border-radius: calc(var(--radius-lg) + 6px);
+      background:
+        linear-gradient(135deg, rgba(32, 91, 82, 0.16), rgba(255, 253, 248, 0.88) 42%),
+        var(--panel);
+      box-shadow: var(--shadow);
+      margin-bottom: 4px;
+    }
+
+    [data-theme="dark"] .hero {
+      background:
+        linear-gradient(135deg, rgba(90, 170, 150, 0.12), rgba(30, 26, 20, 0.9) 42%),
+        var(--panel);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 700;
+    }
+
+    h1 { font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1; }
+    h2 { font-size: 1.25rem; }
+    h3 { font-size: 0.97rem; }
+
+    .hero-tagline {
+      max-width: 660px;
+      margin: 14px 0 0;
+      font-size: 1.02rem;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .stat-card {
+      padding: 14px 16px;
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 8px 20px rgba(84, 70, 50, 0.07);
+    }
+
+    [data-theme="dark"] .stat-card {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .stat-card span {
+      display: block;
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .stat-card strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1.5rem;
+      color: var(--accent);
+    }
+
+    /* ── Sections ────────────────────────────────────────────── */
+
+    .section {
+      margin-top: 24px;
+      padding: 26px 30px;
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      scroll-margin-top: 28px;
+    }
+
+    .section-header {
+      margin-bottom: 18px;
+    }
+
+    .section-header .eyebrow {
+      margin-bottom: 6px;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────── */
+
+    .cards { display: grid; gap: 12px; }
+
+    .card {
+      padding: 16px 18px;
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 8px 20px rgba(84, 70, 50, 0.07);
+    }
+
+    [data-theme="dark"] .card {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .card h3 { margin-bottom: 8px; }
+
+    .card p {
+      margin: 0;
+      line-height: 1.6;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .card p + p { margin-top: 8px; }
+
+    .card-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    /* ── Pills ───────────────────────────────────────────────── */
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    /* ── Lists ───────────────────────────────────────────────── */
+
+    ul.guide-list {
+      margin: 0;
+      padding: 0 0 0 18px;
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.7;
+    }
+
+    ul.guide-list li + li { margin-top: 4px; }
+
+    ol.steps-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: steps;
+    }
+
+    ol.steps-list li {
+      counter-increment: steps;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      font-size: 0.94rem;
+      line-height: 1.6;
+      color: var(--muted);
+      padding: 9px 0;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    ol.steps-list li:last-child { border-bottom: none; padding-bottom: 0; }
+    ol.steps-list li:first-child { padding-top: 0; }
+
+    ol.steps-list li::before {
+      content: counter(steps);
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.76rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+
+    /* ── Code snippets ───────────────────────────────────────── */
+
+    code {
+      font-family: "SF Mono", Consolas, Menlo, monospace;
+      font-size: 0.84em;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(32, 91, 82, 0.1);
+      color: var(--accent);
+    }
+
+    [data-theme="dark"] code {
+      background: rgba(90, 170, 150, 0.14);
+    }
+
+    /* ── Timeline ────────────────────────────────────────────── */
+
+    .timeline { display: grid; gap: 10px; }
+
+    .timeline-item {
+      padding: 13px 16px;
+      border: 1px solid var(--panel-border);
+      border-left: 5px solid var(--accent);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 6px 16px rgba(84, 70, 50, 0.06);
+    }
+
+    [data-theme="dark"] .timeline-item {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .timeline-item h3 { margin-bottom: 4px; font-size: 0.94rem; }
+
+    .timeline-item p {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    /* ── Operation cards ─────────────────────────────────────── */
+
+    .op-card {
+      background: var(--accent-soft) !important;
+      border-color: rgba(32, 91, 82, 0.18) !important;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+
+    .footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--panel-border);
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* ── Responsive ──────────────────────────────────────────── */
+
+    @media (max-width: 720px) {
+      .nav { display: none; }
+      .main { padding: 20px 16px 48px; }
+      .card-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Left nav ───────────────────────────────────────────────── -->
+  <nav class="nav" aria-label="Manual navigation">
+    <div class="nav-brand">
+      <p>User Manual</p>
+      <strong>DPA Image Toolkit</strong>
+    </div>
+
+    <div class="nav-links">
+      <a class="nav-link" href="#getting-started">Getting Started</a>
+
+      <div class="nav-group-label">Tools</div>
+      <a class="nav-link" href="#auto-crop">Auto Crop</a>
+      <a class="nav-link" href="#merge-tiffs">Merge TIFFs</a>
+      <a class="nav-link" href="#split-tiffs">Split TIFFs</a>
+      <a class="nav-link" href="#add-border">Add Border</a>
+      <a class="nav-link" href="#ocr-to-pdf">OCR to PDF</a>
+      <a class="nav-link" href="#pdf-conversion">PDF Conversion</a>
+
+      <div class="nav-group-label">Reference</div>
+      <a class="nav-link" href="#workflow">Typical Workflow</a>
+      <a class="nav-link" href="#requirements">Requirements</a>
+    </div>
+
+    <div class="nav-footer">
+      <label>Appearance</label>
+      <div class="theme-toggle">
+        <button class="theme-btn" id="btn-light" onclick="setTheme('light')">Light</button>
+        <button class="theme-btn" id="btn-dark" onclick="setTheme('dark')">Dark</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main content ───────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Search tip -->
+    <div class="search-tip" role="note">
+      <span>Tip: use</span>
+      <kbd>Ctrl</kbd><span>+</span><kbd>F</kbd>
+      <span>(Windows) or</span>
+      <kbd>⌘</kbd><span>+</span><kbd>F</kbd>
+      <span>(Mac) to search anywhere in this manual.</span>
+    </div>
+
+    <!-- Hero -->
+    <header class="hero" id="top">
+      <p class="eyebrow">User Manual</p>
+      <h1>DPA Image Toolkit</h1>
+      <p class="hero-tagline">
+        Desktop toolkit for archival image cleanup and TIFF workflow management.
+        Six integrated tools cover the full scan-to-archive pipeline: crop, merge,
+        split, border, OCR, and PDF conversion.
+      </p>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span>Tools</span>
+          <strong>6</strong>
+        </div>
+        <div class="stat-card">
+          <span>Stack</span>
+          <strong style="font-size:1.05rem;margin-top:9px">Python</strong>
+        </div>
+        <div class="stat-card">
+          <span>Target Use</span>
+          <strong style="font-size:0.95rem;margin-top:9px">Archival imaging</strong>
+        </div>
+        <div class="stat-card">
+          <span>Launcher</span>
+          <strong style="font-size:0.9rem;margin-top:9px">image-toolkit.bat</strong>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Getting Started ──────────────────────────────────────── -->
+    <section class="section" id="getting-started">
+      <div class="section-header">
+        <p class="eyebrow">First Steps</p>
+        <h2>Getting Started</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <h3>Launching the App</h3>
+          <p>
+            On Windows, double-click <code>image-toolkit.bat</code> from your
+            <code>Scripts\dpa-img-tk\</code> folder or from a Desktop shortcut.
+            The launcher is absolute-path aware — a Desktop copy still starts the
+            app from its install location.
+          </p>
+          <p>
+            On macOS or Linux, run <code>python dpa-image-toolkit.py</code> from
+            the project folder after installing dependencies.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Installing Dependencies</h3>
+          <p>
+            Run <code>pip install -r requirements.txt</code> from the
+            <code>dpa-img-tk\</code> folder. Core requirements are
+            <code>customtkinter</code>, <code>Pillow</code>,
+            <code>opencv-python</code>, <code>numpy</code>, <code>pypdf</code>,
+            and <code>pypdfium2</code>.
+          </p>
+          <p>
+            The OCR to PDF tool additionally requires
+            <strong>Tesseract OCR</strong> installed locally with the English
+            language pack (<code>eng</code>). All other tools work without it.
+          </p>
+        </div>
+        <div class="card">
+          <h3>General Behavior</h3>
+          <p>
+            Every tool writes output to a subfolder alongside your source —
+            originals are never overwritten. A live log shows what the tool is
+            doing file by file. If any files fail, an error report button appears
+            after the run so you can review what went wrong.
+          </p>
+          <p>
+            Click <strong>New Job</strong> after a run completes to reset the
+            panel and start fresh without relaunching the app.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Auto Crop ────────────────────────────────────────────── -->
+    <section class="section" id="auto-crop">
+      <div class="section-header">
+        <p class="eyebrow">Tool 1 of 6</p>
+        <h2>Auto Crop</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Detects non-white content in scanned images and crops away scanner-created
+            white space. All meaningful regions are collected into a single bounding
+            box before the crop is applied — so nothing is lost to an overly tight cut.
+            Original files are untouched; cropped copies go to a subfolder.
+          </p>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <h3>Input</h3>
+            <p>A folder of image files. Supported: TIFF, JPEG, PNG, BMP, GIF.</p>
+          </div>
+          <div class="card">
+            <h3>Output</h3>
+            <ul class="guide-list">
+              <li><code>input_folder/cropped/</code> — successfully cropped images</li>
+              <li><code>input_folder/errored-files/</code> — files that failed</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Select the image folder using the folder picker button.</li>
+            <li>The stats strip shows how many supported image files were found.</li>
+            <li>Click <strong>Start</strong>. The live log shows each file as it processes.</li>
+            <li>When complete, open <code>cropped/</code> to review output.</li>
+            <li>If any files failed, click <strong>Error Report</strong> to review them.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Works best on scans with white or near-white backgrounds (brightness 254+).</li>
+            <li>Content threshold is 253 — pixels at or below this value are treated as content.</li>
+            <li>Contours smaller than 50×50 pixels are ignored to filter out dust and noise.</li>
+            <li>Padding around the detected region: 2.5% of image size, clamped to 15–100 px.</li>
+            <li>DPI metadata from the source file is preserved in the output.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Merge TIFFs ──────────────────────────────────────────── -->
+    <section class="section" id="merge-tiffs">
+      <div class="section-header">
+        <p class="eyebrow">Tool 2 of 6</p>
+        <h2>Merge TIFFs</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Combines groups of TIFF page files into multi-page TIFFs. Files are grouped by
+            their naming pattern — everything before the trailing <code>_###</code> is the
+            group name. Mixed folders are supported: unrecognized files are skipped with a
+            warning rather than stopping the job.
+          </p>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <h3>Input</h3>
+            <p>
+              A folder of TIFF files following the naming pattern:<br>
+              <code>{name}_{group}_{###}.tif</code> or <code>.tiff</code>
+            </p>
+            <p>Example: <code>9200-T16-000_207_003.tif</code></p>
+          </div>
+          <div class="card">
+            <h3>Output</h3>
+            <ul class="guide-list">
+              <li><code>input_folder/merged/</code> — one multi-page TIFF per group</li>
+              <li><code>input_folder/errored-files/</code> — files that failed</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Select the TIFF folder using the folder picker.</li>
+            <li>The tool scans the folder and displays the number of detected merge groups.</li>
+            <li>Click <strong>Start</strong>. Each group produces one output TIFF.</li>
+            <li>Review merged files in <code>merged/</code> when complete.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Pages within each group are sorted in numeric order before merging.</li>
+            <li>A one-file group is valid and produces a single-page multi-frame TIFF.</li>
+            <li>Unmatched TIFFs are skipped with a warning; they do not fail the job.</li>
+            <li>Output DPI is taken from the first valid file in each group.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Split TIFFs ──────────────────────────────────────────── -->
+    <section class="section" id="split-tiffs">
+      <div class="section-header">
+        <p class="eyebrow">Tool 3 of 6</p>
+        <h2>Split Multi-Page TIFFs</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Extracts each page of a multi-page TIFF into its own individual single-page TIFF.
+            Useful when an archive receives multi-page masters that require page-level access.
+            Single-page TIFFs are silently skipped — only multi-page files are split.
+          </p>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <h3>Input</h3>
+            <p>
+              One or more TIFF files, or a folder of TIFFs.
+              The picker lets you choose between file mode and folder mode.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Output</h3>
+            <ul class="guide-list">
+              <li>Folder mode: <code>selected_folder/extracted-pages/</code></li>
+              <li>File mode: <code>{original_name}_pages/</code> alongside each source</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Click the picker and choose <strong>Select Folder</strong> or <strong>Select Files</strong>.</li>
+            <li>Selected files are scanned; the count excludes single-page TIFFs that will be skipped.</li>
+            <li>Click <strong>Start</strong>. Pages are written to the output folder as extracted.</li>
+            <li>Review extracted pages in the output folder when complete.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Single-page TIFFs are automatically skipped — no action needed.</li>
+            <li>Output page files are named <code>{original_name}_page_{###}.tif</code>.</li>
+            <li>DPI metadata from the source is preserved in each extracted page when available.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Add Border ───────────────────────────────────────────── -->
+    <section class="section" id="add-border">
+      <div class="section-header">
+        <p class="eyebrow">Tool 4 of 6</p>
+        <h2>Add Border</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Adds a white border around every image in a folder using the same proportional
+            padding logic as Auto Crop. Intended for book scans, presentation-ready images,
+            or any set that needs consistent margins. Original files are never modified.
+          </p>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <h3>Input</h3>
+            <p>A folder of image files (TIFF, JPEG, PNG, BMP, GIF).</p>
+          </div>
+          <div class="card">
+            <h3>Output</h3>
+            <ul class="guide-list">
+              <li><code>input_folder/bordered/</code> — images with border added</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Select the image folder using the folder picker.</li>
+            <li>The file count shows how many images will be processed.</li>
+            <li>Click <strong>Start</strong>. Bordered copies are written to <code>bordered/</code>.</li>
+            <li>Original images remain untouched in the source folder.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Border width: 2.5% of the image's shorter dimension, clamped to 15–100 px.</li>
+            <li>Uses the same padding rule as Auto Crop for consistent pipeline output.</li>
+            <li>Border color is always white regardless of image content.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── OCR to PDF ────────────────────────────────────────────── -->
+    <section class="section" id="ocr-to-pdf">
+      <div class="section-header">
+        <p class="eyebrow">Tool 5 of 6</p>
+        <h2>OCR to PDF</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Groups scan image files by their trailing four-digit sequence number and produces
+            one searchable PDF per group in a <code>PDFs/</code> subfolder. A single valid
+            file is still processed as a one-page PDF. Requires Tesseract OCR installed locally.
+          </p>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <h3>Input</h3>
+            <p>
+              A folder of scan images named:<br>
+              <code>{name}_{####}.ext</code>
+            </p>
+            <p>
+              Example: <code>packet_0001.tif</code>, <code>packet_0002.tif</code><br>
+              Supported: TIFF, JPEG, PNG, BMP
+            </p>
+          </div>
+          <div class="card">
+            <h3>Output</h3>
+            <ul class="guide-list">
+              <li><code>input_folder/PDFs/</code> — one searchable PDF per document group</li>
+              <li><code>input_folder/errored-files/ocr-pdf/</code> — files that failed</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Select the image folder. The tool groups files and shows the document count.</li>
+            <li>
+              Choose options before starting:
+              <ul class="guide-list" style="margin-top:6px">
+                <li><strong>Skip existing</strong> — skip groups that already have an output PDF.</li>
+                <li><strong>Quality precheck</strong> — flag low-quality pages; they stay in the PDF but without OCR text.</li>
+                <li><strong>Reduce PDF</strong> — apply compression to output PDFs; choose a compression profile.</li>
+              </ul>
+            </li>
+            <li>Click <strong>Start</strong>. Per-page and per-job progress bars update as work proceeds.</li>
+            <li>PDFs appear in <code>PDFs/</code> as each group completes.</li>
+            <li>Use <strong>Save Log</strong> to export the run log after the job finishes.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Tesseract OCR must be installed with the English language pack (<code>eng</code>).</li>
+            <li>Multi-page TIFFs in the input are expanded to per-page entries before grouping.</li>
+            <li>The output PDF base name is everything before the trailing <code>_####</code>.</li>
+            <li>Quality precheck results are shown in the log; flagged pages are not discarded.</li>
+            <li>Compression profiles are shared with PDF Conversion for consistent output sizes.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PDF Conversion ────────────────────────────────────────── -->
+    <section class="section" id="pdf-conversion">
+      <div class="section-header">
+        <p class="eyebrow">Tool 6 of 6</p>
+        <h2>PDF Conversion</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Four operations in one panel: reduce PDF file size, split a PDF into pages,
+            export PDF pages as images, and extract a selected page range into a new PDF.
+            Select the operation first — the input picker and available options update accordingly.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Operations</h3>
+          <div class="cards" style="margin-top:4px">
+            <div class="card op-card">
+              <span class="pill">Reduce Size</span>
+              <h3 style="margin-bottom:6px">Compress PDFs</h3>
+              <p>
+                Input: a single PDF or a folder of PDFs.<br>
+                Output: <code>reduced-pdfs/</code> next to the source.<br>
+                Choose a compression profile from the dropdown.
+              </p>
+            </div>
+            <div class="card op-card">
+              <span class="pill">Split PDF</span>
+              <h3 style="margin-bottom:6px">Split into Pages</h3>
+              <p>
+                Input: a single PDF file.<br>
+                Output format: Single-page PDFs, JPEG, PNG, or TIFF images.<br>
+                Output: <code>split-pdfs/{pdf_name}/</code> or <code>split-images/{pdf_name}/</code>.
+              </p>
+            </div>
+            <div class="card op-card">
+              <span class="pill">Extract Pages</span>
+              <h3 style="margin-bottom:6px">Pull a Page Range</h3>
+              <p>
+                Input: a single PDF file. Enter page numbers or ranges
+                (e.g. <code>1,3,5-8</code>).<br>
+                Output: <code>extracted-pages/</code>.<br>
+                Optionally remove extracted pages from the source:
+                <em>Safe</em> creates a remaining PDF;
+                <em>Overwrite</em> replaces the source (confirm required).
+              </p>
+            </div>
+            <div class="card op-card">
+              <span class="pill">PDF/A (Preview)</span>
+              <h3 style="margin-bottom:6px">Convert to PDF/A</h3>
+              <p>
+                Input: a single PDF file.<br>
+                Converts to archival PDF/A format. This feature is in preview —
+                verify output in your PDF/A validator before relying on it.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Select an operation from the operation dropdown at the top of the panel.</li>
+            <li>Use the picker to select a file or folder (the picker label updates per operation).</li>
+            <li>Set any operation-specific options (compression profile, output format, page range).</li>
+            <li>Click <strong>Start</strong>. The log shows progress file by file.</li>
+            <li>Output appears in the subfolder next to the source when the job completes.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Reduce Size is the only operation that supports folder input; others require a single file.</li>
+            <li>Split and Extract use pypdfium2 for rendering — included in <code>requirements.txt</code>.</li>
+            <li>Page numbers in Extract are 1-based and can be individual values or ranges.</li>
+            <li>Overwrite remove mode replaces the source file permanently — use with caution.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Typical Workflow ──────────────────────────────────────── -->
+    <section class="section" id="workflow">
+      <div class="section-header">
+        <p class="eyebrow">End to End</p>
+        <h2>Typical Workflow</h2>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h3>1. Scan or collect images</h3>
+          <p>Start with a folder of raw scan outputs — TIFF, JPEG, or PNG.</p>
+        </div>
+        <div class="timeline-item">
+          <h3>2. Auto Crop</h3>
+          <p>Remove scanner-created white borders. Output lands in <code>cropped/</code>.</p>
+        </div>
+        <div class="timeline-item">
+          <h3>3. Add Border (optional)</h3>
+          <p>Add consistent margins to the cropped images — useful for book scans or presentation sets.</p>
+        </div>
+        <div class="timeline-item">
+          <h3>4. Merge TIFFs</h3>
+          <p>
+            Combine correctly named page files into multi-page TIFFs.
+            Ensure files follow <code>{name}_{group}_{###}.tif</code> before running.
+          </p>
+        </div>
+        <div class="timeline-item">
+          <h3>5. Split TIFFs (if needed)</h3>
+          <p>Break apart any existing multi-page TIFFs that need page-level access.</p>
+        </div>
+        <div class="timeline-item">
+          <h3>6. OCR to PDF</h3>
+          <p>
+            Build searchable grouped PDFs from a folder of <code>{name}_{####}</code> page images.
+            Enable quality precheck and PDF compression for production use.
+          </p>
+        </div>
+        <div class="timeline-item">
+          <h3>7. PDF Conversion (as needed)</h3>
+          <p>
+            Reduce file size, split pages for delivery, export page images, or extract
+            specific page ranges from finished PDFs.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Requirements ─────────────────────────────────────────── -->
+    <section class="section" id="requirements">
+      <div class="section-header">
+        <p class="eyebrow">Setup</p>
+        <h2>Requirements</h2>
+      </div>
+      <div class="cards">
+        <div class="card-row">
+          <div class="card">
+            <h3>Python Packages</h3>
+            <ul class="guide-list">
+              <li><code>customtkinter &gt;= 5.0.0</code></li>
+              <li><code>Pillow &gt;= 10.0.0</code></li>
+              <li><code>opencv-python &gt;= 4.8.0</code></li>
+              <li><code>numpy &gt;= 1.24.0</code></li>
+              <li><code>pypdf &gt;= 5.0.0</code></li>
+              <li><code>pypdfium2 &gt;= 4.30.0</code></li>
+            </ul>
+            <p style="margin-top:10px">
+              Install: <code>pip install -r requirements.txt</code>
+            </p>
+          </div>
+          <div class="card">
+            <h3>External Tools</h3>
+            <ul class="guide-list">
+              <li><strong>Tesseract OCR</strong> — required for OCR to PDF only</li>
+              <li>English language pack (<code>eng</code>) must be installed</li>
+              <li>All other tools work without Tesseract</li>
+            </ul>
+            <p style="margin-top:10px">
+              The dependency sidebar in the app shows which requirements
+              are met before you start each tool.
+            </p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Windows Deployment Path</h3>
+          <p>
+            Copy the contents of <code>deploy/</code> into
+            <code>C:\Users\[user]\Scripts\</code>. Keep <code>image-toolkit.bat</code>
+            in <code>Scripts\</code> and all app files under
+            <code>Scripts\dpa-img-tk\</code>. A shortcut to
+            <code>image-toolkit.bat</code> on the Desktop will launch the app
+            correctly from either location.
+          </p>
+          <p>
+            Settings and theme preferences are stored in
+            <code>Scripts\dpa-img-tk\app-settings.json</code> and are created
+            automatically on first run.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>DPA Image Toolkit — User Manual</p>
+    </footer>
+  </div><!-- /.main -->
+</div><!-- /.layout -->
+
+<script>
+  // ── Theme handling ─────────────────────────────────────────────
+
+  function applyTheme(mode) {
+    document.documentElement.setAttribute('data-theme', mode);
+    document.getElementById('btn-light').classList.toggle('active', mode === 'light');
+    document.getElementById('btn-dark').classList.toggle('active', mode === 'dark');
+    localStorage.setItem('dpa-toolkit-theme', mode);
+  }
+
+  function setTheme(mode) {
+    applyTheme(mode);
+  }
+
+  function initTheme() {
+    // 1. Try to read app-settings.json from the same folder as this manual.
+    //    Works in Firefox and Edge with local files; Chrome blocks file:// fetches.
+    fetch('./app-settings.json')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        const mode = String(data.appearance_mode || data.dark_mode || '').toLowerCase();
+        if (mode === 'dark' || mode === 'true') return applyTheme('dark');
+        if (mode === 'light') return applyTheme('light');
+        // "system" or unknown — fall through to localStorage
+        return fromLocalStorage();
+      })
+      .catch(() => fromLocalStorage());
+  }
+
+  function fromLocalStorage() {
+    const saved = localStorage.getItem('dpa-toolkit-theme');
+    applyTheme(saved === 'dark' ? 'dark' : 'light');
+  }
+
+  initTheme();
+
+  // ── Active nav link on scroll ──────────────────────────────────
+
+  const sections = document.querySelectorAll('section[id], header[id]');
+  const navLinks = document.querySelectorAll('.nav-link');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

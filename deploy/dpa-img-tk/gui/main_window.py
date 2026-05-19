@@ -44,7 +44,7 @@ def _get_settings_path() -> Path:
 
     Priority:
     1. `DPA_IMAGE_TOOLKIT_SETTINGS` environment variable (file or directory)
-    2. `<launch_dir_parent>/settings/app-settings.json`
+    2. `<launch_dir>/app-settings.json` (same folder as the launched script)
     """
     env_path = os.environ.get(SETTINGS_ENV_VAR, "").strip()
     if env_path:
@@ -52,7 +52,7 @@ def _get_settings_path() -> Path:
 
     launch_target = Path(sys.argv[0]).resolve() if sys.argv and sys.argv[0] else Path.cwd()
     launch_dir = launch_target.parent
-    return launch_dir.parent / "settings" / SETTINGS_FILENAME
+    return launch_dir / SETTINGS_FILENAME
 
 
 def _load_app_settings() -> dict:
