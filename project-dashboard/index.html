@@ -8,20 +8,31 @@
 </head>
 <body>
     <div class="shell">
+
+        <!-- ── Hero ───────────────────────────────────────────── -->
         <header class="hero">
             <div class="hero-copy">
-                <p class="eyebrow">GitHub Pages Dashboard</p>
+                <p class="eyebrow">Project Dashboard</p>
                 <h1 id="project-name">DPA Image Toolkit</h1>
                 <p class="tagline" id="project-tagline"></p>
                 <p class="summary" id="project-summary"></p>
                 <div class="hero-meta">
                     <span class="meta-pill" id="project-version"></span>
                     <span class="meta-pill" id="project-status"></span>
+                    <a class="meta-pill meta-pill-link" id="github-link" href="#" target="_blank" rel="noreferrer">GitHub ↗</a>
+                </div>
+                <div class="github-stats" id="github-stats">
+                    <span class="gh-stat" id="gh-stars">⭐ —</span>
+                    <span class="gh-stat" id="gh-forks">⑂ —</span>
+                    <span class="gh-stat" id="gh-issues">⊙ —</span>
+                    <span class="gh-stat" id="gh-pushed">↑ —</span>
                 </div>
             </div>
         </header>
 
         <main class="content">
+
+            <!-- ── Highlights ─────────────────────────────────── -->
             <section class="section">
                 <div class="section-header">
                     <p class="eyebrow">Snapshot</p>
@@ -30,6 +41,7 @@
                 <div class="stat-grid" id="highlights"></div>
             </section>
 
+            <!-- ── Tools ──────────────────────────────────────── -->
             <section class="section">
                 <div class="section-header">
                     <p class="eyebrow">Toolkit</p>
@@ -38,7 +50,88 @@
                 <div class="tool-grid" id="tools"></div>
             </section>
 
+            <!-- ── Open Issues + Completed ────────────────────── -->
             <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Work Queue</p>
+                        <h2>Open Issues</h2>
+                    </div>
+                    <div id="open-issues-list"></div>
+                    <div id="github-issues-note" class="live-badge" style="display:none">
+                        <span class="live-dot"></span> Live from GitHub
+                    </div>
+                </section>
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Done</p>
+                        <h2>Completed</h2>
+                    </div>
+                    <ul class="stacked-list check-list" id="completed-list"></ul>
+                </section>
+            </section>
+
+            <!-- ── Roadmap + HCR ──────────────────────────────── -->
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Future</p>
+                        <h2>Roadmap</h2>
+                    </div>
+                    <div id="roadmap-list"></div>
+                </section>
+                <section class="section">
+                    <div class="section-header">
+                        <p class="eyebrow">Research Track</p>
+                        <h2>HCR Investigation</h2>
+                    </div>
+                    <div id="hcr-section"></div>
+                </section>
+            </section>
+
+            <!-- ── GitHub Activity ────────────────────────────── -->
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header between">
+                        <div>
+                            <p class="eyebrow">GitHub</p>
+                            <h2>Recent Commits</h2>
+                        </div>
+                        <div class="live-badge" id="commits-live-badge" style="display:none">
+                            <span class="live-dot"></span> Live
+                        </div>
+                    </div>
+                    <ul class="stacked-list mono-list" id="recent-commits"></ul>
+                </section>
+                <section class="section">
+                    <div class="section-header between">
+                        <div>
+                            <p class="eyebrow">GitHub</p>
+                            <h2>Open Pull Requests</h2>
+                        </div>
+                        <div class="live-badge" id="prs-live-badge" style="display:none">
+                            <span class="live-dot"></span> Live
+                        </div>
+                    </div>
+                    <div id="open-prs"></div>
+                </section>
+            </section>
+
+            <!-- ── Language Breakdown ─────────────────────────── -->
+            <section class="two-column">
+                <section class="section">
+                    <div class="section-header between">
+                        <div>
+                            <p class="eyebrow">Language Data</p>
+                            <h2>Tracked File Mix</h2>
+                        </div>
+                        <div class="live-badge" id="langs-live-badge" style="display:none">
+                            <span class="live-dot"></span> Live
+                        </div>
+                    </div>
+                    <div class="language-list" id="languages"></div>
+                    <p class="footnote" id="language-note"></p>
+                </section>
                 <section class="section">
                     <div class="section-header">
                         <p class="eyebrow">Workflow</p>
@@ -46,54 +139,17 @@
                     </div>
                     <ol class="stacked-list numbered" id="workflow"></ol>
                 </section>
+            </section>
 
+            <!-- ── Architecture + Dependencies ───────────────── -->
+            <section class="two-column">
                 <section class="section">
                     <div class="section-header">
                         <p class="eyebrow">Architecture</p>
                         <h2>Repo Structure</h2>
                     </div>
-                    <ul class="stacked-list" id="architecture"></ul>
+                    <ul class="stacked-list mono-list" id="architecture"></ul>
                 </section>
-            </section>
-
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Language Data</p>
-                        <h2>Tracked File Mix</h2>
-                    </div>
-                    <div class="language-list" id="languages"></div>
-                    <p class="footnote" id="language-note"></p>
-                </section>
-
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Current Work</p>
-                        <h2>Open Issues</h2>
-                    </div>
-                    <ul class="stacked-list issue-list" id="open-issues"></ul>
-                </section>
-            </section>
-
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Roadmap</p>
-                        <h2>Future Ideas</h2>
-                    </div>
-                    <ul class="stacked-list" id="future-ideas"></ul>
-                </section>
-
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Limitations</p>
-                        <h2>Current Constraints</h2>
-                    </div>
-                    <ul class="stacked-list" id="limitations"></ul>
-                </section>
-            </section>
-
-            <section class="two-column">
                 <section class="section">
                     <div class="section-header">
                         <p class="eyebrow">Dependencies</p>
@@ -101,33 +157,35 @@
                     </div>
                     <ul class="stacked-list mono-list" id="dependencies"></ul>
                 </section>
-
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Structure</p>
-                        <h2>Key Paths</h2>
-                    </div>
-                    <ul class="stacked-list mono-list" id="source-repos"></ul>
-                </section>
             </section>
 
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Repo Docs</p>
-                        <h2>Project Docs</h2>
-                    </div>
-                    <div class="docs-grid" id="docs"></div>
-                </section>
-
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Recent Changes</p>
-                        <h2>Latest Commits</h2>
-                    </div>
-                    <ul class="stacked-list mono-list" id="recent-commits"></ul>
-                </section>
+            <!-- ── Docs ───────────────────────────────────────── -->
+            <section class="section">
+                <div class="section-header">
+                    <p class="eyebrow">Repo Docs</p>
+                    <h2>Documentation</h2>
+                </div>
+                <div class="docs-grid" id="docs"></div>
             </section>
+
+            <!-- ── Questions for Bryan ────────────────────────── -->
+            <section class="section section-questions">
+                <div class="section-header">
+                    <p class="eyebrow">Parking Lot</p>
+                    <h2>Questions for Bryan</h2>
+                </div>
+                <div id="questions-list"></div>
+            </section>
+
+            <!-- ── Dashboard TODO ─────────────────────────────── -->
+            <section class="section section-meta">
+                <div class="section-header">
+                    <p class="eyebrow">Meta</p>
+                    <h2>Dashboard TODO</h2>
+                </div>
+                <div id="dashboard-todo-list"></div>
+            </section>
+
         </main>
 
         <footer class="footer">

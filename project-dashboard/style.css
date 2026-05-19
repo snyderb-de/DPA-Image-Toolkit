@@ -285,6 +285,347 @@ h1 {
     text-decoration: underline;
 }
 
+/* ── GitHub stats bar ─────────────────────────────────── */
+
+.meta-pill-link {
+    text-decoration: none;
+    color: var(--accent-strong);
+}
+
+.meta-pill-link:hover {
+    background: var(--border);
+}
+
+.github-stats {
+    display: none;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 14px;
+}
+
+.gh-stat {
+    font-size: 0.92rem;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+/* ── Live badge ───────────────────────────────────────── */
+
+.live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #2e7d32;
+    background: #e8f5e9;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid #a5d6a7;
+}
+
+.live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #43a047;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+.section-header.between {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+/* ── Issue items ──────────────────────────────────────── */
+
+.issue-item {
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-alt);
+}
+
+.issue-header {
+    margin-bottom: 6px;
+}
+
+.issue-area {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--accent-strong);
+}
+
+.issue-title {
+    margin: 0 0 4px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+}
+
+.issue-detail {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+/* ── Completed list ───────────────────────────────────── */
+
+.check-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.check-list li {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-alt);
+    font-size: 0.93rem;
+}
+
+.check-list li::before {
+    content: "✓ ";
+    color: #2e7d32;
+    font-weight: 700;
+}
+
+.item-detail {
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+/* ── Roadmap ──────────────────────────────────────────── */
+
+.roadmap-item {
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-alt);
+}
+
+.roadmap-header {
+    margin-bottom: 4px;
+}
+
+.priority-badge {
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.roadmap-title {
+    margin: 0 0 4px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+}
+
+.roadmap-detail {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+/* ── HCR investigation ────────────────────────────────── */
+
+.hcr-summary,
+.hcr-decision {
+    font-size: 0.93rem;
+    color: var(--muted);
+    margin: 0 0 10px;
+}
+
+.subsection-label {
+    margin: 12px 0 8px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.hcr-candidate {
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-alt);
+}
+
+.hcr-candidate-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 0.93rem;
+}
+
+.hcr-verdict {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(85, 116, 146, 0.1);
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.hcr-pros {
+    margin: 0 0 3px;
+    font-size: 0.86rem;
+    color: #2e7d32;
+}
+
+.hcr-cons {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #a25c4e;
+}
+
+/* ── GitHub commits / PRs ─────────────────────────────── */
+
+.commit-sha {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    color: var(--accent);
+    background: rgba(85, 116, 146, 0.1);
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+
+.commit-date {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.pr-item {
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-alt);
+    display: grid;
+    gap: 4px;
+}
+
+.pr-title {
+    font-size: 0.93rem;
+    font-weight: 600;
+    color: var(--accent-strong);
+    text-decoration: none;
+}
+
+.pr-title:hover {
+    text-decoration: underline;
+}
+
+.pr-meta {
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.muted-note {
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 8px 0;
+}
+
+/* ── Docs highlight ───────────────────────────────────── */
+
+.doc-card-highlight {
+    border-color: var(--accent);
+    background: rgba(85, 116, 146, 0.06);
+}
+
+.doc-card-highlight h3 {
+    color: var(--accent-strong);
+}
+
+/* ── Questions for Bryan ──────────────────────────────── */
+
+.section-questions {
+    border-color: #c9a227;
+    background: rgba(255, 248, 220, 0.7);
+}
+
+.question-item {
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border: 1px solid #e8d580;
+    border-radius: 12px;
+    background: rgba(255, 255, 240, 0.9);
+}
+
+.question-num {
+    margin: 0 0 4px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #c9a227;
+}
+
+.question-text {
+    margin: 0 0 6px;
+    font-weight: 600;
+    font-size: 0.97rem;
+    color: var(--text);
+}
+
+.question-context {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+/* ── Dashboard TODO ───────────────────────────────────── */
+
+.section-meta {
+    border-style: dashed;
+    opacity: 0.85;
+}
+
+.dashboard-todo-item {
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-alt);
+}
+
+.dtodo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 0.93rem;
+}
+
+.dtodo-status {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.dtodo-detail {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+
 .footer {
     display: flex;
     justify-content: space-between;
