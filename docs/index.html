@@ -1,200 +1,993 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DPA Image Toolkit — Project Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>DPA Image Toolkit — Project Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Tokens ──────────────────────────────────────────────────── */
+    :root {
+      color-scheme: light;
+      --blue: #235194;
+      --orange: #d4720f;
+      --bg: #f0f4fb;
+      --bg2: #e5eaf6;
+      --panel: #ffffff;
+      --ink: #19263e;
+      --muted: #5c6e8a;
+      --line: #d2daea;
+      --shadow: 0 6px 22px rgba(28,45,80,0.09);
+      --shadow-sm: 0 2px 9px rgba(28,45,80,0.07);
+      --ok-bg: #dff3e7;
+      --ok-ink: #175e35;
+      --warn-bg: #fff3dc;
+      --warn-ink: #7a4500;
+      --chip-bg: #edf2ff;
+      --chip-line: #c8d7f8;
+      --code-bg: #f0f4ff;
+      --code-ink: #1e3a6e;
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0c1220;
+      --bg2: #0f1828;
+      --panel: #121d32;
+      --ink: #e2ecff;
+      --muted: #8aa3cc;
+      --line: #1e3154;
+      --shadow: 0 6px 24px rgba(0,0,0,0.36);
+      --shadow-sm: 0 2px 9px rgba(0,0,0,0.22);
+      --ok-bg: #0e3322;
+      --ok-ink: #6fd49e;
+      --warn-bg: #32220a;
+      --warn-ink: #f5b87a;
+      --chip-bg: #152540;
+      --chip-line: #2a4475;
+      --code-bg: #0c1828;
+      --code-ink: #d8e8ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+      min-height: 100vh;
+    }
+    a { color: var(--blue); text-underline-offset: 2px; }
+    [data-theme="dark"] a { color: #7cb4ff; }
+
+    /* ── Hero ──────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, #182f5e 0%, #235194 52%, #b8620c 100%);
+      color: #fff;
+      padding: 30px 24px 26px;
+    }
+    .hero-inner { max-width: 1160px; margin: 0 auto; display: grid; gap: 16px; }
+    .hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .hero h1 {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: clamp(1.7rem, 3vw, 2.5rem);
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .hero-desc { margin-top: 6px; font-size: 0.92rem; opacity: 0.88; max-width: 680px; }
+    .hero-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .hbtn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px;
+      font-size: 0.82rem; font-weight: 600; font-family: inherit;
+      text-decoration: none; cursor: pointer; border: none;
+      transition: opacity 0.14s;
+    }
+    .hbtn:hover { opacity: 0.84; color: inherit; text-decoration: none; }
+    .hbtn-primary { background: #fff; color: var(--blue); }
+    .hbtn-ghost { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+    .hbtn-theme { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 7px 13px; }
+    .live-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lpill {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 999px; padding: 4px 11px;
+      font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    }
+    .ldot { width: 6px; height: 6px; border-radius: 50%; background: #6ee7b7; flex-shrink: 0; }
+
+    /* ── Page ──────────────────────────────────────────────────────── */
+    .page { max-width: 1160px; margin: 0 auto; padding: 18px 20px 64px; display: grid; gap: 14px; }
+
+    /* ── Stat strip ────────────────────────────────────────────────── */
+    .stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 10px; }
+    .stat-card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 12px; box-shadow: var(--shadow-sm);
+      padding: 13px 15px;
+    }
+    .sc-label { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+    .sc-val { font-size: 1.6rem; font-weight: 700; color: var(--blue); line-height: 1.1; margin-top: 3px; }
+    [data-theme="dark"] .sc-val { color: #7cb4ff; }
+
+    /* ── Panel ─────────────────────────────────────────────────────── */
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+    .ph { padding: 13px 18px 11px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
+    .ph h2 { font-family: "IBM Plex Serif", Georgia, serif; font-size: 1.05rem; font-weight: 600; }
+    .pbadge {
+      font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      background: var(--chip-bg); border: 1px solid var(--chip-line); color: var(--blue);
+      white-space: nowrap;
+    }
+    [data-theme="dark"] .pbadge { color: #7cb4ff; }
+    .pb { padding: 14px 18px; }
+
+    /* ── Two column ────────────────────────────────────────────────── */
+    .col2 { display: grid; grid-template-columns: 1.65fr 1fr; gap: 14px; }
+
+    /* ── TODOs ─────────────────────────────────────────────────────── */
+    .todo-list { display: grid; gap: 8px; }
+    .todo {
+      border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+      background: color-mix(in oklab, var(--panel) 78%, var(--bg));
+      display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start;
+    }
+    .tid {
+      font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 600;
+      color: var(--blue); background: var(--chip-bg); border: 1px solid var(--chip-line);
+      border-radius: 5px; padding: 2px 6px; white-space: nowrap; margin-top: 2px;
+    }
+    [data-theme="dark"] .tid { color: #7cb4ff; }
+    .t-title { font-size: 0.84rem; font-weight: 600; color: var(--ink); }
+    .t-note { font-size: 0.76rem; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+    .imp { display: flex; gap: 2px; margin-top: 4px; }
+    .imp span { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); opacity: 0.2; }
+    .imp span.on { opacity: 1; }
+
+    /* ── Language ──────────────────────────────────────────────────── */
+    .lang-bar-wrap { height: 10px; border-radius: 999px; overflow: hidden; display: flex; margin-bottom: 14px; }
+    .lang-rows { display: grid; gap: 8px; }
+    .lang-row { display: grid; grid-template-columns: 100px 1fr 42px; gap: 8px; align-items: center; font-size: 0.77rem; }
+    .lang-name { display: flex; align-items: center; gap: 6px; font-weight: 500; color: var(--ink); }
+    .ldot2 { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .ltrack { height: 7px; border-radius: 999px; overflow: hidden; background: var(--bg2); border: 1px solid var(--line); }
+    .lfill { height: 100%; border-radius: 999px; }
+    .lpct { font-size: 0.71rem; font-weight: 600; color: var(--muted); text-align: right; }
+
+    /* ── Issues ────────────────────────────────────────────────────── */
+    .issue-list { display: grid; gap: 6px; }
+    .issue {
+      display: flex; gap: 9px; align-items: flex-start;
+      font-size: 0.81rem; padding: 9px 11px; border-radius: 8px;
+      border: 1px solid var(--line); background: color-mix(in oklab, var(--panel) 80%, var(--bg));
+    }
+    .inum {
+      font-size: 0.68rem; font-weight: 700; color: var(--ok-ink);
+      background: var(--ok-bg); border-radius: 5px; padding: 2px 6px;
+      white-space: nowrap; flex-shrink: 0; margin-top: 1px;
+    }
+    .ititle { color: var(--ink); line-height: 1.4; flex: 1; }
+    .imeta { font-size: 0.71rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Roadmap phases ────────────────────────────────────────────── */
+    .phases { display: grid; gap: 8px; }
+    .phase { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .phase-head {
+      display: grid; grid-template-columns: 30px 1fr auto;
+      align-items: center; gap: 10px; padding: 12px 14px;
+      background: color-mix(in oklab, var(--panel) 78%, var(--bg));
+      cursor: pointer; user-select: none;
+    }
+    .phase-head:hover { background: color-mix(in oklab, var(--panel) 65%, var(--bg)); }
+    .pnum {
+      width: 26px; height: 26px; border-radius: 50%; background: var(--blue);
+      color: #fff; font-size: 0.78rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .pnum.stretch { background: var(--orange); }
+    .p-title { font-size: 0.88rem; font-weight: 600; color: var(--ink); }
+    .p-sub { font-size: 0.74rem; color: var(--muted); margin-top: 1px; }
+    .pbadge2 {
+      font-size: 0.64rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    }
+    .badge-neutral { background: var(--chip-bg); color: var(--blue); border: 1px solid var(--chip-line); }
+    .badge-warn { background: var(--warn-bg); color: var(--warn-ink); }
+    [data-theme="dark"] .badge-neutral { color: #7cb4ff; }
+    .phase-body { padding: 10px 14px 13px; border-top: 1px solid var(--line); background: var(--panel); display: none; }
+    .ptasks { display: grid; gap: 2px; }
+    .ptask {
+      display: flex; align-items: baseline; gap: 8px;
+      font-size: 0.78rem; color: var(--muted);
+      padding: 5px 0; border-bottom: 1px solid var(--line);
+    }
+    .ptask:last-child { border-bottom: none; }
+    .wid { font-family: "IBM Plex Mono", monospace; font-size: 0.67rem; color: var(--blue); white-space: nowrap; flex-shrink: 0; }
+    [data-theme="dark"] .wid { color: #7cb4ff; }
+
+    /* ── Done ──────────────────────────────────────────────────────── */
+    .done-list { display: grid; gap: 6px; }
+    .done-item {
+      display: flex; gap: 8px; align-items: flex-start; font-size: 0.81rem;
+      padding: 8px 10px; border-radius: 8px;
+      background: color-mix(in oklab, var(--ok-bg) 55%, var(--panel));
+      border: 1px solid color-mix(in oklab, var(--ok-bg) 85%, var(--ok-ink));
+    }
+    .dcheck { color: var(--ok-ink); flex-shrink: 0; margin-top: 1px; }
+    .did { font-size: 0.67rem; font-weight: 700; color: var(--ok-ink); white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+    .dtext { color: var(--ink); line-height: 1.4; }
+
+    /* ── Decisions ─────────────────────────────────────────────────── */
+    .decisions { display: grid; gap: 8px; }
+    .decision {
+      border: 1px solid color-mix(in oklab, var(--warn-ink) 25%, transparent);
+      border-radius: 10px; padding: 10px 13px;
+      background: color-mix(in oklab, var(--warn-bg) 55%, var(--panel));
+    }
+    .dq { font-size: 0.83rem; font-weight: 600; color: var(--ink); }
+    .dd { font-size: 0.76rem; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+    .dd strong { color: var(--warn-ink); }
+
+    /* ── Tool cards ─────────────────────────────────────────────────── */
+    .tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+    .tool-card {
+      border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+      background: color-mix(in oklab, var(--panel) 80%, var(--bg));
+    }
+    .tc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .tc-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 9px; font-size: 1.2rem;
+      background: linear-gradient(135deg, #dde8f4, #eef4fb);
+    }
+    [data-theme="dark"] .tc-icon { background: linear-gradient(135deg, #152540, #1e3154); }
+    .tc-name { font-size: 0.88rem; font-weight: 600; color: var(--ink); }
+    .tc-sub { font-size: 0.74rem; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tc-io { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
+    .tc-io strong { color: var(--ink); }
+
+    /* ── Resources ─────────────────────────────────────────────────── */
+    .res-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .res-card {
+      border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+      background: color-mix(in oklab, var(--panel) 80%, var(--bg));
+      text-decoration: none; color: var(--ink); display: block;
+      transition: border-color 0.14s, box-shadow 0.14s;
+    }
+    .res-card:hover { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(35,81,148,0.11); color: var(--ink); text-decoration: none; }
+    .res-card-highlight { border-color: var(--blue); background: color-mix(in oklab, var(--chip-bg) 70%, var(--panel)); }
+    .rc-label { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .rc-title { font-size: 0.88rem; font-weight: 600; color: var(--blue); }
+    .rc-desc { font-size: 0.75rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    [data-theme="dark"] .rc-title { color: #7cb4ff; }
+
+    /* ── Misc ───────────────────────────────────────────────────────── */
+    code {
+      font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.81em; background: var(--code-bg); color: var(--code-ink);
+      padding: 1px 5px; border-radius: 4px;
+    }
+    .muted { color: var(--muted); font-size: 0.82rem; }
+    footer { text-align: center; font-size: 0.74rem; color: var(--muted); padding: 20px; border-top: 1px solid var(--line); }
+
+    @media (max-width: 860px) {
+      .col2 { grid-template-columns: 1fr; }
+      .page { padding: 14px 14px 48px; }
+    }
+  </style>
 </head>
 <body>
-    <div class="shell">
 
-        <!-- ── Hero ───────────────────────────────────────────── -->
-        <header class="hero">
-            <div class="hero-copy">
-                <p class="eyebrow">Project Dashboard</p>
-                <h1 id="project-name">DPA Image Toolkit</h1>
-                <p class="tagline" id="project-tagline"></p>
-                <p class="summary" id="project-summary"></p>
-                <div class="hero-meta">
-                    <span class="meta-pill" id="project-version"></span>
-                    <span class="meta-pill" id="project-status"></span>
-                    <a class="meta-pill meta-pill-link" id="github-link" href="#" target="_blank" rel="noreferrer">GitHub ↗</a>
-                </div>
-                <div class="github-stats" id="github-stats">
-                    <span class="gh-stat" id="gh-stars">⭐ —</span>
-                    <span class="gh-stat" id="gh-forks">⑂ —</span>
-                    <span class="gh-stat" id="gh-issues">⊙ —</span>
-                    <span class="gh-stat" id="gh-pushed">↑ —</span>
-                </div>
-            </div>
-        </header>
-
-        <main class="content">
-
-            <!-- ── Highlights ─────────────────────────────────── -->
-            <section class="section">
-                <div class="section-header">
-                    <p class="eyebrow">Snapshot</p>
-                    <h2>Project Overview</h2>
-                </div>
-                <div class="stat-grid" id="highlights"></div>
-            </section>
-
-            <!-- ── Tools ──────────────────────────────────────── -->
-            <section class="section">
-                <div class="section-header">
-                    <p class="eyebrow">Toolkit</p>
-                    <h2>Included Tools</h2>
-                </div>
-                <div class="tool-grid" id="tools"></div>
-            </section>
-
-            <!-- ── Open Issues + Completed ────────────────────── -->
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Work Queue</p>
-                        <h2>Open Issues</h2>
-                    </div>
-                    <div id="open-issues-list"></div>
-                    <div id="github-issues-note" class="live-badge" style="display:none">
-                        <span class="live-dot"></span> Live from GitHub
-                    </div>
-                </section>
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Done</p>
-                        <h2>Completed</h2>
-                    </div>
-                    <ul class="stacked-list check-list" id="completed-list"></ul>
-                </section>
-            </section>
-
-            <!-- ── Roadmap + HCR ──────────────────────────────── -->
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Future</p>
-                        <h2>Roadmap</h2>
-                    </div>
-                    <div id="roadmap-list"></div>
-                </section>
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Research Track</p>
-                        <h2>HCR Investigation</h2>
-                    </div>
-                    <div id="hcr-section"></div>
-                </section>
-            </section>
-
-            <!-- ── GitHub Activity ────────────────────────────── -->
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header between">
-                        <div>
-                            <p class="eyebrow">GitHub</p>
-                            <h2>Recent Commits</h2>
-                        </div>
-                        <div class="live-badge" id="commits-live-badge" style="display:none">
-                            <span class="live-dot"></span> Live
-                        </div>
-                    </div>
-                    <ul class="stacked-list mono-list" id="recent-commits"></ul>
-                </section>
-                <section class="section">
-                    <div class="section-header between">
-                        <div>
-                            <p class="eyebrow">GitHub</p>
-                            <h2>Open Pull Requests</h2>
-                        </div>
-                        <div class="live-badge" id="prs-live-badge" style="display:none">
-                            <span class="live-dot"></span> Live
-                        </div>
-                    </div>
-                    <div id="open-prs"></div>
-                </section>
-            </section>
-
-            <!-- ── Language Breakdown ─────────────────────────── -->
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header between">
-                        <div>
-                            <p class="eyebrow">Language Data</p>
-                            <h2>Tracked File Mix</h2>
-                        </div>
-                        <div class="live-badge" id="langs-live-badge" style="display:none">
-                            <span class="live-dot"></span> Live
-                        </div>
-                    </div>
-                    <div class="language-list" id="languages"></div>
-                    <p class="footnote" id="language-note"></p>
-                </section>
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Workflow</p>
-                        <h2>Typical Use</h2>
-                    </div>
-                    <ol class="stacked-list numbered" id="workflow"></ol>
-                </section>
-            </section>
-
-            <!-- ── Architecture + Dependencies ───────────────── -->
-            <section class="two-column">
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Architecture</p>
-                        <h2>Repo Structure</h2>
-                    </div>
-                    <ul class="stacked-list mono-list" id="architecture"></ul>
-                </section>
-                <section class="section">
-                    <div class="section-header">
-                        <p class="eyebrow">Dependencies</p>
-                        <h2>Runtime Stack</h2>
-                    </div>
-                    <ul class="stacked-list mono-list" id="dependencies"></ul>
-                </section>
-            </section>
-
-            <!-- ── Docs ───────────────────────────────────────── -->
-            <section class="section">
-                <div class="section-header">
-                    <p class="eyebrow">Repo Docs</p>
-                    <h2>Documentation</h2>
-                </div>
-                <div class="docs-grid" id="docs"></div>
-            </section>
-
-            <!-- ── Questions for Bryan ────────────────────────── -->
-            <section class="section section-questions">
-                <div class="section-header">
-                    <p class="eyebrow">Parking Lot</p>
-                    <h2>Questions for Bryan</h2>
-                </div>
-                <div id="questions-list"></div>
-            </section>
-
-            <!-- ── Dashboard TODO ─────────────────────────────── -->
-            <section class="section section-meta">
-                <div class="section-header">
-                    <p class="eyebrow">Meta</p>
-                    <h2>Dashboard TODO</h2>
-                </div>
-                <div id="dashboard-todo-list"></div>
-            </section>
-
-        </main>
-
-        <footer class="footer">
-            <p>DPA Image Toolkit dashboard</p>
-            <p id="generated-at"></p>
-        </footer>
+<!-- ── Hero ──────────────────────────────────────────────────────────── -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-top">
+      <div>
+        <h1>DPA Image Toolkit</h1>
+        <p class="hero-desc">Desktop toolkit for archival image cleanup and TIFF workflow management — six tools covering the full scan-to-archive pipeline.</p>
+        <div class="hero-actions">
+          <a href="../user-manual.html" class="hbtn hbtn-primary">📖 User Manual</a>
+          <a href="https://github.com/snyderb-de/DPA-Image-Toolkit" class="hbtn hbtn-ghost" target="_blank" rel="noopener">GitHub Repo</a>
+          <button id="theme-toggle" class="hbtn hbtn-theme">Theme: Light</button>
+        </div>
+      </div>
     </div>
+    <div class="live-row" id="live-row">
+      <span class="lpill"><span class="ldot"></span>Loading live stats…</span>
+    </div>
+  </div>
+</header>
 
-    <script src="data.js"></script>
-    <script src="script.js"></script>
+<main class="page">
+
+  <!-- ── Stat strip ─────────────────────────────────────────────────── -->
+  <section class="stat-strip">
+    <div class="stat-card"><div class="sc-label">Tools</div><div class="sc-val">6</div></div>
+    <div class="stat-card"><div class="sc-label">Open Issues</div><div class="sc-val" id="s-issues">—</div></div>
+    <div class="stat-card"><div class="sc-label">Open PRs</div><div class="sc-val" id="s-prs">—</div></div>
+    <div class="stat-card"><div class="sc-label">Stars</div><div class="sc-val" id="s-stars">—</div></div>
+    <div class="stat-card"><div class="sc-label">Repo Size</div><div class="sc-val" id="s-size" style="font-size:1.15rem">—</div></div>
+    <div class="stat-card"><div class="sc-label">Last Push</div><div class="sc-val" id="s-push" style="font-size:0.92rem;line-height:1.3;margin-top:5px">—</div></div>
+  </section>
+
+  <!-- ── Main two-col ───────────────────────────────────────────────── -->
+  <div class="col2">
+
+    <!-- Active TODOs -->
+    <article class="panel">
+      <div class="ph">
+        <h2>Active TODOs</h2>
+        <span class="pbadge">11 items</span>
+      </div>
+      <div class="pb">
+        <div class="todo-list">
+
+          <div class="todo">
+            <span class="tid">T-001</span>
+            <div>
+              <div class="t-title">Validate on Windows 10 / Windows 11</div>
+              <div class="t-note">Full end-to-end workflow checks on the actual target environment. All six tools. Highest priority before any further distribution.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-002</span>
+            <div>
+              <div class="t-title">Test at high DPI scaling</div>
+              <div class="t-note">Verify UI layout at 125%, 150%, and 200% display scaling on Windows. CustomTkinter scaling behavior may need tuning.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-003</span>
+            <div>
+              <div class="t-title">Add GUI screenshots to dashboard</div>
+              <div class="t-note">Capture screenshots of each of the six tool panels. Add a Screenshots section to this dashboard for the GitHub Pages view.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-004</span>
+            <div>
+              <div class="t-title">Auto Crop: batch preview mode</div>
+              <div class="t-note">Preview detected crop regions for all files before committing the full batch. Requires a preview rendering pass using OpenCV contour results.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-005</span>
+            <div>
+              <div class="t-title">TIFF Merge: per-page DPI preservation</div>
+              <div class="t-note">Current behavior takes DPI from the first valid file in the group. Each page should carry its source DPI into the merged output.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-006</span>
+            <div>
+              <div class="t-title">TIFF Merge: advanced compression options</div>
+              <div class="t-note">Add JPEG, LZW, and PackBits compression to merge output. Currently writes uncompressed or default TIFF compression only.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-007</span>
+            <div>
+              <div class="t-title">TIFF Merge: memory-safe streaming for large batches</div>
+              <div class="t-note">Batches of 200+ pages can exhaust memory. Need a streaming approach that writes pages incrementally rather than loading all frames at once.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-008</span>
+            <div>
+              <div class="t-title">OCR: tune messy-scan heuristic against production samples</div>
+              <div class="t-note">Quality precheck thresholds need calibration against real workflow scans. Lab test set may not reflect actual microfilm or archival scan quality.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-009</span>
+            <div>
+              <div class="t-title">OCR: manual override for quality-flagged pages</div>
+              <div class="t-note">Let users override the quality gate on a per-page basis. Currently flagged pages are handled automatically with no user control after the fact.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-010</span>
+            <div>
+              <div class="t-title">Undo support</div>
+              <div class="t-note">Move output back and restore originals for a completed job. Output always goes to a subfolder currently so no data is at risk — purely a convenience workflow.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
+          </div>
+
+          <div class="todo">
+            <span class="tid">T-011</span>
+            <div>
+              <div class="t-title">Unify dashboard + user manual visual theme</div>
+              <div class="t-note">Dashboard uses IBM Plex / navy-orange. User manual uses Georgia / warm parchment. Converge to a shared design system. Timeline: after T-001.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+          </div>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Right column -->
+    <div style="display:grid;gap:14px;align-content:start">
+
+      <!-- Language breakdown -->
+      <article class="panel">
+        <div class="ph">
+          <h2>Language Breakdown</h2>
+          <span class="pbadge" id="lang-badge">Live</span>
+        </div>
+        <div class="pb">
+          <div class="lang-bar-wrap" id="lang-bar"></div>
+          <div class="lang-rows" id="lang-rows">
+            <div class="muted">Loading…</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- GitHub Issues -->
+      <article class="panel">
+        <div class="ph">
+          <h2>GitHub Issues</h2>
+          <span class="pbadge" id="issues-badge">—</span>
+        </div>
+        <div class="pb">
+          <div class="issue-list" id="issue-list">
+            <div class="muted">Loading…</div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+
+  <!-- ── Tools overview ─────────────────────────────────────────────── -->
+  <article class="panel">
+    <div class="ph">
+      <h2>Included Tools</h2>
+      <span class="pbadge">6 tools</span>
+    </div>
+    <div class="pb">
+      <div class="tool-grid">
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">✂</div>
+            <div>
+              <div class="tc-name">Auto Crop</div>
+              <div class="tc-sub">Detects and crops scanner-created white space. Unions all meaningful contours into one bounding box before cutting.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> image folder &nbsp;·&nbsp; <strong>Out:</strong> <code>cropped/</code></div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">⊞</div>
+            <div>
+              <div class="tc-name">Merge TIFFs</div>
+              <div class="tc-sub">Combines <code>{name}_{group}_{###}.tif</code> page files into multi-page TIFFs by group.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> TIFF folder &nbsp;·&nbsp; <strong>Out:</strong> <code>merged/</code></div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">⇵</div>
+            <div>
+              <div class="tc-name">Split TIFFs</div>
+              <div class="tc-sub">Extracts each page of a multi-page TIFF into individual single-page files. Single-page TIFFs are skipped.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> TIFF files or folder &nbsp;·&nbsp; <strong>Out:</strong> <code>extracted-pages/</code></div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">▣</div>
+            <div>
+              <div class="tc-name">Add Border</div>
+              <div class="tc-sub">Adds a white border to every image using the same 2.5% padding rule as Auto Crop.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> image folder &nbsp;·&nbsp; <strong>Out:</strong> <code>bordered/</code></div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">⎘</div>
+            <div>
+              <div class="tc-name">OCR to PDF</div>
+              <div class="tc-sub">Groups <code>{name}_{####}</code> scan images into searchable PDFs via Tesseract OCR. Quality precheck optional.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> image folder &nbsp;·&nbsp; <strong>Out:</strong> <code>PDFs/</code></div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">🗎</div>
+            <div>
+              <div class="tc-name">PDF Conversion</div>
+              <div class="tc-sub">Four operations: reduce size, split pages, export page images, extract page ranges.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> PDF file or folder &nbsp;·&nbsp; <strong>Out:</strong> operation-dependent</div>
+        </div>
+
+      </div>
+    </div>
+  </article>
+
+  <!-- ── Roadmap ─────────────────────────────────────────────────────── -->
+  <article class="panel">
+    <div class="ph">
+      <h2>Roadmap</h2>
+      <span class="pbadge">4 phases + stretch</span>
+    </div>
+    <div class="pb">
+      <div class="phases">
+
+        <div class="phase">
+          <div class="phase-head" onclick="togglePhase(this)">
+            <div class="pnum">1</div>
+            <div>
+              <div class="p-title">Windows Validation</div>
+              <div class="p-sub">Full workflow verification on target hardware before wider distribution.</div>
+            </div>
+            <span class="pbadge2 badge-neutral">In Progress</span>
+          </div>
+          <div class="phase-body">
+            <div class="ptasks">
+              <div class="ptask"><span class="wid">W-101</span>End-to-end smoke test of all six tools on Windows 10</div>
+              <div class="ptask"><span class="wid">W-102</span>End-to-end smoke test of all six tools on Windows 11</div>
+              <div class="ptask"><span class="wid">W-103</span>Verify UI layout at 125%, 150%, 200% display scaling</div>
+              <div class="ptask"><span class="wid">W-104</span>Confirm <code>image-toolkit.bat</code> launcher and Desktop shortcut work on both platforms</div>
+              <div class="ptask"><span class="wid">W-105</span>Validate OCR to PDF with Tesseract installed on the target machine</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head" onclick="togglePhase(this)">
+            <div class="pnum">2</div>
+            <div>
+              <div class="p-title">Core Tool Enhancements</div>
+              <div class="p-sub">Quality-of-life improvements to Auto Crop, TIFF Merge, and OCR — after Phase 1 validates baseline behavior.</div>
+            </div>
+            <span class="pbadge2 badge-neutral">Pending</span>
+          </div>
+          <div class="phase-body">
+            <div class="ptasks">
+              <div class="ptask"><span class="wid">W-201</span>Auto Crop: batch preview mode — render detected contour boxes before committing the batch</div>
+              <div class="ptask"><span class="wid">W-202</span>TIFF Merge: per-page DPI preservation — carry source DPI per page into merged output</div>
+              <div class="ptask"><span class="wid">W-203</span>TIFF Merge: JPEG, LZW, PackBits compression options</div>
+              <div class="ptask"><span class="wid">W-204</span>TIFF Merge: streaming approach for 200+ page batches</div>
+              <div class="ptask"><span class="wid">W-205</span>Auto Crop: configurable white threshold via UI slider (default 253)</div>
+              <div class="ptask"><span class="wid">W-206</span>Auto Crop: optional image straightening pass (Hough Line Transform deskew)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head" onclick="togglePhase(this)">
+            <div class="pnum">3</div>
+            <div>
+              <div class="p-title">OCR Improvements</div>
+              <div class="p-sub">Tune the quality gate against real production samples and add user control over flagged pages.</div>
+            </div>
+            <span class="pbadge2 badge-neutral">Pending</span>
+          </div>
+          <div class="phase-body">
+            <div class="ptasks">
+              <div class="ptask"><span class="wid">W-301</span>Gather real production scan samples — mix of clean, messy, and microfilm-derived pages</div>
+              <div class="ptask"><span class="wid">W-302</span>Calibrate messy-scan heuristic thresholds against real sample set</div>
+              <div class="ptask"><span class="wid">W-303</span>Add per-page manual override flow for quality-flagged pages</div>
+              <div class="ptask"><span class="wid">W-304</span>Multi-language OCR option — language selector once install/support workflow is settled</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head" onclick="togglePhase(this)">
+            <div class="pnum">4</div>
+            <div>
+              <div class="p-title">HCR Research Track</div>
+              <div class="p-sub">Evaluate handwriting recognition engines for a future HCR tool, separate from the current Tesseract OCR workflow.</div>
+            </div>
+            <span class="pbadge2 badge-neutral">Research</span>
+          </div>
+          <div class="phase-body">
+            <div class="ptasks">
+              <div class="ptask"><span class="wid">W-401</span>Gather benchmark set: plain cursive, mixed print/handwriting, noisy microfilm</div>
+              <div class="ptask"><span class="wid">W-402</span>Evaluate TrOCR (Microsoft) — leading candidate for English handwriting, no Tesseract dependency</div>
+              <div class="ptask"><span class="wid">W-403</span>Evaluate PaddleOCR — broader OCR stack, may handle mixed print+handwriting pages better</div>
+              <div class="ptask"><span class="wid">W-404</span>Evaluate Kraken and Calamari OCR as specialist historical-text options</div>
+              <div class="ptask"><span class="wid">W-405</span>Decide: separate HCR panel, or extended OCR panel with mode selector</div>
+              <div class="ptask"><span class="wid">W-406</span>Confirm feasibility of searchable PDF output without misleading text layers</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head" onclick="togglePhase(this)">
+            <div class="pnum stretch">S</div>
+            <div>
+              <div class="p-title">Stretch: Distribution + UX</div>
+              <div class="p-sub">No-install packaging and quality-of-life features that require broader scoping decisions first.</div>
+            </div>
+            <span class="pbadge2 badge-warn">Optional</span>
+          </div>
+          <div class="phase-body">
+            <div class="ptasks">
+              <div class="ptask"><span class="wid">W-S01</span>PyInstaller standalone <code>.exe</code> — bundle so end users don't need Python installed</div>
+              <div class="ptask"><span class="wid">W-S02</span>Drag-and-drop folder support — drop a folder onto the app window instead of using the picker</div>
+              <div class="ptask"><span class="wid">W-S03</span>Undo support — move output back, restore originals for a completed job</div>
+              <div class="ptask"><span class="wid">W-S04</span>Page reordering / extraction from existing multi-page TIFFs</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </article>
+
+  <!-- ── Bottom two-col ─────────────────────────────────────────────── -->
+  <div class="col2">
+
+    <!-- Recently completed -->
+    <article class="panel">
+      <div class="ph">
+        <h2>Recently Completed</h2>
+        <span class="pbadge">10 items</span>
+      </div>
+      <div class="pb">
+        <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard rebuilt in dates-formatter style — IBM Plex fonts, navy/orange gradient, collapsible roadmap phases, T-IDs/D-IDs</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-009</span><span class="dtext">User manual HTML — standalone guide with left nav, dark/light theme, Ctrl+F search tip, deploys alongside the app</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file moved to script directory — <code>app-settings.json</code> now alongside the script and manual in <code>dpa-img-tk/</code></span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-007</span><span class="dtext">Appearance mode persisted — theme preference (light/dark/system) saved to <code>app-settings.json</code> on change</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-006</span><span class="dtext">OCR log export — Save Log button exports full run log to disk after job completes</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-005</span><span class="dtext">Two-stage cancel flow — graceful two-stage cancel before hard abort for TIFF split and merge</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-004</span><span class="dtext">'Finished' non-clickable after job — prevents accidental re-runs before a new job is loaded (merge + split)</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-003</span><span class="dtext">Detect existing <code>merged/</code> folder — confirmation flow before overwriting existing merge output</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-002</span><span class="dtext">PDF Conversion tool — reduce size, split pages, export page images, extract page ranges, PDF/A preview</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-001</span><span class="dtext">Automated test coverage strengthened — assertion-based test suites for crop, TIFF grouping, and OCR grouping</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Open decisions -->
+    <article class="panel">
+      <div class="ph">
+        <h2>Open Decisions</h2>
+        <span class="pbadge">5 items</span>
+      </div>
+      <div class="pb">
+        <div class="decisions">
+          <div class="decision">
+            <div class="dq">Windows validation — where are we?</div>
+            <div class="dd">Full workflow checks on Win10/11 are the top priority (T-001). Which tools have been tested end-to-end on the actual target machines?</div>
+          </div>
+          <div class="decision">
+            <div class="dq">HCR tool: near-term prototype or research backlog?</div>
+            <div class="dd">Default: <strong>research backlog</strong> — keep in Phase 4 until core tools pass Windows validation. Raise to promote.</div>
+          </div>
+          <div class="decision">
+            <div class="dq">PyInstaller .exe: no-install build actually needed?</div>
+            <div class="dd">Default: <strong>stretch / optional</strong> — current bat+Python deployment is working. Raise if a standalone .exe would change the user base.</div>
+          </div>
+          <div class="decision">
+            <div class="dq">PDF/A feature — keep as preview or promote?</div>
+            <div class="dd">Currently labeled "Preview" in the UI. Default: <strong>keep as preview</strong> until there is a confirmed user need.</div>
+          </div>
+          <div class="decision">
+            <div class="dq">Dashboard + user manual theme — when to unify?</div>
+            <div class="dd">Default: <strong>after T-001 Windows validation</strong>. Tracked as T-011.</div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ── Resources ──────────────────────────────────────────────────── -->
+  <article class="panel">
+    <div class="ph"><h2>Resources</h2></div>
+    <div class="pb">
+      <div class="res-grid">
+        <a href="../user-manual.html" class="res-card res-card-highlight">
+          <div class="rc-label">End User</div>
+          <div class="rc-title">📖 User Manual</div>
+          <div class="rc-desc">Complete guide to all six tools — how to use, inputs, outputs, naming rules, and typical workflow</div>
+        </a>
+        <a href="../README.md" class="res-card">
+          <div class="rc-label">Setup</div>
+          <div class="rc-title">README.md</div>
+          <div class="rc-desc">Installation, quick start, naming rules, deployment, and repo layout</div>
+        </a>
+        <a href="../TODO.md" class="res-card">
+          <div class="rc-label">Project</div>
+          <div class="rc-title">TODO.md</div>
+          <div class="rc-desc">Active task list, open issues, and future enhancement notes</div>
+        </a>
+        <a href="../deploy/README.md" class="res-card">
+          <div class="rc-label">Deployment</div>
+          <div class="rc-title">deploy/README.md</div>
+          <div class="rc-desc">Windows Scripts deployment bundle — layout, launcher behavior, and dependency install</div>
+        </a>
+        <a href="https://github.com/snyderb-de/DPA-Image-Toolkit" class="res-card" target="_blank" rel="noopener">
+          <div class="rc-label">Source</div>
+          <div class="rc-title">GitHub Repository</div>
+          <div class="rc-desc">snyderb-de/DPA-Image-Toolkit — source code, issues, and commit history</div>
+        </a>
+        <a href="https://github.com/snyderb-de/DPA-Image-Toolkit/issues" class="res-card" target="_blank" rel="noopener">
+          <div class="rc-label">Tracking</div>
+          <div class="rc-title">GitHub Issues</div>
+          <div class="rc-desc">Open issues, bug reports, and feature requests</div>
+        </a>
+      </div>
+    </div>
+  </article>
+
+</main>
+
+<footer>
+  DPA Image Toolkit — Project Dashboard &middot;
+  <a href="https://github.com/snyderb-de/DPA-Image-Toolkit" target="_blank" rel="noopener">snyderb-de/DPA-Image-Toolkit</a>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Theme ──────────────────────────────────────────────────────── */
+  var KEY = 'dpa-toolkit-dash-theme';
+  var btn = document.getElementById('theme-toggle');
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var theme = localStorage.getItem(KEY) || (prefersDark ? 'dark' : 'light');
+
+  function applyTheme(t) {
+    document.body.setAttribute('data-theme', t);
+    btn.textContent = 'Theme: ' + (t === 'dark' ? 'Dark' : 'Light');
+    localStorage.setItem(KEY, t);
+    theme = t;
+  }
+
+  applyTheme(theme);
+  btn.addEventListener('click', function () { applyTheme(theme === 'dark' ? 'light' : 'dark'); });
+
+  /* ── Collapsible phases ─────────────────────────────────────────── */
+  window.togglePhase = function (head) {
+    var body = head.nextElementSibling;
+    if (body) body.style.display = body.style.display === 'block' ? 'none' : 'block';
+  };
+
+  /* ── GitHub API ─────────────────────────────────────────────────── */
+  var REPO = 'snyderb-de/DPA-Image-Toolkit';
+  var BASE = 'https://api.github.com/repos/' + REPO;
+
+  var LANG_COLORS = {
+    Python: '#3572a5', JavaScript: '#f1e05a', HTML: '#e44b23',
+    CSS: '#563d7c', Batchfile: '#aaaaaa', JSON: '#888888'
+  };
+
+  function fmtSize(kb) {
+    return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB';
+  }
+
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function setLive(parts) {
+    var row = document.getElementById('live-row');
+    row.textContent = '';
+    parts.forEach(function (p) {
+      var span = document.createElement('span');
+      span.className = 'lpill';
+      var dot = document.createElement('span');
+      dot.className = 'ldot';
+      span.appendChild(dot);
+      span.appendChild(document.createTextNode(p));
+      row.appendChild(span);
+    });
+  }
+
+  function buildLangRows(entries, total) {
+    var bar   = document.getElementById('lang-bar');
+    var rows  = document.getElementById('lang-rows');
+    var badge = document.getElementById('lang-badge');
+    if (badge) badge.textContent = entries.length + ' languages';
+
+    bar.textContent = '';
+    entries.forEach(function (entry) {
+      var name = entry[0], bytes = entry[1];
+      var pct = (bytes / total * 100).toFixed(2);
+      var seg = document.createElement('div');
+      seg.style.width      = pct + '%';
+      seg.style.height     = '100%';
+      seg.style.background = LANG_COLORS[name] || '#888';
+      bar.appendChild(seg);
+    });
+
+    rows.textContent = '';
+    entries.forEach(function (entry) {
+      var name = entry[0], bytes = entry[1];
+      var pct    = bytes / total * 100;
+      var pctStr = pct < 1 ? '< 1%' : pct.toFixed(1) + '%';
+      var col    = LANG_COLORS[name] || '#888';
+
+      var row    = document.createElement('div');
+      row.className = 'lang-row';
+
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'lang-name';
+      var dot = document.createElement('div');
+      dot.className = 'ldot2';
+      dot.style.background = col;
+      nameDiv.appendChild(dot);
+      nameDiv.appendChild(document.createTextNode(name));
+
+      var track = document.createElement('div');
+      track.className = 'ltrack';
+      var fill = document.createElement('div');
+      fill.className = 'lfill';
+      fill.style.width      = pct.toFixed(1) + '%';
+      fill.style.background = col;
+      track.appendChild(fill);
+
+      var pctEl = document.createElement('div');
+      pctEl.className   = 'lpct';
+      pctEl.textContent = pctStr;
+
+      row.appendChild(nameDiv);
+      row.appendChild(track);
+      row.appendChild(pctEl);
+      rows.appendChild(row);
+    });
+  }
+
+  function buildIssues(openIssues) {
+    var badge  = document.getElementById('issues-badge');
+    var listEl = document.getElementById('issue-list');
+    if (badge) badge.textContent = openIssues.length + ' open';
+    listEl.textContent = '';
+
+    if (openIssues.length === 0) {
+      var msg = document.createElement('div');
+      msg.className   = 'muted';
+      msg.textContent = 'No open issues.';
+      listEl.appendChild(msg);
+      return;
+    }
+
+    openIssues.forEach(function (issue) {
+      var item = document.createElement('div');
+      item.className = 'issue';
+
+      var num = document.createElement('span');
+      num.className   = 'inum';
+      num.textContent = '#' + issue.number;
+
+      var body    = document.createElement('div');
+      var titleEl = document.createElement('div');
+      titleEl.className = 'ititle';
+      var link = document.createElement('a');
+      link.href         = issue.html_url;
+      link.target       = '_blank';
+      link.rel          = 'noopener';
+      link.textContent  = issue.title;
+      titleEl.appendChild(link);
+
+      var meta = document.createElement('div');
+      meta.className = 'imeta';
+      var labels = (issue.labels || []).map(function (l) { return l.name; }).join(', ');
+      meta.textContent = 'Opened ' + fmtDate(issue.created_at) + (labels ? ' · ' + labels : '');
+
+      body.appendChild(titleEl);
+      body.appendChild(meta);
+      item.appendChild(num);
+      item.appendChild(body);
+      listEl.appendChild(item);
+    });
+  }
+
+  Promise.all([
+    fetch(BASE).then(function (r) { return r.json(); }),
+    fetch(BASE + '/languages').then(function (r) { return r.json(); }),
+    fetch(BASE + '/issues?state=open&per_page=20').then(function (r) { return r.json(); }),
+    fetch(BASE + '/pulls?state=open&per_page=20').then(function (r) { return r.json(); }),
+  ]).then(function (results) {
+    var repo   = results[0];
+    var langs  = results[1];
+    var issues = results[2];
+    var prs    = results[3];
+
+    var openIssues = Array.isArray(issues) ? issues.filter(function (i) { return !i.pull_request; }) : [];
+    var openPRs    = Array.isArray(prs) ? prs.length : 0;
+
+    setText('s-issues', openIssues.length);
+    setText('s-prs',    openPRs);
+    setText('s-stars',  repo.stargazers_count != null ? repo.stargazers_count : 0);
+    setText('s-size',   fmtSize(repo.size || 0));
+    setText('s-push',   fmtDate(repo.pushed_at));
+
+    setLive([
+      (repo.visibility || 'public').toUpperCase(),
+      'Issues: ' + openIssues.length,
+      'PRs: ' + openPRs,
+      'Pushed ' + fmtDate(repo.pushed_at),
+    ]);
+
+    var entries = Object.entries(langs).sort(function (a, b) { return b[1] - a[1]; });
+    var total   = entries.reduce(function (s, e) { return s + e[1]; }, 0);
+    buildLangRows(entries, total);
+    buildIssues(openIssues);
+
+  }).catch(function (err) {
+    console.warn('GitHub API unavailable:', err);
+
+    var row  = document.getElementById('live-row');
+    row.textContent = '';
+    var span = document.createElement('span');
+    span.className = 'lpill';
+    var dot = document.createElement('span');
+    dot.className = 'ldot';
+    span.appendChild(dot);
+    span.appendChild(document.createTextNode('GitHub API unavailable — stats may be stale'));
+    row.appendChild(span);
+
+    ['s-issues','s-prs','s-stars','s-size','s-push'].forEach(function (id) { setText(id, '—'); });
+
+    var issueEl = document.getElementById('issue-list');
+    issueEl.textContent = '';
+    var msg  = document.createElement('div');
+    msg.className   = 'muted';
+    var link = document.createElement('a');
+    link.href        = 'https://github.com/snyderb-de/DPA-Image-Toolkit/issues';
+    link.target      = '_blank';
+    link.rel         = 'noopener';
+    link.textContent = 'View issues on GitHub';
+    msg.textContent  = 'API unavailable. ';
+    msg.appendChild(link);
+    issueEl.appendChild(msg);
+
+    var langEl = document.getElementById('lang-rows');
+    langEl.textContent = '';
+    var langMsg = document.createElement('div');
+    langMsg.className   = 'muted';
+    langMsg.textContent = 'Language data unavailable.';
+    langEl.appendChild(langMsg);
+  });
+
+})();
+</script>
 </body>
 </html>
