@@ -320,10 +320,19 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">11 items</span>
+        <span class="pbadge">12 items</span>
       </div>
       <div class="pb">
         <div class="todo-list">
+
+          <div class="todo" style="border-color:var(--orange);background:color-mix(in oklab,var(--warn-bg) 30%,var(--panel))">
+            <span class="tid" style="background:var(--warn-bg);border-color:var(--orange);color:var(--orange)">T-000</span>
+            <div>
+              <div class="t-title">Web UI rewrite — Flask + PyWebView → single .exe</div>
+              <div class="t-note">Replace CustomTkinter with a Flask backend + HTML/CSS/JS frontend wrapped in PyWebView. PyInstaller bundles to a single .exe — no Python install needed. Keep all existing Python processing (OpenCV, Tesseract, Pillow, pypdf) 100% unchanged. Web UI enables glowing progress bars, animations, and a true shared CSS token design system across the app, manual, and dashboard. Theme support (Catppuccin, Gruvbox, etc.) = CSS variable swap, no code changes. Modeled on the dates-formatter web UI migration plan.</div>
+            </div>
+            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+          </div>
 
           <div class="todo">
             <span class="tid">T-001</span>
@@ -544,10 +553,37 @@
   <article class="panel">
     <div class="ph">
       <h2>Roadmap</h2>
-      <span class="pbadge">4 phases + stretch</span>
+      <span class="pbadge">5 phases + stretch</span>
     </div>
     <div class="pb">
       <div class="phases">
+
+        <div class="phase" style="border-color:var(--orange)">
+          <div class="phase-head" onclick="togglePhase(this)" style="border-left:3px solid var(--orange)">
+            <div class="pnum" style="background:var(--orange)">0</div>
+            <div>
+              <div class="p-title">Web UI Rewrite (T-000)</div>
+              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller .exe. Zero processing rewrite — all existing Python modules stay.</div>
+            </div>
+            <span class="pbadge2 badge-warn">Top Priority</span>
+          </div>
+          <div class="phase-body">
+            <div class="ptasks">
+              <div class="ptask"><span class="wid">W-001</span>Audit CustomTkinter panels — map UI logic vs processing logic boundary for each tool</div>
+              <div class="ptask"><span class="wid">W-002</span>Scaffold <code>web/app.py</code> — Flask, localhost only, auto-pick port, serve from <code>web/templates/</code></div>
+              <div class="ptask"><span class="wid">W-003</span>Design system — CSS tokens (light/dark + theme slot), shared with manual and dashboard</div>
+              <div class="ptask"><span class="wid">W-004</span>Per-tool API routes — <code>POST /api/{tool}/start</code>, <code>GET /api/{tool}/status</code>, <code>POST /api/{tool}/cancel</code></div>
+              <div class="ptask"><span class="wid">W-005</span>Frontend shell — sidebar nav, tool panels, glowing animated progress bars, live log stream</div>
+              <div class="ptask"><span class="wid">W-006</span>Folder/file picker — <code>tkinter.filedialog</code> called from Python side, result returned via API (no browser file picker)</div>
+              <div class="ptask"><span class="wid">W-007</span>PyWebView launcher — <code>launch.py</code> starts Flask daemon, opens PyWebView window, handles shutdown</div>
+              <div class="ptask"><span class="wid">W-008</span>Windows launcher — <code>image-toolkit-web.bat</code> entry point</div>
+              <div class="ptask"><span class="wid">W-009</span>PyInstaller bundle — single <code>.exe</code>, bundles Flask + PyWebView + all Python deps + Tesseract path config</div>
+              <div class="ptask"><span class="wid">W-010</span>Parity smoke test — all six tools produce identical output to current CustomTkinter version</div>
+              <div class="ptask"><span class="wid">W-011</span>Theme switcher — light/dark toggle + named theme loader (Catppuccin, Gruvbox as first two)</div>
+            </div>
+          </div>
+        </div>
+
 
         <div class="phase">
           <div class="phase-head" onclick="togglePhase(this)">
@@ -682,10 +718,14 @@
     <article class="panel">
       <div class="ph">
         <h2>Open Decisions</h2>
-        <span class="pbadge">5 items</span>
+        <span class="pbadge">6 items</span>
       </div>
       <div class="pb">
         <div class="decisions">
+          <div class="decision">
+            <div class="dq">Web UI rewrite: run T-001 Windows validation first, or start T-000 in parallel?</div>
+            <div class="dd">Default: <strong>parallel</strong> — Phase 1 Windows validation uses the current CustomTkinter build; Phase 0 web rewrite is net-new and doesn't touch processing logic. Raise if preferred sequentially.</div>
+          </div>
           <div class="decision">
             <div class="dq">Windows validation — where are we?</div>
             <div class="dd">Full workflow checks on Win10/11 are the top priority (T-001). Which tools have been tested end-to-end on the actual target machines?</div>
