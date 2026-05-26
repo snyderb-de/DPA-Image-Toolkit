@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>DPA Image Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-eyebrow">DPA</div>
+      <div class="sidebar-brand-name">Image Toolkit</div>
+    </div>
+
+    <div class="sidebar-nav" id="sidebar-nav">
+      <div class="nav-item active" data-tool="auto_crop">
+        <span class="nav-icon">✂</span>
+        <span>Auto Crop</span>
+        <span class="nav-state" id="nav-state-auto_crop"></span>
+      </div>
+      <div class="nav-item" data-tool="merge_tiffs">
+        <span class="nav-icon">⊞</span>
+        <span>Merge TIFFs</span>
+        <span class="nav-state" id="nav-state-merge_tiffs"></span>
+      </div>
+      <div class="nav-item" data-tool="split_tiffs">
+        <span class="nav-icon">⇵</span>
+        <span>Split TIFFs</span>
+        <span class="nav-state" id="nav-state-split_tiffs"></span>
+      </div>
+      <div class="nav-item" data-tool="add_border">
+        <span class="nav-icon">▣</span>
+        <span>Add Border</span>
+        <span class="nav-state" id="nav-state-add_border"></span>
+      </div>
+      <div class="nav-item" data-tool="ocr_pdf">
+        <span class="nav-icon">⎘</span>
+        <span>OCR to PDF</span>
+        <span class="nav-state" id="nav-state-ocr_pdf"></span>
+      </div>
+      <div class="nav-item" data-tool="pdf_conversion">
+        <span class="nav-icon">🗎</span>
+        <span>PDF Conversion</span>
+        <span class="nav-state" id="nav-state-pdf_conversion"></span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <span class="theme-label">Appearance</span>
+      <div class="theme-btns">
+        <button class="theme-btn" id="theme-dark" onclick="setTheme('dark')">Dark</button>
+        <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Light</button>
+      </div>
+      <div class="named-themes">
+        <button class="named-theme-btn" onclick="setNamedTheme('catppuccin-mocha')">Catppuccin</button>
+        <button class="named-theme-btn" onclick="setNamedTheme('gruvbox-dark')">Gruvbox</button>
+        <button class="named-theme-btn" onclick="setNamedTheme('')">Default</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ─────────────────────────────────────────────────────────────── -->
+  <main class="main" id="main">
+
+    <!-- Auto Crop ──────────────────────────────────────────────────────────── -->
+    <div class="tool-panel active" id="panel-auto_crop">
+      <div class="panel-header">
+        <div class="panel-icon">✂</div>
+        <div>
+          <div class="panel-title">Auto Crop</div>
+          <div class="panel-sub">Detect and crop scanner-created white space from image folders</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Input Folder</div>
+        <div class="picker-row">
+          <button class="pick-btn" onclick="pickFolder('auto_crop')">📁 Select Folder</button>
+          <div class="path-display" id="path-auto_crop">No folder selected</div>
+          <span class="count-badge" id="count-auto_crop" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-auto_crop">Select a folder containing images to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-auto_crop">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-auto_crop">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-auto_crop">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-auto_crop" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('auto_crop')">Clear</button>
+        </div>
+        <div class="log-body" id="log-auto_crop"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-auto_crop" disabled onclick="openErrorFolder('auto_crop')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-auto_crop" onclick="resetTool('auto_crop')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-auto_crop" disabled onclick="cancelTool('auto_crop')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-auto_crop" disabled onclick="startTool('auto_crop')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- Merge TIFFs ────────────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-merge_tiffs">
+      <div class="panel-header">
+        <div class="panel-icon">⊞</div>
+        <div>
+          <div class="panel-title">Merge TIFFs</div>
+          <div class="panel-sub">Combine <code>{name}_{group}_{###}.tif</code> page files into multi-page TIFFs</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">TIFF Folder</div>
+        <div class="picker-row">
+          <button class="pick-btn" onclick="pickFolder('merge_tiffs')">📁 Select Folder</button>
+          <div class="path-display" id="path-merge_tiffs">No folder selected</div>
+          <span class="count-badge" id="count-merge_tiffs" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-merge_tiffs">Select a folder of named TIFF files to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-merge_tiffs">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-merge_tiffs">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-merge_tiffs">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-merge_tiffs" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('merge_tiffs')">Clear</button>
+        </div>
+        <div class="log-body" id="log-merge_tiffs"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-merge_tiffs" disabled onclick="openErrorFolder('merge_tiffs')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-merge_tiffs" onclick="resetTool('merge_tiffs')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-merge_tiffs" disabled onclick="cancelTool('merge_tiffs')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-merge_tiffs" disabled onclick="startTool('merge_tiffs')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- Split TIFFs ────────────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-split_tiffs">
+      <div class="panel-header">
+        <div class="panel-icon">⇵</div>
+        <div>
+          <div class="panel-title">Split TIFFs</div>
+          <div class="panel-sub">Extract each page of a multi-page TIFF into individual single-page files</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Input Mode</div>
+        <div class="mode-toggle" style="margin-bottom:12px">
+          <button class="mode-btn active" id="mode-btn-folder" onclick="setSplitMode('folder')">Folder</button>
+          <button class="mode-btn" id="mode-btn-files" onclick="setSplitMode('files')">Files</button>
+        </div>
+        <div class="picker-row">
+          <button class="pick-btn" id="pick-btn-split" onclick="pickSplit()">📁 Select Folder</button>
+          <div class="path-display" id="path-split_tiffs">No selection</div>
+          <span class="count-badge" id="count-split_tiffs" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-split_tiffs">Select a folder or files to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-split_tiffs">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-split_tiffs">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-split_tiffs">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-split_tiffs" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('split_tiffs')">Clear</button>
+        </div>
+        <div class="log-body" id="log-split_tiffs"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-split_tiffs" disabled onclick="openErrorFolder('split_tiffs')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-split_tiffs" onclick="resetTool('split_tiffs')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-split_tiffs" disabled onclick="cancelTool('split_tiffs')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-split_tiffs" disabled onclick="startTool('split_tiffs')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- Add Border ─────────────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-add_border">
+      <div class="panel-header">
+        <div class="panel-icon">▣</div>
+        <div>
+          <div class="panel-title">Add Border</div>
+          <div class="panel-sub">Add a white border to every image using the same padding rule as Auto Crop</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Input Folder</div>
+        <div class="picker-row">
+          <button class="pick-btn" onclick="pickFolder('add_border')">📁 Select Folder</button>
+          <div class="path-display" id="path-add_border">No folder selected</div>
+          <span class="count-badge" id="count-add_border" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-add_border">Select a folder containing images to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-add_border">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-add_border">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-add_border">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-add_border" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('add_border')">Clear</button>
+        </div>
+        <div class="log-body" id="log-add_border"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-add_border" disabled onclick="openErrorFolder('add_border')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-add_border" onclick="resetTool('add_border')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-add_border" disabled onclick="cancelTool('add_border')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-add_border" disabled onclick="startTool('add_border')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- OCR to PDF ─────────────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-ocr_pdf">
+      <div class="panel-header">
+        <div class="panel-icon">⎘</div>
+        <div>
+          <div class="panel-title">OCR to PDF</div>
+          <div class="panel-sub">Group <code>{name}_{####}</code> scan images into searchable PDFs via Tesseract</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Input Folder</div>
+        <div class="picker-row">
+          <button class="pick-btn" onclick="pickFolder('ocr_pdf')">📁 Select Folder</button>
+          <div class="path-display" id="path-ocr_pdf">No folder selected</div>
+          <span class="count-badge" id="count-ocr_pdf" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Options</div>
+        <div class="options-grid">
+          <label class="check-label">
+            <input type="checkbox" id="opt-skip-existing" checked> Skip existing PDFs
+          </label>
+          <label class="check-label">
+            <input type="checkbox" id="opt-quality-check" checked> Quality precheck
+          </label>
+          <label class="check-label">
+            <input type="checkbox" id="opt-reduce-pdf" checked> Reduce output PDF size
+          </label>
+          <div class="select-wrap">
+            <span class="select-label">Compression:</span>
+            <select id="sel-ocr-compression"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-ocr_pdf">Select a folder of scan images to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-ocr_pdf">
+        <!-- Per-PDF progress -->
+        <div class="progress-row">
+          <div class="progress-sub-label">Current PDF</div>
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-ocr_pdf">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-ocr_pdf">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-ocr_pdf" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Per-job progress -->
+        <div class="progress-row" style="margin-top:8px">
+          <div class="progress-sub-label">Overall Job</div>
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-job-label-ocr_pdf"> </span>
+            <span class="progress-meta-pct" id="prog-job-pct-ocr_pdf">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-job-fill-ocr_pdf" style="width:0%;background:linear-gradient(90deg,var(--ok),#5ee0b8)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('ocr_pdf')">Clear</button>
+        </div>
+        <div class="log-body" id="log-ocr_pdf"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-ocr_pdf" disabled onclick="openErrorFolder('ocr_pdf')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-ocr_pdf" onclick="resetTool('ocr_pdf')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-ocr_pdf" disabled onclick="cancelTool('ocr_pdf')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-ocr_pdf" disabled onclick="startTool('ocr_pdf')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- PDF Conversion ─────────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-pdf_conversion">
+      <div class="panel-header">
+        <div class="panel-icon">🗎</div>
+        <div>
+          <div class="panel-title">PDF Conversion</div>
+          <div class="panel-sub">Reduce size, split pages, export images, or extract page ranges</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Operation</div>
+        <div class="op-selector">
+          <button class="op-btn active" data-op="reduce_size" onclick="setPdfOp('reduce_size')">Reduce Size</button>
+          <button class="op-btn" data-op="split_pdf"    onclick="setPdfOp('split_pdf')">Split PDF</button>
+          <button class="op-btn" data-op="extract_pages" onclick="setPdfOp('extract_pages')">Extract Pages</button>
+          <button class="op-btn" data-op="pdfa"         onclick="setPdfOp('pdfa')">PDF/A (Preview)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label" id="pdf-pick-label">Input</div>
+        <div class="picker-row">
+          <button class="pick-btn" id="pick-btn-pdf" onclick="pickPdf()">📄 Select PDF</button>
+          <div class="path-display" id="path-pdf_conversion">No file selected</div>
+          <span class="count-badge" id="count-pdf_conversion" style="display:none"></span>
+        </div>
+      </div>
+
+      <!-- Reduce Size options -->
+      <div class="card" id="pdf-opts-reduce">
+        <div class="card-label">Compression</div>
+        <div class="options-grid">
+          <label class="check-label">
+            <input type="checkbox" id="opt-pdf-reduce" checked> Apply compression
+          </label>
+          <div class="select-wrap">
+            <span class="select-label">Profile:</span>
+            <select id="sel-pdf-compression"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split PDF options -->
+      <div class="card hidden" id="pdf-opts-split">
+        <div class="card-label">Output Format</div>
+        <div class="options-grid">
+          <div class="select-wrap">
+            <span class="select-label">Format:</span>
+            <select id="sel-split-format">
+              <option value="pdfs">Single-page PDFs</option>
+              <option value="jpeg">JPEG Images</option>
+              <option value="png">PNG Images</option>
+              <option value="tiff">TIFF Images</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extract Pages options -->
+      <div class="card hidden" id="pdf-opts-extract">
+        <div class="card-label">Page Range</div>
+        <div class="options-grid">
+          <div class="select-wrap">
+            <span class="select-label">Pages:</span>
+            <input type="text" id="inp-page-spec" placeholder="e.g. 1,3,5-8">
+          </div>
+          <label class="check-label">
+            <input type="checkbox" id="opt-remove-pages"> Remove from source
+          </label>
+          <div class="select-wrap" id="extract-mode-wrap" style="display:none">
+            <span class="select-label">Mode:</span>
+            <select id="sel-extract-mode">
+              <option value="safe">Safe (keep remaining)</option>
+              <option value="overwrite">Overwrite source</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF/A options -->
+      <div class="card hidden" id="pdf-opts-pdfa">
+        <div class="card-label">PDF/A Profile</div>
+        <div class="options-grid">
+          <div class="select-wrap">
+            <span class="select-label">Profile:</span>
+            <select id="sel-pdfa-profile"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-pdf_conversion">Select a PDF file or folder to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-pdf_conversion">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-pdf_conversion">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-pdf_conversion">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-pdf_conversion" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('pdf_conversion')">Clear</button>
+        </div>
+        <div class="log-body" id="log-pdf_conversion"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-pdf_conversion" disabled onclick="openErrorFolder('pdf_conversion')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-pdf_conversion" onclick="resetTool('pdf_conversion')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-pdf_conversion" disabled onclick="cancelTool('pdf_conversion')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-pdf_conversion" disabled onclick="startTool('pdf_conversion')">▶ Start</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

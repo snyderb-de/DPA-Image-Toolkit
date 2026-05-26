@@ -4,9 +4,16 @@ File handling utilities for DPA Image Toolkit.
 Provides folder picker, file validation, and error folder creation.
 """
 
-import tkinter as tk
-from tkinter import filedialog
 from pathlib import Path
+
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    _HAS_TK = True
+except ImportError:
+    tk = None
+    filedialog = None
+    _HAS_TK = False
 from .log_utils import log_message
 
 
@@ -39,42 +46,35 @@ def pick_folder(title="Select Folder", initial_dir=None):
     """
     Open native folder picker dialog.
 
-    Args:
-        title (str): Dialog title
-
     Returns:
-        Path: Selected folder path, or None if cancelled
+        Path: Selected folder path, or None if cancelled or tkinter unavailable.
     """
+    if not _HAS_TK:
+        return None
     root = tk.Tk()
     root.withdraw()
-
+    root.attributes("-topmost", True)
     kwargs = {"title": title}
     resolved_initial_dir = _resolve_initial_dir(initial_dir)
     if resolved_initial_dir:
         kwargs["initialdir"] = resolved_initial_dir
     folder = filedialog.askdirectory(**kwargs)
-
     root.destroy()
-
-    if folder:
-        return Path(folder)
-    return None
+    return Path(folder) if folder else None
 
 
 def pick_files(title="Select Files", filetypes=None, initial_dir=None):
     """
     Open native multi-file picker dialog.
 
-    Args:
-        title (str): Dialog title
-        filetypes (list): Tk file type tuples
-
     Returns:
-        list[Path]: Selected file paths
+        list[Path]: Selected file paths, or [] if cancelled or tkinter unavailable.
     """
+    if not _HAS_TK:
+        return []
     root = tk.Tk()
     root.withdraw()
-
+    root.attributes("-topmost", True)
     kwargs = {
         "title": title,
         "filetypes": filetypes or [("All files", "*.*")],
@@ -83,10 +83,8 @@ def pick_files(title="Select Files", filetypes=None, initial_dir=None):
     if resolved_initial_dir:
         kwargs["initialdir"] = resolved_initial_dir
     files = filedialog.askopenfilenames(**kwargs)
-
     root.destroy()
-
-    return [Path(file_path) for file_path in files] if files else []
+    return [Path(f) for f in files] if files else []
 
 
 def validate_tif_files(folder_path):
