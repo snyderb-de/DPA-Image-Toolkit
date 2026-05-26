@@ -376,7 +376,7 @@ def merge_tiffs_prepare():
     valid, files, error = validate_tif_files(folder)
     if not valid:
         return jsonify({"ok": False, "error": error})
-    groups, warnings = validate_naming_convention(files)
+    groups, _is_valid, warnings = validate_naming_convention(folder)
     with _lock:
         _jobs["merge_tiffs"]["data"] = {
             "folder": folder,
