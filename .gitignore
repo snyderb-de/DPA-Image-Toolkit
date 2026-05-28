@@ -15,7 +15,11 @@ build/
 dist/
 *.egg-info/
 *.spec
+!packaging/*.spec
 *.exe
+
+# ── Runtime-generated config ───────────────────────────────────────────────────
+app-settings.json
 
 # ── Test-generated output and local test packs ────────────────────────────────
 testing/local/

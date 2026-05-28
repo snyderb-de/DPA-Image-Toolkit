@@ -22,7 +22,12 @@ except ImportError:
 
 from flask import Flask, Response, jsonify, render_template, request
 
-ROOT = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False):
+    ROOT = Path(sys._MEIPASS)
+    _web_dir = ROOT / "web"
+else:
+    ROOT = Path(__file__).resolve().parent.parent
+    _web_dir = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -64,7 +69,7 @@ _jobs: dict = {
     for t in TOOLS
 }
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(__name__, template_folder=str(_web_dir / "templates"), static_folder=str(_web_dir / "static"))
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────

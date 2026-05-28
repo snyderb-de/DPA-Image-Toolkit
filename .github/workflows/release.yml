@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build
+        run: pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
+
+      - name: Zip
+        env:
+          TAG: ${{ github.ref_name }}
+        run: Compress-Archive -Path dist/DPA-Image-Toolkit -DestinationPath "DPA-Image-Toolkit-Windows-$env:TAG.zip"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: DPA-Image-Toolkit-Windows-${{ github.ref_name }}.zip
+          fail_on_unmatched_files: true
