@@ -266,7 +266,11 @@ async function startTool(toolId) {
 
   let body = {};
 
-  if (toolId === 'ocr_pdf') {
+  if (toolId === 'auto_crop') {
+    body = {
+      straighten: document.getElementById('opt-auto-straighten').checked,
+    };
+  } else if (toolId === 'ocr_pdf') {
     body = {
       skip_existing: document.getElementById('opt-skip-existing').checked,
       skip_messy:    document.getElementById('opt-quality-check').checked,

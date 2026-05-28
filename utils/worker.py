@@ -93,6 +93,7 @@ class AutoCropWorker(OperationWorker):
         input_folder: Path,
         output_folder: Path,
         error_folder: Path,
+        straighten: bool = False,
     ):
         """
         Initialize auto-crop worker.
@@ -107,6 +108,7 @@ class AutoCropWorker(OperationWorker):
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
         self.error_folder = Path(error_folder)
+        self.straighten = straighten
 
         self.results = {
             "success": 0,
@@ -153,6 +155,7 @@ class AutoCropWorker(OperationWorker):
                     image_file,
                     self.output_folder,
                     preserve_dpi=True,
+                    straighten=self.straighten,
                 )
 
                 if error_msg:

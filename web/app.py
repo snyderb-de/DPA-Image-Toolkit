@@ -325,6 +325,8 @@ def auto_crop_prepare():
 
 @app.route("/api/auto_crop/start", methods=["POST"])
 def auto_crop_start():
+    body = request.get_json(force=True) or {}
+    straighten = bool(body.get("straighten", False))
     with _lock:
         if _jobs["auto_crop"]["state"] == "running":
             return jsonify({"ok": False, "error": "Already running"})
@@ -335,7 +337,7 @@ def auto_crop_start():
     output = folder / "cropped"
     errors = create_error_folder(folder)
     output.mkdir(parents=True, exist_ok=True)
-    _start_worker("auto_crop", AutoCropWorker(folder, output, errors))
+    _start_worker("auto_crop", AutoCropWorker(folder, output, errors, straighten=straighten))
     return jsonify({"ok": True})
 
 

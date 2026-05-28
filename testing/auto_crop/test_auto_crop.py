@@ -14,7 +14,9 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from modules.auto_cropping.core import crop_image, get_crop_stats
+from modules.auto_cropping.core import crop_image, get_crop_stats, _deskew_image
+import numpy as np
+
 from testing.auto_crop.generate_fixtures import generate_auto_crop_fixtures
 
 
@@ -84,6 +86,28 @@ class AutoCropCoreTests(unittest.TestCase):
             self.assertIsNone(output_path)
             self.assertIsNotNone(error)
             self.assertIn("blank", error.lower())
+
+
+    def test_deskew_returns_same_shape(self):
+        import cv2
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "doc.jpg"
+            _make_document_image(source_path)
+            image = cv2.imread(str(source_path))
+            corrected, angle = _deskew_image(image)
+            self.assertEqual(corrected.shape, image.shape)
+            self.assertIsInstance(angle, float)
+
+    def test_crop_with_straighten_flag_succeeds(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "source.jpg"
+            output_dir = root / "cropped"
+            _make_document_image(source_path)
+            output_path, error = crop_image(source_path, output_dir, straighten=True)
+            self.assertIsNone(error)
+            self.assertIsNotNone(output_path)
+            self.assertTrue(Path(output_path).exists())
 
 
 if __name__ == "__main__":
