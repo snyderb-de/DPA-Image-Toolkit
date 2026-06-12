@@ -1,7 +1,6 @@
 /* ── DPA Image Toolkit — Design Tokens ─────────────────────────────────────
    Shared with user-manual.html and project dashboard (unification: T-011).
    Theme switching: swap [data-theme] attribute on <html>.
-   Named themes (catppuccin, gruvbox etc) are additive overrides loaded on demand.
 ──────────────────────────────────────────────────────────────────────────── */
 
 :root,
@@ -9,32 +8,33 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --bg:        #0b0f14;
-  --bg2:       #111827;
-  --panel:     #192235;
-  --panel2:    #22304a;
-  --panel-border: rgba(210,225,255,0.13);
+  --bg:        #07111f;
+  --bg2:       #0c1a2d;
+  --panel:     #10243d;
+  --panel2:    #173458;
+  --panel-border: rgba(147,197,253,0.18);
 
-  /* Sidebar (always dark) */
-  --sidebar-bg:      #070b12;
-  --sidebar-border:  rgba(210,225,255,0.11);
-  --sidebar-hover:   rgba(210,225,255,0.08);
-  --sidebar-active:  rgba(37,99,235,0.28);
-  --sidebar-ink:     #a8b7d8;
-  --sidebar-ink-act: #eef4ff;
+  /* Sidebar */
+  --sidebar-bg:        #06101d;
+  --sidebar-border:    rgba(147,197,253,0.16);
+  --sidebar-hover:     rgba(96,165,250,0.12);
+  --sidebar-active:    rgba(37,99,235,0.34);
+  --sidebar-ink:       #a9bdd7;
+  --sidebar-ink-act:   #f1f7ff;
+  --sidebar-brand-ink: #edf6ff;
 
   /* Text */
-  --ink:   #edf3ff;
-  --muted: #a8b7d8;
-  --faint: #8b9bbc;
+  --ink:   #edf6ff;
+  --muted: #a9bdd7;
+  --faint: #91a6c2;
 
-  /* Accent — electric blue → purple gradient */
-  --accent:       #7fb0ff;
-  --accent2:      #b08cff;
-  --accent-fill:  #2563eb;
+  /* Accent - blue based */
+  --accent:       #73b6ff;
+  --accent2:      #38bdf8;
+  --accent-fill:  #1d4ed8;
   --accent-glow:  rgba(37, 99, 235, 0.55);
-  --accent2-glow: rgba(176, 140, 255, 0.4);
-  --accent-dim:   rgba(127, 176, 255, 0.16);
+  --accent2-glow: rgba(56, 189, 248, 0.36);
+  --accent-dim:   rgba(115, 182, 255, 0.16);
   --accent-text:  #ffffff;
 
   /* Semantic */
@@ -70,28 +70,29 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg:        #f0f4fb;
-  --bg2:       #e4eaf7;
+  --bg:        #f7faff;
+  --bg2:       #eaf2ff;
   --panel:     #ffffff;
-  --panel2:    #f8faff;
-  --panel-border: rgba(0,0,0,0.07);
+  --panel2:    #f1f6ff;
+  --panel-border: rgba(29,78,216,0.14);
 
-  --sidebar-bg:      #1a2035;
-  --sidebar-border:  rgba(255,255,255,0.06);
-  --sidebar-hover:   rgba(255,255,255,0.06);
-  --sidebar-active:  rgba(77,136,247,0.22);
-  --sidebar-ink:     #8fa5cc;
-  --sidebar-ink-act: #c8d8ff;
+  --sidebar-bg:        #edf4ff;
+  --sidebar-border:    rgba(29,78,216,0.18);
+  --sidebar-hover:     rgba(37,99,235,0.10);
+  --sidebar-active:    rgba(37,99,235,0.16);
+  --sidebar-ink:       #355071;
+  --sidebar-ink-act:   #0b2a55;
+  --sidebar-brand-ink: #0b2a55;
 
-  --ink:   #1a2035;
-  --muted: #4b5f7f;
-  --faint: #5f6f87;
+  --ink:   #10233f;
+  --muted: #415a7a;
+  --faint: #526b88;
 
   --accent:       #1d4ed8;
-  --accent2:      #7c3aed;
+  --accent2:      #0284c7;
   --accent-fill:  #2563eb;
   --accent-glow:  rgba(37, 99, 235, 0.35);
-  --accent2-glow: rgba(124, 58, 237, 0.3);
+  --accent2-glow: rgba(2, 132, 199, 0.28);
   --accent-dim:   rgba(37, 99, 235, 0.08);
   --accent-text:  #ffffff;
 
@@ -116,62 +117,6 @@
   --disabled-border: rgba(15,23,42,0.13);
   --disabled-ink:    #64748b;
 
-  --log-bg:   #1a2035;
-  --log-ink:  #8fa5cc;
-}
-
-/* ── Named themes (additive overrides) ──────────────────────────────────── */
-
-[data-named-theme="catppuccin-mocha"] {
-  --bg:        #1e1e2e;
-  --bg2:       #181825;
-  --panel:     #313244;
-  --panel2:    #45475a;
-  --panel-border: rgba(205,214,244,0.07);
-  --ink:       #cdd6f4;
-  --muted:     #b4c2df;
-  --faint:     #b4c2df;
-  --accent:    #9cc7ff;
-  --accent2:   #cba6f7;
-  --accent-fill: #89b4fa;
-  --accent-text: #11111b;
-  --accent-glow:  rgba(137,180,250,0.45);
-  --accent2-glow: rgba(203,166,247,0.35);
-  --accent-dim:   rgba(137,180,250,0.12);
-  --ok:        #a6e3a1;
-  --warn:      #f9e2af;
-  --err:       #f38ba8;
-  --ok-text:   #11111b;
-  --warn-text: #11111b;
-  --err-text:  #11111b;
-  --line:      rgba(205,214,244,0.08);
-  --log-bg:    #11111b;
-  --log-ink:   #a6adc8;
-}
-
-[data-named-theme="gruvbox-dark"] {
-  --bg:        #282828;
-  --bg2:       #1d2021;
-  --panel:     #3c3836;
-  --panel2:    #504945;
-  --panel-border: rgba(235,219,178,0.07);
-  --ink:       #ebdbb2;
-  --muted:     #d5c4a1;
-  --faint:     #d5c4a1;
-  --accent:    #a9d9a3;
-  --accent2:   #d3869b;
-  --accent-fill: #8ec07c;
-  --accent-text: #1d2021;
-  --accent-glow:  rgba(142,192,124,0.45);
-  --accent2-glow: rgba(211,134,155,0.35);
-  --accent-dim:   rgba(142,192,124,0.12);
-  --ok:        #b8bb26;
-  --warn:      #fabd2f;
-  --err:       #ff8a7a;
-  --ok-text:   #1d2021;
-  --warn-text: #1d2021;
-  --err-text:  #1d2021;
-  --line:      rgba(235,219,178,0.08);
-  --log-bg:    #1d2021;
-  --log-ink:   #a89984;
+  --log-bg:   #10233f;
+  --log-ink:  #dbeafe;
 }

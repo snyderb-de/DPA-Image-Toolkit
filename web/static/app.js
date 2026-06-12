@@ -39,25 +39,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Theme ─────────────────────────────────────────────────────────────────
 
 const THEME_KEY = 'dpa-toolkit-theme';
-const NAMED_KEY = 'dpa-toolkit-named-theme';
 
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY) || 'dark';
-  const named = localStorage.getItem(NAMED_KEY) || '';
   applyTheme(saved, false);
-  if (named) applyNamedTheme(named, false);
 }
 
 function setTheme(t) {
   applyTheme(t, true);
-  // Clear named theme when switching base
-  applyNamedTheme('', true);
-}
-
-function setNamedTheme(name) {
-  applyNamedTheme(name, true);
-  // Named dark themes imply dark base
-  if (name) applyTheme('dark', false);
 }
 
 function applyTheme(t, save) {
@@ -72,14 +61,6 @@ function applyTheme(t, save) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-}
-
-function applyNamedTheme(name, save) {
-  document.documentElement.setAttribute('data-named-theme', name);
-  document.querySelectorAll('.named-theme-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.textContent.trim().toLowerCase().startsWith(name.split('-')[0]));
-  });
-  if (save) localStorage.setItem(NAMED_KEY, name);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────

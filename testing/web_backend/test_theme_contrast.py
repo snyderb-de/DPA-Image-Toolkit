@@ -18,10 +18,6 @@ def _parse_vars():
             blocks["dark"] = values
         elif "[data-theme=\"light\"]" in selectors:
             blocks["light"] = values
-        else:
-            named = re.search(r"\[data-named-theme=\"([^\"]+)\"\]", selectors)
-            if named:
-                blocks[named.group(1)] = values
     return blocks
 
 
@@ -60,10 +56,7 @@ def _contrast(foreground, background):
 
 
 def _theme(name):
-    blocks = _parse_vars()
-    if name in ("catppuccin-mocha", "gruvbox-dark"):
-        return {**blocks["dark"], **blocks[name]}
-    return blocks[name]
+    return _parse_vars()[name]
 
 
 def _contrast_pair(theme_name, fg_var, bg_var):
@@ -82,7 +75,7 @@ class ThemeContrastTests(unittest.TestCase):
         self.assertGreaterEqual(ratio, AA_NORMAL, f"{label} is {ratio:.2f}:1")
 
     def test_text_tokens_meet_wcag_aa_on_primary_surfaces(self):
-        for theme_name in ("dark", "light", "catppuccin-mocha", "gruvbox-dark"):
+        for theme_name in ("dark", "light"):
             for fg_var in ("ink", "muted", "faint", "accent"):
                 for bg_var in ("bg", "panel", "panel2"):
                     with self.subTest(theme=theme_name, foreground=fg_var, background=bg_var):
@@ -92,7 +85,7 @@ class ThemeContrastTests(unittest.TestCase):
                         )
 
     def test_filled_control_text_meets_wcag_aa(self):
-        for theme_name in ("dark", "light", "catppuccin-mocha", "gruvbox-dark"):
+        for theme_name in ("dark", "light"):
             for fg_var, bg_var in (
                 ("accent-text", "accent-fill"),
                 ("warn-text", "warn"),
@@ -104,8 +97,17 @@ class ThemeContrastTests(unittest.TestCase):
                         f"{theme_name} {fg_var} on {bg_var}",
                     )
 
+    def test_sidebar_text_meets_wcag_aa(self):
+        for theme_name in ("dark", "light"):
+            for fg_var in ("sidebar-ink", "sidebar-ink-act", "sidebar-brand-ink", "accent"):
+                with self.subTest(theme=theme_name, foreground=fg_var):
+                    self.assert_aa(
+                        _contrast_pair(theme_name, fg_var, "sidebar-bg"),
+                        f"{theme_name} {fg_var} on sidebar-bg",
+                    )
+
     def test_status_banner_text_meets_wcag_aa(self):
-        for theme_name in ("dark", "light", "catppuccin-mocha", "gruvbox-dark"):
+        for theme_name in ("dark", "light"):
             for fg_var, overlay_var in (
                 ("muted", "accent-dim"),
                 ("ok", "ok-dim"),

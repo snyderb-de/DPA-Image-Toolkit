@@ -12,6 +12,14 @@ body {
   overflow: hidden;
 }
 
+button:focus,
+a:focus,
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 .layout {
   display: flex;
@@ -48,7 +56,7 @@ body {
 .sidebar-brand-name {
   font-size: 0.96rem;
   font-weight: 700;
-  color: #e2eaff;
+  color: var(--sidebar-brand-ink);
   line-height: 1.2;
 }
 
@@ -129,7 +137,7 @@ body {
 }
 
 .manual-link:hover {
-  color: #fff;
+  color: var(--sidebar-ink-act);
   border-color: var(--accent-fill);
 }
 
@@ -183,37 +191,6 @@ body {
   background: var(--accent-fill);
   border-color: var(--accent-fill);
   color: var(--accent-text);
-}
-
-.named-themes {
-  margin-top: 7px;
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.named-theme-btn {
-  flex: 1;
-  min-width: 0;
-  padding: 4px 6px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--sidebar-ink);
-  font-size: 0.67rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: all 0.12s;
-}
-
-.named-theme-btn:hover, .named-theme-btn.active {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 /* ── Main area ────────────────────────────────────────────────────────────── */
@@ -371,6 +348,10 @@ body {
 .mode-btn.active {
   background: var(--accent-fill);
   color: var(--accent-text);
+}
+
+#pdf-input-mode-toggle {
+  margin-bottom: 14px;
 }
 
 /* ── Status banner ────────────────────────────────────────────────────────── */
