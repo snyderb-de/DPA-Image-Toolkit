@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 import cv2
@@ -22,6 +23,7 @@ from modules.auto_cropping.core import (
     straighten_image,
     _deskew_image,
 )
+from utils.worker import AutoCropWorker
 
 from testing.auto_crop.generate_fixtures import generate_auto_crop_fixtures
 
@@ -182,6 +184,26 @@ class AutoCropCoreTests(unittest.TestCase):
 
             with Image.open(source_path) as source_img, Image.open(output_path) as output_img:
                 self.assertEqual(output_img.size, source_img.size)
+
+    def test_worker_reports_failures_without_moving_source_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "bad.jpg"
+            output_dir = root / "cropped"
+            error_dir = root / "errored-files"
+            source_path.write_bytes(b"not an image")
+
+            worker = AutoCropWorker(root, output_dir, error_dir)
+            with patch(
+                "modules.auto_cropping.core.crop_image",
+                return_value=(None, "Failed to read image: bad.jpg"),
+            ):
+                worker.run()
+
+            results = worker.get_results()
+            self.assertTrue(source_path.exists())
+            self.assertEqual(results["failed"], 1)
+            self.assertFalse((error_dir / "failed" / "bad.jpg").exists())
 
 
 if __name__ == "__main__":

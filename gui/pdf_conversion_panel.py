@@ -7,7 +7,6 @@ from __future__ import annotations
 import platform
 import subprocess
 from pathlib import Path
-from tkinter import messagebox
 
 import customtkinter as ctk
 
@@ -50,8 +49,7 @@ class PdfConversionPanel:
     }
 
     REMOVE_MODE_OPTIONS = {
-        "Safe (create remaining PDF)": "safe",
-        "Overwrite original (confirm)": "overwrite",
+        "Create remaining PDF": "safe",
     }
 
     def __init__(self, parent_window):
@@ -71,7 +69,7 @@ class PdfConversionPanel:
         self.extract_pages_var = ctk.StringVar(value="")
         self.extract_pages_var.trace_add("write", lambda *_: self._refresh_start_state())
         self.remove_extracted_var = ctk.BooleanVar(value=False)
-        self.remove_mode_var = ctk.StringVar(value="Safe (create remaining PDF)")
+        self.remove_mode_var = ctk.StringVar(value="Create remaining PDF")
         self.pdfa_mode_var = ctk.StringVar(value=get_pdfa_profile_label(DEFAULT_PDFA_PROFILE_KEY))
 
         self.selection_label = None
@@ -213,7 +211,7 @@ class PdfConversionPanel:
             process_notes=(
                 "Reduce Size can run on one PDF file or an entire folder of PDFs.",
                 "Split PDF and Extract Pages are single-file operations only.",
-                "Extract Pages can optionally create a remaining PDF or overwrite the original.",
+                "Extract Pages writes new PDFs and never changes the source PDF.",
                 "PDF/A mode is shown now and will be fully enabled after rule documentation is finalized.",
             ),
         )
@@ -360,7 +358,7 @@ class PdfConversionPanel:
 
         ctk.CTkCheckBox(
             self.extract_options_frame,
-            text="Remove extracted pages from source",
+            text="Write remaining-pages copy",
             font=get_font("small"),
             text_color=t["fg_primary"],
             variable=self.remove_extracted_var,
@@ -698,24 +696,6 @@ class PdfConversionPanel:
             self._set_info(f"⚠  {error_msg}", "warning")
             self._log(error_msg or "Missing dependency.", "warning")
             return
-
-        if (
-            operation == "extract_pages"
-            and self.remove_extracted_var.get()
-            and self._remove_mode_key() == "overwrite"
-        ):
-            confirmed = messagebox.askyesno(
-                title="Overwrite Original PDF?",
-                message=(
-                    "This will overwrite the original PDF by removing extracted pages.\n\n"
-                    "Do you want to continue?"
-                ),
-                parent=self.parent,
-            )
-            if not confirmed:
-                self._log("Overwrite operation cancelled by user.", "warning")
-                self._set_info("Overwrite cancelled. No source file changes were made.", "warning")
-                return
 
         self.btn_start.configure(state="disabled", text="  ⏳  Running…")
         self.btn_cancel.configure(state="normal", text="  ■  Cancel")

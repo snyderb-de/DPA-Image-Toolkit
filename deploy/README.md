@@ -1,7 +1,7 @@
-# Legacy Deploy Bundle
+# EXE Deployment
 
-The primary release artifact is now the PyInstaller Windows EXE zip produced by
-the `Release` GitHub Actions workflow.
+The supported deploy artifact is the PyInstaller Windows EXE zip produced by the
+`Release` GitHub Actions workflow.
 
 Use the EXE release for normal deployment:
 
@@ -11,38 +11,21 @@ DPA-Image-Toolkit-Windows-vX.Y.Z.zip
    └─ DPA-Image-Toolkit.exe
 ```
 
-This `deploy/` folder is retained only as a legacy source-copy bundle for
-machines where Python and the required packages are installed manually.
+The legacy source-copy deployment bundle has been retired. Do not deploy
+`deploy/dpa-img-tk` or a batch launcher; those files are intentionally no longer
+part of the repo.
 
-## Legacy Source Layout
+## Build Locally On Windows
 
-Copy the contents of `deploy/` into:
-
-```text
-C:\Users\<user>\Scripts\
+```powershell
+py -3 -m pip install -r requirements.txt pyinstaller
+py -3 -m PyInstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 ```
 
-That produces:
+The built app starts a local Flask backend and opens the toolkit in a PyWebView
+window. No end-user Python install is expected when using the release zip.
 
-```text
-C:\Users\<user>\Scripts\
-├─ image-toolkit.bat
-└─ dpa-img-tk\
-   ├─ dpa-image-toolkit.py
-   ├─ main.py
-   ├─ requirements.txt
-   ├─ app-settings.json      <- created automatically on first run
-   ├─ user-manual.html
-   ├─ gui\
-   ├─ modules\
-   └─ utils\
-```
+## Data Safety Rule
 
-Install dependencies from Command Prompt or PowerShell:
-
-```bash
-py -3 -m pip install -r "%USERPROFILE%\Scripts\dpa-img-tk\requirements.txt"
-```
-
-The legacy batch launcher starts the older CustomTkinter desktop UI, not the
-current PyInstaller web-window release UI.
+All tools copy outputs into tool-specific output folders. Source inputs are never
+moved, overwritten, or deleted by release workflows.

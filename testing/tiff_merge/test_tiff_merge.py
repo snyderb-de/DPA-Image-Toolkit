@@ -14,7 +14,13 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.tiff_combine.core import get_merge_stats, merge_tiff_group
-from modules.tiff_combine.naming import validate_naming_convention
+from modules.tiff_combine.naming import (
+    extract_group_name,
+    extract_sequence_number,
+    sort_group_files,
+    validate_file_naming,
+    validate_naming_convention,
+)
 from testing.tiff_merge.generate_fixtures import generate_tiff_merge_fixtures
 
 
@@ -47,6 +53,48 @@ class TiffMergeCoreTests(unittest.TestCase):
                 groups[group_name],
                 [f"{group_name}_{index:03d}.tif" for index in range(1, expected_count + 1)],
             )
+
+    def test_merge_naming_contract_is_trailing_numeric_sequence(self):
+        sample = "9200-T16-000_207_003.tif"
+
+        self.assertTrue(validate_file_naming(sample))
+        self.assertTrue(validate_file_naming("9200-T16-000_207_3.tif"))
+        self.assertTrue(validate_file_naming("9200-T16-000_207_03.tif"))
+        self.assertTrue(validate_file_naming("9200-T16-000_207_100.tif"))
+        self.assertTrue(validate_file_naming("9200-T16-000_207_0003.tif"))
+        self.assertTrue(validate_file_naming("9200-T16-000_207_1000.tif"))
+        self.assertEqual(extract_group_name(sample), "9200-T16-000_207")
+        self.assertEqual(extract_group_name("9200-T16-000_207_3.tif"), "9200-T16-000_207")
+        self.assertEqual(extract_sequence_number(sample), 3)
+        self.assertEqual(extract_sequence_number("9200-T16-000_207_3.tif"), 3)
+        self.assertEqual(extract_sequence_number("9200-T16-000_207_0003.tif"), 3)
+        self.assertEqual(extract_sequence_number("9200-T16-000_207_100.tif"), 100)
+        self.assertEqual(extract_sequence_number("9200-T16-000_207_1000.tif"), 1000)
+        self.assertFalse(validate_file_naming("9200-T16-000_207_0.tif"))
+        self.assertFalse(validate_file_naming("9200-T16-000_207_000.tif"))
+        self.assertFalse(validate_file_naming("9200-T16-000_003.tif"))
+
+    def test_merge_sequence_sort_is_numeric_for_unpadded_names(self):
+        files = [
+            "doc_batch_100.tif",
+            "doc_batch_1000.tif",
+            "doc_batch_10.tif",
+            "doc_batch_2.tif",
+            "doc_batch_0001.tif",
+            "doc_batch_11.tif",
+        ]
+
+        self.assertEqual(
+            sort_group_files(files, "doc_batch"),
+            [
+                "doc_batch_0001.tif",
+                "doc_batch_2.tif",
+                "doc_batch_10.tif",
+                "doc_batch_11.tif",
+                "doc_batch_100.tif",
+                "doc_batch_1000.tif",
+            ],
+        )
 
     def test_get_merge_stats_reports_file_count_and_ready_status(self):
         stats = get_merge_stats("document_batchA", self.fixture_dir)

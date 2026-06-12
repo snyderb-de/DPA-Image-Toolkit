@@ -59,6 +59,10 @@
     </div>
 
     <div class="sidebar-footer">
+      <a class="manual-link" href="/manual">
+        <span class="manual-link-icon">?</span>
+        <span>User Manual</span>
+      </a>
       <span class="theme-label">Appearance</span>
       <div class="theme-btns">
         <button class="theme-btn" id="theme-dark" onclick="setTheme('dark')">Dark</button>
@@ -194,7 +198,7 @@
         <div class="panel-icon">⊞</div>
         <div>
           <div class="panel-title">Merge TIFFs</div>
-          <div class="panel-sub">Combine <code>{name}_{group}_{###}.tif</code> page files into multi-page TIFFs</div>
+          <div class="panel-sub">Combine <code>{name}_{group}_{sequence}.tif</code> page files into multi-page TIFFs</div>
         </div>
       </div>
 
@@ -456,6 +460,10 @@
 
       <div class="card">
         <div class="card-label" id="pdf-pick-label">Input</div>
+        <div class="mode-toggle" id="pdf-input-mode-toggle">
+          <button class="mode-btn active" id="pdf-mode-file" onclick="setPdfInputMode('file')">File</button>
+          <button class="mode-btn" id="pdf-mode-folder" onclick="setPdfInputMode('folder')">Folder</button>
+        </div>
         <div class="picker-row">
           <button class="pick-btn" id="pick-btn-pdf" onclick="pickPdf()">📄 Select PDF</button>
           <div class="path-display" id="path-pdf_conversion">No file selected</div>
@@ -502,15 +510,8 @@
             <input type="text" id="inp-page-spec" placeholder="e.g. 1,3,5-8">
           </div>
           <label class="check-label">
-            <input type="checkbox" id="opt-remove-pages"> Remove from source
+            <input type="checkbox" id="opt-write-remaining-pages"> Write remaining-pages copy
           </label>
-          <div class="select-wrap" id="extract-mode-wrap" style="display:none">
-            <span class="select-label">Mode:</span>
-            <select id="sel-extract-mode">
-              <option value="safe">Safe (keep remaining)</option>
-              <option value="overwrite">Overwrite source</option>
-            </select>
-          </div>
         </div>
       </div>
 

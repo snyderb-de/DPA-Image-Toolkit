@@ -9,6 +9,7 @@ Use this checklist before release packaging or deployment.
 - [ ] Confirm the native app window opens without traceback on first launch
 - [ ] Source checkout fallback: run `python launch_web.py`
 - [ ] Confirm Light/Dark appearance options render correctly
+- [ ] Confirm every tool leaves source input files in place after success, skip, failure, and cancel flows
 
 ## Global UX and Navigation
 
@@ -33,7 +34,7 @@ Use this checklist before release packaging or deployment.
 - [ ] Verify output in `cropped/`
 - [ ] Enable `Straighten before crop` and verify skewed inputs crop successfully
 - [ ] Verify cancel waits for current image and then stops
-- [ ] Verify error flow creates `errored-files/` content when failures are forced
+- [ ] Verify forced failures are logged/reported without moving source files
 
 ## Straighten Images
 
@@ -92,8 +93,8 @@ Use this checklist before release packaging or deployment.
 - [ ] Run single-file split into one-PDF-per-page
 - [ ] Run single-file export to JPEG (or other configured format)
 - [ ] Run single-file extract pages into new PDF
-- [ ] If source-page removal is enabled, verify expected page deletion result
-- [ ] Verify overwrite confirmation prompts appear when applicable
+- [ ] If remaining-pages copy is enabled, verify the source PDF is unchanged and a separate remaining PDF is written
+- [ ] Verify no PDF operation overwrites or deletes the selected source PDF
 
 ## Dependency and Error Handling
 

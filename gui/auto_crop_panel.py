@@ -570,7 +570,7 @@ class AutoCropPanel:
             lines += [f"File:  {e['file']}", f"Error: {e['error']}", ""]
         lines += [
             "=" * 60,
-            "These files have been moved to the errored-files/ folder.",
+            "Source files were left in place. Review the errors above and retry as needed.",
         ]
         try:
             report_file.write_text("\n".join(lines))

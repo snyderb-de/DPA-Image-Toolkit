@@ -8,7 +8,9 @@ Progress is streamed to the browser via Server-Sent Events (SSE).
 from __future__ import annotations
 
 import json
+import os
 import queue
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -31,7 +33,11 @@ else:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from modules.ocr_pdf.core import group_ocr_input_files, summarize_ocr_documents
+from modules.ocr_pdf.core import (
+    get_ocr_dependency_statuses,
+    group_ocr_input_files,
+    summarize_ocr_documents,
+)
 from modules.pdf_tools.compression_profiles import (
     DEFAULT_PROFILE_KEY,
     get_profile_key_from_label,
@@ -41,6 +47,7 @@ from modules.pdf_tools.compression_profiles import (
 )
 from modules.pdf_tools.core import (
     DEFAULT_PDFA_PROFILE_KEY,
+    get_pdf_conversion_dependency_statuses,
     get_pdfa_profile_key_from_label,
     get_pdfa_profile_label,
     get_pdfa_profile_labels,
@@ -51,7 +58,7 @@ from utils.file_handler import (
     validate_image_files,
     validate_tif_files,
 )
-from utils.tool_dependencies import check_tool_dependencies, get_tool_dependency_statuses
+from utils.tool_dependencies import get_tool_dependency_statuses
 from utils.worker import (
     AddBorderWorker,
     AutoCropWorker,
@@ -124,6 +131,26 @@ def _start_worker(tool_id: str, worker):
     threading.Thread(target=_monitor, args=(tool_id, worker), daemon=True).start()
 
 
+def _set_job_data(tool_id: str, **updates) -> None:
+    with _lock:
+        data = dict(_jobs[tool_id]["data"])
+        data.update(updates)
+        _jobs[tool_id]["data"] = data
+
+
+def _open_folder(path: Path) -> tuple[bool, str | None]:
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+    except Exception as exc:
+        return False, str(exc)
+    return True, None
+
+
 def _settings_path() -> Path:
     entry = Path(sys.argv[0]).resolve() if sys.argv and sys.argv[0] else Path.cwd()
     return entry.parent / "app-settings.json"
@@ -183,6 +210,12 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/manual")
+@app.route("/user-manual.html")
+def manual():
+    return render_template("manual.html")
+
+
 @app.route("/api/settings", methods=["GET"])
 def get_settings():
     return jsonify(_load_settings())
@@ -238,6 +271,11 @@ def api_pick_files():
 
 @app.route("/api/dependencies/<tool_id>")
 def api_dependencies(tool_id):
+    if tool_id == "ocr_pdf":
+        return jsonify(get_ocr_dependency_statuses())
+    if tool_id == "pdf_conversion":
+        operation = request.args.get("operation", "reduce_size")
+        return jsonify(get_pdf_conversion_dependency_statuses(operation=operation))
     return jsonify(get_tool_dependency_statuses(tool_id))
 
 
@@ -316,6 +354,27 @@ def tool_reset(tool_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/<tool_id>/open-errors", methods=["POST"])
+def tool_open_errors(tool_id):
+    if tool_id not in TOOLS:
+        return jsonify({"ok": False, "error": "Unknown tool"}), 404
+    with _lock:
+        data = dict(_jobs[tool_id]["data"])
+
+    error_folder = data.get("error_folder")
+    if not error_folder:
+        return jsonify({"ok": False, "error": "No error folder is available for this job yet."})
+
+    path = Path(error_folder)
+    if not path.exists() or not path.is_dir():
+        return jsonify({"ok": False, "error": f"Error folder does not exist: {path}"})
+
+    ok, error = _open_folder(path)
+    if not ok:
+        return jsonify({"ok": False, "error": error or "Could not open folder"})
+    return jsonify({"ok": True, "path": str(path)})
+
+
 # ── Auto Crop ──────────────────────────────────────────────────────────────
 
 @app.route("/api/auto_crop/prepare", methods=["POST"])
@@ -346,6 +405,7 @@ def auto_crop_start():
     output = folder / "cropped"
     errors = create_error_folder(folder)
     output.mkdir(parents=True, exist_ok=True)
+    _set_job_data("auto_crop", error_folder=str(errors))
     _start_worker("auto_crop", AutoCropWorker(folder, output, errors, straighten=straighten))
     return jsonify({"ok": True})
 
@@ -379,6 +439,7 @@ def straighten_images_start():
     errors = create_error_folder(folder) / "straighten"
     output.mkdir(parents=True, exist_ok=True)
     errors.mkdir(parents=True, exist_ok=True)
+    _set_job_data("straighten_images", error_folder=str(errors))
     _start_worker("straighten_images", StraightenWorker(folder, output, errors))
     return jsonify({"ok": True})
 
@@ -409,7 +470,10 @@ def add_border_start():
     if not folder.is_dir():
         return jsonify({"ok": False, "error": "No folder prepared"})
     output = folder / "bordered"
+    errors = create_error_folder(folder) / "add-border"
     output.mkdir(parents=True, exist_ok=True)
+    errors.mkdir(parents=True, exist_ok=True)
+    _set_job_data("add_border", error_folder=str(errors))
     _start_worker("add_border", AddBorderWorker(folder, output))
     return jsonify({"ok": True})
 
@@ -454,6 +518,7 @@ def merge_tiffs_start():
     output = folder / "merged"
     errors = create_error_folder(folder)
     output.mkdir(parents=True, exist_ok=True)
+    _set_job_data("merge_tiffs", error_folder=str(errors))
     _start_worker("merge_tiffs", TiffMergeWorker(folder, output, errors, groups))
     return jsonify({"ok": True})
 
@@ -501,10 +566,15 @@ def split_tiffs_start():
     if mode == "folder" and folder:
         output_root = Path(folder) / "extracted-pages"
         output_root.mkdir(parents=True, exist_ok=True)
+        error_base = Path(folder)
         use_root = True
     else:
         output_root = None
+        error_base = file_paths[0].parent
         use_root = False
+    errors = create_error_folder(error_base) / "split-tiffs"
+    errors.mkdir(parents=True, exist_ok=True)
+    _set_job_data("split_tiffs", error_folder=str(errors))
     _start_worker("split_tiffs", TiffSplitWorker(file_paths, output_root, use_root))
     return jsonify({"ok": True})
 
@@ -551,6 +621,7 @@ def ocr_pdf_start():
     error_folder = create_error_folder(folder) / "ocr-pdf"
     output.mkdir(parents=True, exist_ok=True)
     error_folder.mkdir(parents=True, exist_ok=True)
+    _set_job_data("ocr_pdf", error_folder=str(error_folder))
     _start_worker("ocr_pdf", OcrPdfWorker(
         input_folder=folder,
         output_folder=output,
@@ -601,16 +672,21 @@ def pdf_conversion_start():
     body = request.get_json(force=True) or {}
     if not data.get("path"):
         return jsonify({"ok": False, "error": "No path prepared"})
+    input_path = Path(data["path"])
+    error_base = input_path if input_path.is_dir() else input_path.parent
+    error_folder = create_error_folder(error_base) / "pdf-conversion"
+    error_folder.mkdir(parents=True, exist_ok=True)
+    _set_job_data("pdf_conversion", error_folder=str(error_folder))
     _start_worker("pdf_conversion", PdfConversionWorker(
         selection_mode=data["mode"],
-        input_path=Path(data["path"]),
+        input_path=input_path,
         operation=data["operation"],
         reduce_size_enabled=bool(body.get("reduce_size", True)),
         compression_profile_key=str(body.get("compression_profile", DEFAULT_PROFILE_KEY)),
         split_output_type=str(body.get("split_output_type", "pdfs")),
         extract_page_spec=str(body.get("extract_page_spec", "")),
-        remove_extracted_pages=bool(body.get("remove_extracted_pages", False)),
-        extract_removal_mode=str(body.get("extract_removal_mode", "safe")),
+        remove_extracted_pages=bool(body.get("write_remaining_pages", False)),
+        extract_removal_mode="safe",
         pdfa_profile_key=str(body.get("pdfa_profile", DEFAULT_PDFA_PROFILE_KEY)),
     ))
     return jsonify({"ok": True})

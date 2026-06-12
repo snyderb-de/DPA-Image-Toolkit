@@ -30,6 +30,7 @@ python dpa-image-toolkit.py
 - The EXE starts a local Flask backend and opens the app in a PyWebView native window.
 - Source checkout runs on macOS and other platforms with a working Python/Tk install.
 - The older CustomTkinter UI remains in `dpa-image-toolkit.py`, but it is not the primary release target.
+- All tools copy outputs into output folders; source inputs are never moved, overwritten, or deleted.
 
 ## Tools
 
@@ -56,7 +57,8 @@ Combines grouped TIFF page files into multi-page TIFFs.
 
 - Input: TIFF folder
 - Output: `input_folder/merged/`
-- Naming rule: `{name}_{group}_{###}.tif` or `.tiff`
+- Naming rule: `{name}_{group}_{sequence}.tif` or `.tiff`
+- Sequence rule: any positive integer, with or without leading zeros (`_1`, `_01`, `_001`, `_0001`, `_1000`)
 - Mixed folders are allowed; valid groups merge, unmatched files are skipped
 
 ### Split Multi-Page TIFFs
@@ -95,7 +97,7 @@ Converts and reshapes PDF files with single-file or folder workflows.
 - Reduce PDF size using shared compression profiles
 - Split one PDF into one-PDF-per-page outputs
 - Export PDF pages to image formats
-- Extract selected pages into a new PDF (with optional source-page removal)
+- Extract selected pages into a new PDF, with an optional remaining-pages copy
 
 ## Naming Rules
 
@@ -104,18 +106,22 @@ Converts and reshapes PDF files with single-file or folder workflows.
 Valid TIFF merge groups follow:
 
 ```text
-{name}_{group}_{###}.tif
-{name}_{group}_{###}.tiff
+{name}_{group}_{sequence}.tif
+{name}_{group}_{sequence}.tiff
 ```
 
 Examples:
 
 ```text
 9200-T16-000_207_003.tif
+9200-T16-000_207_3.tif
+9200-T16-000_207_0003.tif
+9200-T16-000_207_100.tif
+9200-T16-000_207_1000.tif
 9200-B31-000_001_004.tiff
 ```
 
-Everything before the final `_###` is treated as the merge group name, so a valid one-file group is still processed.
+Everything before the final numeric suffix is treated as the merge group name, so a valid one-file group is still processed. Page files are sorted numerically, so `_10` comes after `_9`.
 
 ### OCR to PDF
 
@@ -190,7 +196,7 @@ pip install -r requirements.txt pyinstaller
 pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 ```
 
-The old `deploy/` folder is a legacy source-copy bundle for machines where Python is installed. It is not the release artifact for EXE deployment.
+The `deploy/` folder contains release/deployment notes only. The old source-copy bundle has been retired so the EXE zip remains the single deploy path.
 
 ## Repo Layout
 
@@ -200,7 +206,7 @@ modules/    tool-specific processing logic
 utils/      shared workers, dependency checks, and file helpers
 web/        Flask/PyWebView release UI
 packaging/  PyInstaller spec for the Windows EXE
-deploy/     legacy source-copy Windows bundle
+deploy/     EXE release and deployment notes
 testing/    per-tool generators, test runners, and local test scratch space
 ```
 
@@ -208,7 +214,7 @@ testing/    per-tool generators, test runners, and local test scratch space
 
 - `README.md` — setup, workflow, naming rules, deployment
 - `TODO.md` — open issues and future enhancements
-- `deploy/README.md` — legacy Windows Scripts deployment notes
+- `deploy/README.md` — EXE release/deployment notes
 - `docs/` — GitHub Pages project dashboard (HTML/CSS/JS)
 - CustomTkinter offline docs/code reference (local fork): `/Users/baghead/code/CustomTkinter`
 

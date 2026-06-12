@@ -141,7 +141,7 @@ class TiffMergePanel:
 
         self.info_lbl = ctk.CTkLabel(
             self.info_card,
-            text="Files must be named:  {name}_{group}_{###}.tif or .tiff",
+            text="Files must be named:  {name}_{group}_{sequence}.tif or .tiff",
             font=get_font("small"),
             text_color=t["fg_secondary"],
             anchor="w",
@@ -156,7 +156,8 @@ class TiffMergePanel:
             statuses=get_tool_dependency_statuses("tiff_merge"),
             support_lines=dependency_content["support_lines"],
             process_notes=(
-                "Merge TIFFs groups files by names like {name}_{group}_{###}.tif or .tiff.",
+                "Merge TIFFs groups files by names like {name}_{group}_{sequence}.tif or .tiff.",
+                "The sequence can be any positive integer, with or without leading zeros.",
                 "Files in valid groups are merged in number order into a single multi-page TIFF.",
                 "TIFFs that do not match a valid group name are skipped rather than stopping the run.",
             ),
@@ -528,7 +529,7 @@ class TiffMergePanel:
         self.cancel_stage = 0
         self.btn_error_report.configure(state="disabled")
         self.btn_new_job.configure(state="normal")
-        self._set_info("Files must be named:  {name}_{group}_{###}.tif or .tiff", level="info")
+        self._set_info("Files must be named:  {name}_{group}_{sequence}.tif or .tiff", level="info")
         self._clear_log()
         self._refresh_dependency_panel()
         self.parent.operation_in_progress = False

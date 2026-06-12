@@ -46,13 +46,13 @@ class ErrorHandler:
 
     def move_file_to_error_folder(self, source_file):
         """
-        Move a file to error folder.
+        Copy a file to error folder without modifying the source.
 
         Args:
-            source_file (Path|str): File to move
+            source_file (Path|str): File to copy
 
         Returns:
-            bool: True if moved successfully
+            bool: True if copied successfully
         """
         source_file = Path(source_file)
 
@@ -62,11 +62,11 @@ class ErrorHandler:
 
         try:
             dest_file = self.error_folder / source_file.name
-            shutil.move(str(source_file), str(dest_file))
-            log_message(f"Moved to error folder: {source_file.name}", "warning")
+            shutil.copy2(str(source_file), str(dest_file))
+            log_message(f"Copied to error folder: {source_file.name}", "warning")
             return True
         except Exception as e:
-            log_message(f"Failed to move {source_file.name}: {e}", "error")
+            log_message(f"Failed to copy {source_file.name}: {e}", "error")
             return False
 
     def generate_error_report(self, output_file=None):
@@ -100,7 +100,7 @@ class ErrorHandler:
                 report_lines.append(f"   Source: {error['source_file']}")
 
         report_lines.append("\n" + "=" * 50)
-        report_lines.append("Please review the files in this folder.")
+        report_lines.append("Please review the copied files in this folder.")
         report_lines.append("Correct issues and retry the operation.")
 
         report_content = "\n".join(report_lines)

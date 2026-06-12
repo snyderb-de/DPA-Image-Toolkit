@@ -122,7 +122,6 @@ class AutoCropWorker(OperationWorker):
     def run(self):
         """Execute auto-crop operation."""
         from modules.auto_cropping.core import crop_image
-        import shutil
 
         try:
             # Find all image files
@@ -165,16 +164,11 @@ class AutoCropWorker(OperationWorker):
                         "error": error_msg,
                     })
 
-                    # Move file to error folder if it's a real error (not just blank/white)
+                    # Inputs are never moved. Real errors are reported so the
+                    # source file remains available for review and retry.
                     if "too small" not in error_msg and "blank" not in error_msg and "white" not in error_msg:
-                        try:
-                            error_folder = self.error_folder / "failed"
-                            error_folder.mkdir(parents=True, exist_ok=True)
-                            shutil.move(str(image_file), str(error_folder / image_file.name))
-                            self.results["failed"] += 1
-                            self.report_error(image_file.name, error_msg)
-                        except Exception as e:
-                            self.report_error(image_file.name, f"Move failed: {str(e)}")
+                        self.results["failed"] += 1
+                        self.report_error(image_file.name, error_msg)
                     else:
                         self.results["skipped"] += 1
                 else:

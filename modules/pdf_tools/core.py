@@ -444,7 +444,8 @@ def extract_pdf_pages(
     should_cancel: Optional[Callable[[], bool]] = None,
 ) -> tuple[str, Optional[str], dict]:
     """
-    Extract selected pages into a new PDF and optionally remove them from source.
+    Extract selected pages into a new PDF and optionally write a separate
+    remaining-pages PDF. The source PDF is never overwritten.
     """
     from pypdf import PdfReader, PdfWriter
 
@@ -499,27 +500,16 @@ def extract_pdf_pages(
 
     remaining_output = None
     if remove_extracted_pages and remaining_writer is not None:
-        mode = str(removal_mode or "safe").strip().lower()
-        if mode == "overwrite":
-            temp_path = input_pdf_path.with_suffix(input_pdf_path.suffix + ".tmp")
-            try:
-                with temp_path.open("wb") as target:
-                    remaining_writer.write(target)
-                temp_path.replace(input_pdf_path)
-                remaining_output = str(input_pdf_path)
-            except Exception as exc:
-                return "failed", f"Failed to overwrite source PDF: {exc}", {}
-        else:
-            safe_output = Path(remaining_output_path) if remaining_output_path else (
-                input_pdf_path.parent / f"{input_pdf_path.stem}_remaining.pdf"
-            )
-            safe_output.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                with safe_output.open("wb") as target:
-                    remaining_writer.write(target)
-                remaining_output = str(safe_output)
-            except Exception as exc:
-                return "failed", f"Failed to write remaining PDF: {exc}", {}
+        safe_output = Path(remaining_output_path) if remaining_output_path else (
+            input_pdf_path.parent / f"{input_pdf_path.stem}_remaining.pdf"
+        )
+        safe_output.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with safe_output.open("wb") as target:
+                remaining_writer.write(target)
+            remaining_output = str(safe_output)
+        except Exception as exc:
+            return "failed", f"Failed to write remaining PDF: {exc}", {}
 
     return "success", None, {
         "total_pages": total_pages,

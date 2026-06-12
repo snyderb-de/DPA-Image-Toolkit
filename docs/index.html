@@ -506,7 +506,7 @@
             <div class="tc-icon">⊞</div>
             <div>
               <div class="tc-name">Merge TIFFs</div>
-              <div class="tc-sub">Combines <code>{name}_{group}_{###}.tif</code> page files into multi-page TIFFs by group.</div>
+              <div class="tc-sub">Combines <code>{name}_{group}_{sequence}.tif</code> page files into multi-page TIFFs by group.</div>
             </div>
           </div>
           <div class="tc-io"><strong>In:</strong> TIFF folder &nbsp;·&nbsp; <strong>Out:</strong> <code>merged/</code></div>
@@ -713,7 +713,7 @@
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-011</span><span class="dtext">Auto Crop straightening option — optional Hough Line Transform deskew pass before crop analysis</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard rebuilt in dates-formatter style — IBM Plex fonts, navy/orange gradient, collapsible roadmap phases, T-IDs/D-IDs</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-009</span><span class="dtext">User manual HTML — standalone guide with left nav, dark/light theme, Ctrl+F search tip, deploys alongside the app</span></div>
-          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file moved to script directory — <code>app-settings.json</code> now alongside the script and manual in <code>dpa-img-tk/</code></span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file stored beside the launched app — <code>app-settings.json</code> is created automatically next to the executable or source launcher</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-007</span><span class="dtext">Appearance mode persisted — theme preference (light/dark/system) saved to <code>app-settings.json</code> on change</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-006</span><span class="dtext">OCR log export — Save Log button exports full run log to disk after job completes</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-005</span><span class="dtext">Two-stage cancel flow — graceful two-stage cancel before hard abort for TIFF split and merge</span></div>
@@ -729,7 +729,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Open Decisions</h2>
-        <span class="pbadge">6 items</span>
+        <span class="pbadge">5 items</span>
       </div>
       <div class="pb">
         <div class="decisions">
@@ -744,10 +744,6 @@
           <div class="decision">
             <div class="dq">HCR tool: near-term prototype or research backlog?</div>
             <div class="dd">Default: <strong>research backlog</strong> — keep in Phase 4 until core tools pass Windows validation. Raise to promote.</div>
-          </div>
-          <div class="decision">
-            <div class="dq">Legacy source-copy deploy bundle — keep or retire?</div>
-            <div class="dd">Default: <strong>keep as legacy only</strong> — the supported deploy artifact is now the PyInstaller EXE zip.</div>
           </div>
           <div class="decision">
             <div class="dq">PDF/A feature — keep as preview or promote?</div>
@@ -786,7 +782,7 @@
         <a href="https://github.com/snyderb-de/DPA-Image-Toolkit/blob/master/deploy/README.md" class="res-card" target="_blank" rel="noopener">
           <div class="rc-label">Deployment</div>
           <div class="rc-title">deploy/README.md</div>
-          <div class="rc-desc">Windows Scripts deployment bundle — layout, launcher behavior, and dependency install</div>
+          <div class="rc-desc">EXE deployment notes — release zip, local PyInstaller build, and data safety rule</div>
         </a>
         <a href="https://github.com/snyderb-de/DPA-Image-Toolkit" class="res-card" target="_blank" rel="noopener">
           <div class="rc-label">Source</div>
