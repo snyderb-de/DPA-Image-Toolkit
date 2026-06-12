@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>DPA Image Toolkit - User Manual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/manual.css">
+</head>
+<body>
+<div class="manual-layout">
+  <aside class="manual-sidebar">
+    <div class="manual-brand">
+      <div class="manual-brand-eyebrow">DPA</div>
+      <div class="manual-brand-name">Image Toolkit</div>
+    </div>
+
+    <a class="back-link" href="/">Back to Toolkit</a>
+
+    <nav class="manual-nav" aria-label="User manual sections">
+      <a href="#release-contract">Release Contract</a>
+      <a href="#auto-crop">Auto Crop</a>
+      <a href="#straighten">Straighten Images</a>
+      <a href="#merge-tiffs">Merge TIFFs</a>
+      <a href="#split-tiffs">Split TIFFs</a>
+      <a href="#add-border">Add Border</a>
+      <a href="#ocr-pdf">OCR to PDF</a>
+      <a href="#pdf-conversion">PDF Conversion</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+    </nav>
+
+    <div class="manual-sidebar-footer">
+      <span class="theme-label">Appearance</span>
+      <div class="theme-btns">
+        <button class="theme-btn" id="theme-dark" onclick="setTheme('dark')">Dark</button>
+        <button class="theme-btn" id="theme-light" onclick="setTheme('light')">Light</button>
+      </div>
+      <div class="named-themes">
+        <button class="named-theme-btn" onclick="setNamedTheme('catppuccin-mocha')">Catppuccin</button>
+        <button class="named-theme-btn" onclick="setNamedTheme('gruvbox-dark')">Gruvbox</button>
+        <button class="named-theme-btn" onclick="setNamedTheme('')">Default</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="manual-main">
+    <header class="manual-header">
+      <p class="eyebrow">Built-In HTML Manual</p>
+      <h1>User Manual</h1>
+      <p>
+        Use this guide for the EXE release of DPA Image Toolkit. Outputs are
+        written into tool-specific folders next to the selected input; source
+        files are not moved, overwritten, or deleted.
+      </p>
+    </header>
+
+    <section class="manual-section" id="release-contract">
+      <h2>Release Contract</h2>
+      <div class="manual-grid">
+        <article>
+          <h3>Inputs Stay Put</h3>
+          <p>Every tool follows the same safety rule: copy outputs, never move inputs.</p>
+        </article>
+        <article>
+          <h3>EXE Path</h3>
+          <p>The supported deployment is the PyInstaller Windows EXE zip.</p>
+        </article>
+        <article>
+          <h3>Error Review</h3>
+          <p>When a job logs failures, use <strong>View Errors</strong> to open the run's error folder.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="manual-section" id="auto-crop">
+      <h2>Auto Crop</h2>
+      <p>Detects meaningful content in an image folder and writes cropped copies into <code>cropped/</code>.</p>
+      <ul>
+        <li>Input: folder of TIFF, JPEG, PNG, BMP, or GIF images.</li>
+        <li>Option: <strong>Straighten before crop</strong> runs deskew before crop detection.</li>
+        <li>Skipped blank or tiny-content pages are reported in the activity log.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section" id="straighten">
+      <h2>Straighten Images</h2>
+      <p>Deskews already-cropped or full-page image sets without cropping the canvas.</p>
+      <ul>
+        <li>Input: folder of supported image files.</li>
+        <li>Output: <code>straightened/</code>.</li>
+        <li>Pixel dimensions are preserved; DPI metadata is kept when available.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section important" id="merge-tiffs">
+      <h2>Merge TIFFs</h2>
+      <p>
+        Merge TIFFs groups page files by filename. The required pattern is:
+      </p>
+      <pre><code>{% raw %}{name}_{group}_{sequence}.tif
+{name}_{group}_{sequence}.tiff{% endraw %}</code></pre>
+      <ul>
+        <li>The final sequence must be an underscore plus a positive integer: <code>_1</code>, <code>_01</code>, <code>_001</code>, <code>_0001</code>, <code>_1000</code>.</li>
+        <li>The merge group name is everything before the trailing sequence.</li>
+        <li>Example: <code>9200-T16-000_207_003.tif</code> belongs to group <code>9200-T16-000_207</code>.</li>
+        <li>Files in a group are sorted by numeric value, so <code>_10</code> comes after <code>_9</code> regardless of padding.</li>
+        <li>A one-file group is valid. Invalidly named TIFFs are skipped with a warning.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section" id="split-tiffs">
+      <h2>Split Multi-Page TIFFs</h2>
+      <p>Extracts pages from multi-page TIFF files into single-page TIFF outputs.</p>
+      <ul>
+        <li>File mode output: sibling <code>&lt;name&gt;_pages/</code> folders.</li>
+        <li>Folder mode output: <code>extracted-pages/</code>.</li>
+        <li>Single-page TIFFs are skipped.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section" id="add-border">
+      <h2>Add Border</h2>
+      <p>Adds a white border to each image copy and writes results into <code>bordered/</code>.</p>
+      <ul>
+        <li>Border size is 2.5% of image dimensions, clamped between 15 and 100 pixels.</li>
+        <li>Original image files stay in the selected folder.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section" id="ocr-pdf">
+      <h2>OCR to PDF</h2>
+      <p>Groups page images into searchable PDFs using OCR tooling on the local machine.</p>
+      <ul>
+        <li>Input: folder of page image files.</li>
+        <li>Output: <code>PDFs/&lt;group_name&gt;.pdf</code>.</li>
+        <li>Files ending in <code>_0001</code>, <code>_0002</code>, and so on are grouped into one document.</li>
+        <li>Quality-flagged pages can stay in the PDF without OCR text when the quality check is enabled.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section" id="pdf-conversion">
+      <h2>PDF Conversion</h2>
+      <p>Runs PDF-focused copy-out workflows.</p>
+      <ul>
+        <li><strong>Reduce Size:</strong> one PDF or a folder of PDFs to <code>reduced-pdfs/</code>.</li>
+        <li><strong>Split PDF:</strong> one PDF to page PDFs or page images.</li>
+        <li><strong>Extract Pages:</strong> selected pages to <code>extracted-pages/</code>; optional remaining-pages copy leaves the source unchanged.</li>
+        <li><strong>PDF/A:</strong> preview conversion mode for archival PDF/A output.</li>
+      </ul>
+    </section>
+
+    <section class="manual-section" id="troubleshooting">
+      <h2>Troubleshooting</h2>
+      <ul>
+        <li>If Start is disabled, select a valid input folder or file first.</li>
+        <li>If a dependency warning appears, install the missing dependency on the Windows machine or contact support.</li>
+        <li>If a job has failures, click <strong>View Errors</strong> and review the activity log before retrying.</li>
+      </ul>
+    </section>
+  </main>
+</div>
+<script src="/static/manual.js"></script>
+</body>
+</html>

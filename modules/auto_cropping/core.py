@@ -104,6 +104,84 @@ def _get_effective_white_threshold(gray_image, default_threshold):
     return max(200, min(default_threshold, adaptive_threshold))
 
 
+def _deskew_image(image):
+    """Correct image skew via Hough Line Transform. Returns (corrected, angle_degrees)."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image.copy()
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=100, maxLineGap=10)
+    if lines is None or len(lines) == 0:
+        return image, 0.0
+    angles = []
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        if x2 == x1:
+            continue
+        angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+        if -45.0 <= angle <= 45.0:
+            angles.append(angle)
+    if not angles:
+        return image, 0.0
+    median_angle = float(np.median(angles))
+    if abs(median_angle) < 0.3:
+        return image, median_angle
+    h, w = image.shape[:2]
+    M = cv2.getRotationMatrix2D((w // 2, h // 2), median_angle, 1.0)
+    corrected = cv2.warpAffine(
+        image, M, (w, h),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(255, 255, 255),
+    )
+    return corrected, median_angle
+
+
+def straighten_image(
+    image_path,
+    output_folder,
+    preserve_dpi=True,
+):
+    """
+    Straighten one image without cropping it.
+
+    Returns:
+        tuple: (output_path, error_message, stats)
+    """
+    image_path = Path(image_path)
+    output_folder = Path(output_folder)
+
+    try:
+        image = cv2.imread(str(image_path))
+        if image is None:
+            return None, f"Failed to read image: {image_path.name}", {}
+
+        dpi_metadata = None
+        try:
+            with Image.open(image_path) as pil_image:
+                dpi_metadata = pil_image.info.get("dpi")
+        except Exception:
+            pass
+
+        corrected_image, angle = _deskew_image(image)
+
+        output_folder.mkdir(parents=True, exist_ok=True)
+        output_path = output_folder / image_path.name
+        corrected_pil = Image.fromarray(cv2.cvtColor(corrected_image, cv2.COLOR_BGR2RGB))
+
+        if preserve_dpi and dpi_metadata:
+            corrected_pil.save(str(output_path), dpi=dpi_metadata)
+        else:
+            corrected_pil.save(str(output_path))
+
+        return str(output_path), None, {
+            "angle": angle,
+            "straightened": abs(angle) >= 0.3,
+            "output_size": corrected_pil.size,
+        }
+
+    except Exception as e:
+        return None, f"{image_path.name}: {e}", {}
+
+
 def crop_image(
     image_path,
     output_folder,
@@ -111,6 +189,7 @@ def crop_image(
     max_contours=DEFAULT_MAX_CONTOURS,
     white_threshold=DEFAULT_WHITE_THRESHOLD,
     preserve_dpi=True,
+    straighten=False,
 ):
     """
     Find and crop large non-white object in image.
@@ -122,6 +201,7 @@ def crop_image(
         max_contours (int): Maximum number of contours to consider
         white_threshold (int): Grayscale threshold for detecting non-white (0-255)
         preserve_dpi (bool): Preserve DPI metadata from original
+        straighten (bool): Straighten the image before crop analysis
 
     Returns:
         tuple: (output_path, error_message)
@@ -145,6 +225,9 @@ def crop_image(
             pil_image.close()
         except Exception:
             pass  # DPI extraction failed, continue without it
+
+        if straighten:
+            image, _skew_angle = _deskew_image(image)
 
         height, width = image.shape[:2]
 

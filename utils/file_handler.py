@@ -118,7 +118,7 @@ def validate_image_files(folder_path):
     """
     Validate that folder contains image files (for auto-cropping).
 
-    Supports: .tif, .tiff, .jpg, .jpeg, .png, .bmp
+    Supports: .tif, .tiff, .jpg, .jpeg, .png, .bmp, .gif
 
     Args:
         folder_path (Path): Folder to validate
@@ -133,7 +133,7 @@ def validate_image_files(folder_path):
 
     image_files = _list_files_with_suffixes(
         folder_path,
-        {".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp"},
+        {".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp", ".gif"},
     )
 
     if not image_files:

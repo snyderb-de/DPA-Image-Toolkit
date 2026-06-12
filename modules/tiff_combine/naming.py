@@ -3,13 +3,17 @@ File naming validation for tiff-combine.
 
 Validates naming convention, extracts group names, and sorts files by sequence.
 
-NAMING PATTERN: {name}_{group}_{###}.tif/.tiff
-Examples: document_batchA_001.tif, 9200-T16-000_207_003.tiff
+NAMING PATTERN: {name}_{group}_{sequence}.tif/.tiff
+Examples: document_batchA_1.tif, document_batchA_0001.tif, 9200-T16-000_207_1000.tiff
 """
 
 import re
 from pathlib import Path
 from collections import defaultdict
+
+
+SEQUENCE_SUFFIX_RE = re.compile(r'_(\d+)(?:\.[^.]+)?$', re.IGNORECASE)
+VALID_STEM_RE = re.compile(r'^.+_.+_(\d+)$', re.IGNORECASE)
 
 
 def _list_tif_files(folder_path):
@@ -28,7 +32,8 @@ def validate_file_naming(file_path):
     """
     Check if file follows naming convention.
 
-    Pattern: {name}_{group}_{###}.tif/.tiff where ### is exactly 3 digits
+    Pattern: {name}_{group}_{sequence}.tif/.tiff where sequence is a positive integer.
+    Leading zeros are allowed, but not required.
 
     Args:
         file_path (Path|str): File path to validate
@@ -37,22 +42,23 @@ def validate_file_naming(file_path):
         bool: True if file follows convention
     """
     file_path = Path(file_path)
-    filename = file_path.name
-
     stem = file_path.stem
     if file_path.suffix.lower() not in {".tif", ".tiff"}:
         return False
 
     # Require at least two underscore-delimited parts before the trailing page sequence.
-    pattern = r'^.+_.+_\d{3}$'
-    return bool(re.match(pattern, stem, re.IGNORECASE))
+    match = VALID_STEM_RE.match(stem)
+    if not match:
+        return False
+
+    return int(match.group(1)) > 0
 
 
 def extract_group_name(filename):
     """
     Extract group name from filename.
 
-    Removes trailing _### (underscore + exactly 3 digits) to get group name.
+    Removes trailing _sequence (underscore + positive integer) to get group name.
     This keeps both the base name and the middle group identifier.
 
     Args:
@@ -64,8 +70,8 @@ def extract_group_name(filename):
     # Remove extension if present
     name_without_ext = filename.rsplit('.', 1)[0] if '.' in filename else filename
 
-    # Remove trailing _### to get group name
-    group_name = re.sub(r'_\d{3}$', '', name_without_ext)
+    # Remove trailing _sequence to get group name.
+    group_name = re.sub(r'_\d+$', '', name_without_ext)
 
     return group_name
 
@@ -78,12 +84,13 @@ def extract_sequence_number(filename):
         filename (str): Filename to parse
 
     Returns:
-        int: Sequence number (001-999), or None if not found
+        int: Positive sequence number, or None if not found
     """
     filename = Path(filename).name if not isinstance(filename, str) else Path(filename).name
-    match = re.search(r'_(\d{3})(?:\.[^.]+)?$', filename, re.IGNORECASE)
+    match = SEQUENCE_SUFFIX_RE.search(filename)
     if match:
-        return int(match.group(1))
+        sequence = int(match.group(1))
+        return sequence if sequence > 0 else None
     return None
 
 
@@ -102,10 +109,10 @@ def sort_group_files(files, group_name=None):
         filename = str(filename) if not isinstance(filename, str) else filename
         filename = Path(filename).name
 
-        match = re.search(r'_(\d{3})(?:\.[^.]+)?$', filename, re.IGNORECASE)
-        if match:
-            return int(match.group(1))
-        return 999  # Invalid files go to end
+        sequence = extract_sequence_number(filename)
+        if sequence is not None:
+            return sequence
+        return float("inf")  # Invalid files go to end
 
     # Convert to filenames if Path objects
     filenames = [Path(f).name if isinstance(f, Path) else f for f in files]
@@ -126,7 +133,7 @@ def detect_groups(folder_path):
     """
     Detect all groups in a folder.
 
-    Groups are determined by the text before the trailing _### in filenames.
+    Groups are determined by the text before the trailing numeric sequence in filenames.
 
     Args:
         folder_path (Path|str): Folder to scan

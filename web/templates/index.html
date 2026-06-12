@@ -26,6 +26,11 @@
         <span>Auto Crop</span>
         <span class="nav-state" id="nav-state-auto_crop"></span>
       </div>
+      <div class="nav-item" data-tool="straighten_images">
+        <span class="nav-icon">↻</span>
+        <span>Straighten</span>
+        <span class="nav-state" id="nav-state-straighten_images"></span>
+      </div>
       <div class="nav-item" data-tool="merge_tiffs">
         <span class="nav-icon">⊞</span>
         <span>Merge TIFFs</span>
@@ -54,6 +59,10 @@
     </div>
 
     <div class="sidebar-footer">
+      <a class="manual-link" href="/manual">
+        <span class="manual-link-icon">?</span>
+        <span>User Manual</span>
+      </a>
       <span class="theme-label">Appearance</span>
       <div class="theme-btns">
         <button class="theme-btn" id="theme-dark" onclick="setTheme('dark')">Dark</button>
@@ -86,6 +95,15 @@
           <button class="pick-btn" onclick="pickFolder('auto_crop')">📁 Select Folder</button>
           <div class="path-display" id="path-auto_crop">No folder selected</div>
           <span class="count-badge" id="count-auto_crop" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Options</div>
+        <div class="options-grid">
+          <label class="check-label">
+            <input type="checkbox" id="opt-auto-straighten"> Straighten before crop
+          </label>
         </div>
       </div>
 
@@ -122,13 +140,65 @@
       </div>
     </div>
 
+    <!-- Straighten Images ─────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-straighten_images">
+      <div class="panel-header">
+        <div class="panel-icon">↻</div>
+        <div>
+          <div class="panel-title">Straighten Images</div>
+          <div class="panel-sub">Deskew already-cropped or raw image folders without changing their crop</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Input Folder</div>
+        <div class="picker-row">
+          <button class="pick-btn" onclick="pickFolder('straighten_images')">📁 Select Folder</button>
+          <div class="path-display" id="path-straighten_images">No folder selected</div>
+          <span class="count-badge" id="count-straighten_images" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-straighten_images">Select a folder containing images to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-straighten_images">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-straighten_images">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-straighten_images">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-straighten_images" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('straighten_images')">Clear</button>
+        </div>
+        <div class="log-body" id="log-straighten_images"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-straighten_images" disabled onclick="openErrorFolder('straighten_images')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-straighten_images" onclick="resetTool('straighten_images')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-straighten_images" disabled onclick="cancelTool('straighten_images')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-straighten_images" disabled onclick="startTool('straighten_images')">▶ Start</button>
+      </div>
+    </div>
+
     <!-- Merge TIFFs ────────────────────────────────────────────────────────── -->
     <div class="tool-panel" id="panel-merge_tiffs">
       <div class="panel-header">
         <div class="panel-icon">⊞</div>
         <div>
           <div class="panel-title">Merge TIFFs</div>
-          <div class="panel-sub">Combine <code>{name}_{group}_{###}.tif</code> page files into multi-page TIFFs</div>
+          <div class="panel-sub">Combine <code>{name}_{group}_{sequence}.tif</code> page files into multi-page TIFFs</div>
         </div>
       </div>
 
@@ -390,6 +460,10 @@
 
       <div class="card">
         <div class="card-label" id="pdf-pick-label">Input</div>
+        <div class="mode-toggle" id="pdf-input-mode-toggle">
+          <button class="mode-btn active" id="pdf-mode-file" onclick="setPdfInputMode('file')">File</button>
+          <button class="mode-btn" id="pdf-mode-folder" onclick="setPdfInputMode('folder')">Folder</button>
+        </div>
         <div class="picker-row">
           <button class="pick-btn" id="pick-btn-pdf" onclick="pickPdf()">📄 Select PDF</button>
           <div class="path-display" id="path-pdf_conversion">No file selected</div>
@@ -436,15 +510,8 @@
             <input type="text" id="inp-page-spec" placeholder="e.g. 1,3,5-8">
           </div>
           <label class="check-label">
-            <input type="checkbox" id="opt-remove-pages"> Remove from source
+            <input type="checkbox" id="opt-write-remaining-pages"> Write remaining-pages copy
           </label>
-          <div class="select-wrap" id="extract-mode-wrap" style="display:none">
-            <span class="select-label">Mode:</span>
-            <select id="sel-extract-mode">
-              <option value="safe">Safe (keep remaining)</option>
-              <option value="overwrite">Overwrite source</option>
-            </select>
-          </div>
         </div>
       </div>
 

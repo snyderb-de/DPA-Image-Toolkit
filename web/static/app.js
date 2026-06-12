@@ -2,7 +2,7 @@
 
 // ── State ─────────────────────────────────────────────────────────────────
 
-const TOOLS = ['auto_crop', 'merge_tiffs', 'split_tiffs', 'add_border', 'ocr_pdf', 'pdf_conversion'];
+const TOOLS = ['auto_crop', 'straighten_images', 'merge_tiffs', 'split_tiffs', 'add_border', 'ocr_pdf', 'pdf_conversion'];
 
 const state = {};
 TOOLS.forEach(id => {
@@ -33,10 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPdfaProfiles();
   TOOLS.forEach(id => log(id, 'Ready — select an input to begin.', 'info'));
 
-  // Remove-pages toggle
-  document.getElementById('opt-remove-pages').addEventListener('change', e => {
-    document.getElementById('extract-mode-wrap').style.display = e.target.checked ? 'flex' : 'none';
-  });
+  setPdfInputMode(state.pdf_conversion.inputMode);
 });
 
 // ── Theme ─────────────────────────────────────────────────────────────────
@@ -233,6 +230,20 @@ function setSplitMode(mode) {
 
 // ── PDF operation ─────────────────────────────────────────────────────────
 
+function setPdfInputMode(mode) {
+  const s = state.pdf_conversion;
+  s.inputMode = mode === 'folder' ? 'folder' : 'file';
+  s.path = null;
+  document.getElementById('pdf-mode-file').classList.toggle('active', s.inputMode === 'file');
+  document.getElementById('pdf-mode-folder').classList.toggle('active', s.inputMode === 'folder');
+  const btn = document.getElementById('pick-btn-pdf');
+  btn.textContent = s.inputMode === 'folder' ? '📁 Select Folder' : '📄 Select PDF';
+  setPathDisplay('pdf_conversion', s.inputMode === 'folder' ? 'No folder selected' : 'No file selected');
+  setCount('pdf_conversion', null);
+  disableStart('pdf_conversion');
+  setBanner('pdf_conversion', s.inputMode === 'folder' ? 'Select a PDF folder to begin.' : 'Select a PDF to begin.');
+}
+
 function setPdfOp(op) {
   state.pdf_conversion.operation = op;
   state.pdf_conversion.path = null;
@@ -241,8 +252,11 @@ function setPdfOp(op) {
   const labels = { reduce_size: 'Input', split_pdf: 'PDF File', extract_pages: 'PDF File', pdfa: 'PDF File' };
   document.getElementById('pdf-pick-label').textContent = labels[op] || 'Input';
 
-  const btn = document.getElementById('pick-btn-pdf');
-  btn.textContent = op === 'reduce_size' ? '📄 Select PDF or Folder' : '📄 Select PDF';
+  const modeToggle = document.getElementById('pdf-input-mode-toggle');
+  modeToggle.style.display = op === 'reduce_size' ? '' : 'none';
+  if (op !== 'reduce_size') {
+    state.pdf_conversion.inputMode = 'file';
+  }
 
   ['reduce', 'split', 'extract', 'pdfa'].forEach(k => {
     const el = document.getElementById(`pdf-opts-${k}`);
@@ -252,10 +266,7 @@ function setPdfOp(op) {
   const el = document.getElementById(`pdf-opts-${opMap[op]}`);
   if (el) el.classList.remove('hidden');
 
-  setPathDisplay('pdf_conversion', 'No file selected');
-  setCount('pdf_conversion', null);
-  disableStart('pdf_conversion');
-  setBanner('pdf_conversion', 'Select a PDF to begin.');
+  setPdfInputMode(state.pdf_conversion.inputMode);
 }
 
 // ── Start / Cancel / Reset ────────────────────────────────────────────────
@@ -266,7 +277,11 @@ async function startTool(toolId) {
 
   let body = {};
 
-  if (toolId === 'ocr_pdf') {
+  if (toolId === 'auto_crop') {
+    body = {
+      straighten: document.getElementById('opt-auto-straighten').checked,
+    };
+  } else if (toolId === 'ocr_pdf') {
     body = {
       skip_existing: document.getElementById('opt-skip-existing').checked,
       skip_messy:    document.getElementById('opt-quality-check').checked,
@@ -280,8 +295,7 @@ async function startTool(toolId) {
       compression_profile:  document.getElementById('sel-pdf-compression').value,
       split_output_type:    document.getElementById('sel-split-format').value,
       extract_page_spec:    document.getElementById('inp-page-spec').value,
-      remove_extracted_pages: document.getElementById('opt-remove-pages').checked,
-      extract_removal_mode: document.getElementById('sel-extract-mode').value,
+      write_remaining_pages: document.getElementById('opt-write-remaining-pages').checked,
       pdfa_profile:         document.getElementById('sel-pdfa-profile').value,
     };
   }
@@ -335,6 +349,9 @@ async function resetTool(toolId) {
   log(toolId, 'Ready — select an input to begin.', 'info');
   if (toolId === 'split_tiffs') {
     state.split_tiffs.files = [];
+  }
+  if (toolId === 'pdf_conversion') {
+    setPdfInputMode(state.pdf_conversion.inputMode);
   }
 }
 
@@ -530,9 +547,13 @@ function clearLog(toolId) {
 
 // ── Error folder opener ───────────────────────────────────────────────────
 
-function openErrorFolder(toolId) {
-  // Just log — actual folder opening requires a backend call
-  log(toolId, 'Error files are in the errored-files/ subfolder of your input folder.', 'info');
+async function openErrorFolder(toolId) {
+  const res = await api(`/api/${toolId}/open-errors`, {});
+  if (res.ok) {
+    log(toolId, `Opened error folder: ${res.path}`, 'success');
+  } else {
+    log(toolId, res.error || 'Could not open error folder.', 'warning');
+  }
 }
 
 // ── API ───────────────────────────────────────────────────────────────────

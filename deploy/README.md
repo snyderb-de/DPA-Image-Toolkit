@@ -1,55 +1,31 @@
-# Deploy Bundle
+# EXE Deployment
 
-This folder is a copy-ready deployment bundle for:
+The supported deploy artifact is the PyInstaller Windows EXE zip produced by the
+`Release` GitHub Actions workflow.
 
-```text
-C:\Users\<user>\Scripts\
-```
-
-## Intended Layout After Copy
-
-Copy the contents of `deploy/` into:
+Use the EXE release for normal deployment:
 
 ```text
-C:\Users\<user>\Scripts\
+DPA-Image-Toolkit-Windows-vX.Y.Z.zip
+└─ DPA-Image-Toolkit/
+   └─ DPA-Image-Toolkit.exe
 ```
 
-That produces:
+The legacy source-copy deployment bundle has been retired. Do not deploy
+`deploy/dpa-img-tk` or a batch launcher; those files are intentionally no longer
+part of the repo.
 
-```text
-C:\Users\<user>\Scripts\
-├─ image-toolkit.bat
-└─ dpa-img-tk\
-   ├─ dpa-image-toolkit.py
-   ├─ main.py
-   ├─ requirements.txt
-   ├─ app-settings.json      ← created automatically on first run
-   ├─ user-manual.html
-   ├─ gui\
-   ├─ modules\
-   └─ utils\
+## Build Locally On Windows
+
+```powershell
+py -3 -m pip install -r requirements.txt pyinstaller
+py -3 -m PyInstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 ```
 
-## Launcher Behavior
+The built app starts a local Flask backend and opens the toolkit in a PyWebView
+window. No end-user Python install is expected when using the release zip.
 
-- `image-toolkit.bat` is designed to work from anywhere
-- you can keep a copy on the Desktop if you want
-- the batch file looks for the app at:
+## Data Safety Rule
 
-```text
-C:\Users\<user>\Scripts\dpa-img-tk\dpa-image-toolkit.py
-```
-
-## Install Dependencies
-
-From Command Prompt or PowerShell:
-
-```bash
-py -3 -m pip install -r "%USERPROFILE%\Scripts\dpa-img-tk\requirements.txt"
-```
-
-or:
-
-```bash
-python -m pip install -r "%USERPROFILE%\Scripts\dpa-img-tk\requirements.txt"
-```
+All tools copy outputs into tool-specific output folders. Source inputs are never
+moved, overwritten, or deleted by release workflows.

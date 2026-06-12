@@ -4,10 +4,12 @@ Use this checklist before release packaging or deployment.
 
 ## Setup
 
-- [ ] Confirm Python and dependencies are installed: `pip install -r requirements.txt`
-- [ ] Launch app: `python dpa-image-toolkit.py`
-- [ ] Confirm app opens without traceback on first launch
-- [ ] Confirm Light/Dark/System appearance options render correctly
+- [ ] Download or build the PyInstaller release zip
+- [ ] Extract the zip and launch `DPA-Image-Toolkit.exe`
+- [ ] Confirm the native app window opens without traceback on first launch
+- [ ] Source checkout fallback: run `python launch_web.py`
+- [ ] Confirm Light/Dark appearance options render correctly
+- [ ] Confirm every tool leaves source input files in place after success, skip, failure, and cancel flows
 
 ## Global UX and Navigation
 
@@ -30,8 +32,18 @@ Use this checklist before release packaging or deployment.
 
 - [ ] Select folder with supported images and run crop
 - [ ] Verify output in `cropped/`
+- [ ] Enable `Straighten before crop` and verify skewed inputs crop successfully
 - [ ] Verify cancel waits for current image and then stops
-- [ ] Verify error flow creates `errored-files/` content when failures are forced
+- [ ] Verify forced failures are logged/reported without moving source files
+
+## Straighten Images
+
+- [ ] Select folder with skewed images and run straighten
+- [ ] Verify output in `straightened/`
+- [ ] Verify output image dimensions match the source dimensions
+- [ ] Verify already-cropped images stay uncropped and only rotate/deskew
+- [ ] Verify cancel waits for current image and then stops
+- [ ] Verify errors are logged without modifying source files
 
 ## Merge TIFFs
 
@@ -81,8 +93,8 @@ Use this checklist before release packaging or deployment.
 - [ ] Run single-file split into one-PDF-per-page
 - [ ] Run single-file export to JPEG (or other configured format)
 - [ ] Run single-file extract pages into new PDF
-- [ ] If source-page removal is enabled, verify expected page deletion result
-- [ ] Verify overwrite confirmation prompts appear when applicable
+- [ ] If remaining-pages copy is enabled, verify the source PDF is unchanged and a separate remaining PDF is written
+- [ ] Verify no PDF operation overwrites or deletes the selected source PDF
 
 ## Dependency and Error Handling
 
@@ -94,8 +106,8 @@ Use this checklist before release packaging or deployment.
 
 - [ ] Windows 10 full smoke pass
 - [ ] Windows 11 full smoke pass
-- [ ] macOS full smoke pass
+- [ ] Packaged EXE smoke pass from extracted release zip
+- [ ] macOS source checkout smoke pass using `python launch_web.py`
 - [ ] High DPI 125% validation
 - [ ] High DPI 150% validation
 - [ ] High DPI 200% validation
-

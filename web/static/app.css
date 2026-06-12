@@ -112,6 +112,39 @@ body {
   border-top: 1px solid var(--sidebar-border);
 }
 
+.manual-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 8px;
+  color: var(--sidebar-ink-act);
+  background: var(--sidebar-hover);
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.manual-link:hover {
+  color: #fff;
+  border-color: var(--accent-fill);
+}
+
+.manual-link-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--accent-text);
+  background: var(--accent-fill);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .theme-label {
   font-size: 0.66rem;
   font-weight: 700;
@@ -147,9 +180,9 @@ body {
 }
 
 .theme-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--accent-text);
 }
 
 .named-themes {
@@ -336,8 +369,8 @@ body {
 }
 
 .mode-btn.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-fill);
+  color: var(--accent-text);
 }
 
 /* ── Status banner ────────────────────────────────────────────────────────── */
@@ -376,7 +409,7 @@ body {
 .check-label input[type="checkbox"] {
   width: 15px;
   height: 15px;
-  accent-color: var(--accent);
+  accent-color: var(--accent-fill);
   cursor: pointer;
 }
 
@@ -444,7 +477,7 @@ input[type="text"]::placeholder { color: var(--faint); }
 }
 
 .op-btn:hover  { border-color: var(--accent); color: var(--accent); }
-.op-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.op-btn.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-text); }
 
 /* ── Progress section ─────────────────────────────────────────────────────── */
 .progress-section { display: flex; flex-direction: column; gap: 10px; }
@@ -644,7 +677,11 @@ input[type="text"]::placeholder { color: var(--faint); }
 }
 
 .btn:disabled {
-  opacity: 0.38;
+  opacity: 1;
+  background: var(--disabled-bg);
+  border-color: var(--disabled-border);
+  color: var(--disabled-ink);
+  box-shadow: none;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -656,9 +693,9 @@ input[type="text"]::placeholder { color: var(--faint); }
 .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--accent-text);
   box-shadow: 0 0 10px var(--accent-glow);
 }
 .btn-primary:hover {
@@ -671,14 +708,14 @@ input[type="text"]::placeholder { color: var(--faint); }
   border-color: var(--warn);
   color: var(--warn);
 }
-.btn-warn:hover { background: var(--warn); color: #000; }
+.btn-warn:hover { background: var(--warn); color: var(--warn-text); }
 
 .btn-err {
   background: var(--err-dim);
   border-color: var(--err);
   color: var(--err);
 }
-.btn-err:hover { background: var(--err); color: #fff; }
+.btn-err:hover { background: var(--err); color: var(--err-text); }
 
 /* ── Scrollbar (main) ─────────────────────────────────────────────────────── */
 .main::-webkit-scrollbar { width: 5px; }

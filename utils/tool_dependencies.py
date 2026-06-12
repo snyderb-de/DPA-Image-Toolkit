@@ -44,6 +44,36 @@ TOOL_DEPENDENCY_CONFIGS = {
             },
         ),
     },
+    "straighten_images": {
+        "display_name": "Straighten Images",
+        "heading": "Straighten readiness for this machine",
+        "support_lines": (
+            "✅ means the dependency is ready.",
+            "❌ means the tool cannot use that dependency right now.",
+            "Straighten uses the same image-processing stack as Auto Crop.",
+            "If a dependency is missing, contact support for installation on this machine.",
+        ),
+        "dependencies": (
+            {
+                "module": "PIL",
+                "label": "Pillow",
+                "pip": "Pillow",
+                "detail": "Required to read and save image files",
+            },
+            {
+                "module": "cv2",
+                "label": "OpenCV",
+                "pip": "opencv-python",
+                "detail": "Required for skew detection and rotation",
+            },
+            {
+                "module": "numpy",
+                "label": "NumPy",
+                "pip": "numpy",
+                "detail": "Required for Hough angle analysis",
+            },
+        ),
+    },
     "tiff_merge": {
         "display_name": "Merge TIFF Files",
         "heading": "TIFF merge readiness for this machine",
@@ -102,6 +132,11 @@ TOOL_DEPENDENCY_CONFIGS = {
 
 
 def _get_tool_config(tool_key: str) -> dict:
+    aliases = {
+        "merge_tiffs": "tiff_merge",
+        "split_tiffs": "tiff_split",
+    }
+    tool_key = aliases.get(tool_key, tool_key)
     if tool_key not in TOOL_DEPENDENCY_CONFIGS:
         raise KeyError(f"Unknown tool dependency key: {tool_key}")
     return TOOL_DEPENDENCY_CONFIGS[tool_key]
