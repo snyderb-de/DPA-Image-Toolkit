@@ -500,6 +500,7 @@
 
       <div class="nav-group-label">Tools</div>
       <a class="nav-link" href="#auto-crop">Auto Crop</a>
+      <a class="nav-link" href="#straighten-images">Straighten Images</a>
       <a class="nav-link" href="#merge-tiffs">Merge TIFFs</a>
       <a class="nav-link" href="#split-tiffs">Split TIFFs</a>
       <a class="nav-link" href="#add-border">Add Border</a>
@@ -537,9 +538,9 @@
       <p class="eyebrow">User Manual</p>
       <h1>DPA Image Toolkit</h1>
       <p class="hero-tagline">
-        Desktop toolkit for archival image cleanup and TIFF workflow management.
-        Six integrated tools cover the full scan-to-archive pipeline: crop, merge,
-        split, border, OCR, and PDF conversion.
+        Windows EXE toolkit for archival image cleanup and TIFF workflow management.
+        Seven integrated tools cover the full scan-to-archive pipeline: crop,
+        straighten, merge, split, border, OCR, and PDF conversion.
       </p>
     </header>
 
@@ -553,13 +554,12 @@
         <div class="card">
           <h3>Launching the App</h3>
           <p>
-            On Windows, double-click <code>image-toolkit.bat</code> from your
-            <code>Scripts\dpa-img-tk\</code> folder or from a Desktop shortcut.
-            The launcher is absolute-path aware — a Desktop copy still starts the
-            app from its install location.
+            On Windows, extract the release zip and double-click
+            <code>DPA-Image-Toolkit.exe</code>. The EXE opens the toolkit in a
+            native web-window and does not require a local Python install.
           </p>
           <p>
-            On macOS or Linux, run <code>python dpa-image-toolkit.py</code> from
+            On macOS or Linux, run <code>python launch_web.py</code> from
             the project folder after installing dependencies.
           </p>
         </div>
@@ -567,10 +567,9 @@
           <h3>Installing Dependencies</h3>
           <p>
             Run <code>pip install -r requirements.txt</code> from the
-            <code>dpa-img-tk\</code> folder. Core requirements are
-            <code>customtkinter</code>, <code>Pillow</code>,
+            project folder. Core requirements are <code>Pillow</code>,
             <code>opencv-python</code>, <code>numpy</code>, <code>pypdf</code>,
-            and <code>pypdfium2</code>.
+            <code>pypdfium2</code>, <code>flask</code>, and <code>pywebview</code>.
           </p>
           <p>
             The OCR to PDF tool additionally requires
@@ -597,7 +596,7 @@
     <!-- ── Auto Crop ────────────────────────────────────────────── -->
     <section class="section" id="auto-crop">
       <div class="section-header">
-        <p class="eyebrow">Tool 1 of 6</p>
+        <p class="eyebrow">Tool 1 of 7</p>
         <h2>Auto Crop</h2>
       </div>
       <div class="cards">
@@ -607,6 +606,7 @@
             white space. All meaningful regions are collected into a single bounding
             box before the crop is applied — so nothing is lost to an overly tight cut.
             Original files are untouched; cropped copies go to a subfolder.
+            Enable <strong>Straighten before crop</strong> when scans are visibly skewed.
           </p>
         </div>
         <div class="card-row">
@@ -627,6 +627,7 @@
           <ol class="steps-list">
             <li>Select the image folder using the folder picker button.</li>
             <li>The stats strip shows how many supported image files were found.</li>
+            <li>Optionally enable <strong>Straighten before crop</strong>.</li>
             <li>Click <strong>Start</strong>. The live log shows each file as it processes.</li>
             <li>When complete, open <code>cropped/</code> to review output.</li>
             <li>If any files failed, click <strong>Error Report</strong> to review them.</li>
@@ -645,10 +646,57 @@
       </div>
     </section>
 
+    <!-- ── Straighten Images ────────────────────────────────────── -->
+    <section class="section" id="straighten-images">
+      <div class="section-header">
+        <p class="eyebrow">Tool 2 of 7</p>
+        <h2>Straighten Images</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            Deskews images without cropping them. Use this when images are already
+            cropped to the right bounds but still need rotation correction. Original
+            files are untouched; straightened copies go to a subfolder.
+          </p>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <h3>Input</h3>
+            <p>A folder of image files. Supported: TIFF, JPEG, PNG, BMP, GIF.</p>
+          </div>
+          <div class="card">
+            <h3>Output</h3>
+            <ul class="guide-list">
+              <li><code>input_folder/straightened/</code> — deskewed image copies</li>
+              <li><code>input_folder/errored-files/straighten/</code> — run-level error folder</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>How to Use</h3>
+          <ol class="steps-list">
+            <li>Select the image folder using the folder picker button.</li>
+            <li>The stats strip shows how many supported image files were found.</li>
+            <li>Click <strong>Start</strong>. The live log shows each file as it processes.</li>
+            <li>When complete, open <code>straightened/</code> to review output.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Notes</h3>
+          <ul class="guide-list">
+            <li>Uses a Hough Line Transform deskew pass to estimate page angle.</li>
+            <li>Output images keep the same pixel dimensions as their source files.</li>
+            <li>DPI metadata from the source file is preserved when available.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Merge TIFFs ──────────────────────────────────────────── -->
     <section class="section" id="merge-tiffs">
       <div class="section-header">
-        <p class="eyebrow">Tool 2 of 6</p>
+        <p class="eyebrow">Tool 3 of 7</p>
         <h2>Merge TIFFs</h2>
       </div>
       <div class="cards">
@@ -701,7 +749,7 @@
     <!-- ── Split TIFFs ──────────────────────────────────────────── -->
     <section class="section" id="split-tiffs">
       <div class="section-header">
-        <p class="eyebrow">Tool 3 of 6</p>
+        <p class="eyebrow">Tool 4 of 7</p>
         <h2>Split Multi-Page TIFFs</h2>
       </div>
       <div class="cards">
@@ -751,7 +799,7 @@
     <!-- ── Add Border ───────────────────────────────────────────── -->
     <section class="section" id="add-border">
       <div class="section-header">
-        <p class="eyebrow">Tool 4 of 6</p>
+        <p class="eyebrow">Tool 5 of 7</p>
         <h2>Add Border</h2>
       </div>
       <div class="cards">
@@ -797,7 +845,7 @@
     <!-- ── OCR to PDF ────────────────────────────────────────────── -->
     <section class="section" id="ocr-to-pdf">
       <div class="section-header">
-        <p class="eyebrow">Tool 5 of 6</p>
+        <p class="eyebrow">Tool 6 of 7</p>
         <h2>OCR to PDF</h2>
       </div>
       <div class="cards">
@@ -861,7 +909,7 @@
     <!-- ── PDF Conversion ────────────────────────────────────────── -->
     <section class="section" id="pdf-conversion">
       <div class="section-header">
-        <p class="eyebrow">Tool 6 of 6</p>
+        <p class="eyebrow">Tool 7 of 7</p>
         <h2>PDF Conversion</h2>
       </div>
       <div class="cards">
@@ -950,33 +998,37 @@
           <p>Start with a folder of raw scan outputs — TIFF, JPEG, or PNG.</p>
         </div>
         <div class="timeline-item">
-          <h3>2. Auto Crop</h3>
+          <h3>2. Straighten Images (optional)</h3>
+          <p>Deskew raw or already-cropped pages. Output lands in <code>straightened/</code>.</p>
+        </div>
+        <div class="timeline-item">
+          <h3>3. Auto Crop</h3>
           <p>Remove scanner-created white borders. Output lands in <code>cropped/</code>.</p>
         </div>
         <div class="timeline-item">
-          <h3>3. Add Border (optional)</h3>
+          <h3>4. Add Border (optional)</h3>
           <p>Add consistent margins to the cropped images — useful for book scans or presentation sets.</p>
         </div>
         <div class="timeline-item">
-          <h3>4. Merge TIFFs</h3>
+          <h3>5. Merge TIFFs</h3>
           <p>
             Combine correctly named page files into multi-page TIFFs.
             Ensure files follow <code>{name}_{group}_{###}.tif</code> before running.
           </p>
         </div>
         <div class="timeline-item">
-          <h3>5. Split TIFFs (if needed)</h3>
+          <h3>6. Split TIFFs (if needed)</h3>
           <p>Break apart any existing multi-page TIFFs that need page-level access.</p>
         </div>
         <div class="timeline-item">
-          <h3>6. OCR to PDF</h3>
+          <h3>7. OCR to PDF</h3>
           <p>
             Build searchable grouped PDFs from a folder of <code>{name}_{####}</code> page images.
             Enable quality precheck and PDF compression for production use.
           </p>
         </div>
         <div class="timeline-item">
-          <h3>7. PDF Conversion (as needed)</h3>
+          <h3>8. PDF Conversion (as needed)</h3>
           <p>
             Reduce file size, split pages for delivery, export page images, or extract
             specific page ranges from finished PDFs.
@@ -994,14 +1046,15 @@
       <div class="cards">
         <div class="card-row">
           <div class="card">
-            <h3>Python Packages</h3>
+            <h3>Source Checkout Packages</h3>
             <ul class="guide-list">
-              <li><code>customtkinter &gt;= 5.0.0</code></li>
               <li><code>Pillow &gt;= 10.0.0</code></li>
               <li><code>opencv-python &gt;= 4.8.0</code></li>
               <li><code>numpy &gt;= 1.24.0</code></li>
               <li><code>pypdf &gt;= 5.0.0</code></li>
               <li><code>pypdfium2 &gt;= 4.30.0</code></li>
+              <li><code>flask &gt;= 3.0.0</code></li>
+              <li><code>pywebview &gt;= 4.4.0</code></li>
             </ul>
             <p style="margin-top:10px">
               Install: <code>pip install -r requirements.txt</code>
@@ -1015,25 +1068,22 @@
               <li>All other tools work without Tesseract</li>
             </ul>
             <p style="margin-top:10px">
-              The dependency sidebar in the app shows which requirements
-              are met before you start each tool.
+              The app shows dependency status where a tool needs external
+              OCR or PDF conversion support.
             </p>
           </div>
         </div>
         <div class="card">
-          <h3>Windows Deployment Path</h3>
+          <h3>Windows EXE Deployment</h3>
           <p>
-            Copy the contents of <code>deploy/</code> into
-            <code>C:\Users\[user]\Scripts\</code>. Keep <code>image-toolkit.bat</code>
-            in <code>Scripts\</code> and all app files under
-            <code>Scripts\dpa-img-tk\</code>. A shortcut to
-            <code>image-toolkit.bat</code> on the Desktop will launch the app
-            correctly from either location.
+            The supported release artifact is
+            <code>DPA-Image-Toolkit-Windows-vX.Y.Z.zip</code>. Extract it, then
+            launch <code>DPA-Image-Toolkit.exe</code> from the extracted folder.
           </p>
           <p>
-            Settings and theme preferences are stored in
-            <code>Scripts\dpa-img-tk\app-settings.json</code> and are created
-            automatically on first run.
+            Settings and theme preferences are stored beside the executable and
+            are created automatically on first run. The older <code>deploy/</code>
+            folder is retained only for legacy source-copy deployments.
           </p>
         </div>
       </div>

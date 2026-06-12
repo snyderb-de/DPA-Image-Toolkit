@@ -26,6 +26,11 @@
         <span>Auto Crop</span>
         <span class="nav-state" id="nav-state-auto_crop"></span>
       </div>
+      <div class="nav-item" data-tool="straighten_images">
+        <span class="nav-icon">↻</span>
+        <span>Straighten</span>
+        <span class="nav-state" id="nav-state-straighten_images"></span>
+      </div>
       <div class="nav-item" data-tool="merge_tiffs">
         <span class="nav-icon">⊞</span>
         <span>Merge TIFFs</span>
@@ -128,6 +133,58 @@
         <button class="btn btn-ghost" id="btn-reset-auto_crop" onclick="resetTool('auto_crop')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-auto_crop" disabled onclick="cancelTool('auto_crop')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-auto_crop" disabled onclick="startTool('auto_crop')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- Straighten Images ─────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-straighten_images">
+      <div class="panel-header">
+        <div class="panel-icon">↻</div>
+        <div>
+          <div class="panel-title">Straighten Images</div>
+          <div class="panel-sub">Deskew already-cropped or raw image folders without changing their crop</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Input Folder</div>
+        <div class="picker-row">
+          <button class="pick-btn" onclick="pickFolder('straighten_images')">📁 Select Folder</button>
+          <div class="path-display" id="path-straighten_images">No folder selected</div>
+          <span class="count-badge" id="count-straighten_images" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="status-banner" id="banner-straighten_images">Select a folder containing images to begin.</div>
+
+      <div class="card progress-section hidden" id="prog-straighten_images">
+        <div class="progress-row">
+          <div class="progress-meta">
+            <span class="progress-meta-label" id="prog-label-straighten_images">Starting…</span>
+            <span class="progress-meta-pct" id="prog-pct-straighten_images">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill-straighten_images" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-header">
+          <span class="log-header-label">Activity Log</span>
+          <button class="log-clear" onclick="clearLog('straighten_images')">Clear</button>
+        </div>
+        <div class="log-body" id="log-straighten_images"></div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-err" id="btn-err-straighten_images" disabled onclick="openErrorFolder('straighten_images')">📋 View Errors</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-reset-straighten_images" onclick="resetTool('straighten_images')">↺ New Job</button>
+        <button class="btn btn-warn" id="btn-cancel-straighten_images" disabled onclick="cancelTool('straighten_images')">■ Cancel</button>
+        <button class="btn btn-primary" id="btn-start-straighten_images" disabled onclick="startTool('straighten_images')">▶ Start</button>
       </div>
     </div>
 

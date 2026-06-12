@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Run tests
+        run: python -m unittest discover -s testing -p "test_*.py"
+
       - name: Build
         run: pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 

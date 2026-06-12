@@ -57,11 +57,20 @@ from utils.worker import (
     AutoCropWorker,
     OcrPdfWorker,
     PdfConversionWorker,
+    StraightenWorker,
     TiffMergeWorker,
     TiffSplitWorker,
 )
 
-TOOLS = ["auto_crop", "merge_tiffs", "split_tiffs", "add_border", "ocr_pdf", "pdf_conversion"]
+TOOLS = [
+    "auto_crop",
+    "straighten_images",
+    "merge_tiffs",
+    "split_tiffs",
+    "add_border",
+    "ocr_pdf",
+    "pdf_conversion",
+]
 
 _lock = threading.Lock()
 _jobs: dict = {
@@ -338,6 +347,39 @@ def auto_crop_start():
     errors = create_error_folder(folder)
     output.mkdir(parents=True, exist_ok=True)
     _start_worker("auto_crop", AutoCropWorker(folder, output, errors, straighten=straighten))
+    return jsonify({"ok": True})
+
+
+# ── Straighten Images ──────────────────────────────────────────────────────
+
+@app.route("/api/straighten_images/prepare", methods=["POST"])
+def straighten_images_prepare():
+    body = request.get_json(force=True) or {}
+    folder = body.get("folder")
+    if not folder or not Path(folder).is_dir():
+        return jsonify({"ok": False, "error": "Invalid folder"})
+    valid, files, error = validate_image_files(folder)
+    if not valid:
+        return jsonify({"ok": False, "error": error})
+    with _lock:
+        _jobs["straighten_images"]["data"] = {"folder": folder, "file_count": len(files)}
+    return jsonify({"ok": True, "file_count": len(files)})
+
+
+@app.route("/api/straighten_images/start", methods=["POST"])
+def straighten_images_start():
+    with _lock:
+        if _jobs["straighten_images"]["state"] == "running":
+            return jsonify({"ok": False, "error": "Already running"})
+        data = dict(_jobs["straighten_images"]["data"])
+    folder = Path(data.get("folder", ""))
+    if not folder.is_dir():
+        return jsonify({"ok": False, "error": "No folder prepared"})
+    output = folder / "straightened"
+    errors = create_error_folder(folder) / "straighten"
+    output.mkdir(parents=True, exist_ok=True)
+    errors.mkdir(parents=True, exist_ok=True)
+    _start_worker("straighten_images", StraightenWorker(folder, output, errors))
     return jsonify({"ok": True})
 
 

@@ -1,9 +1,10 @@
 # DPA Image Toolkit
 
-Desktop toolkit for archival image cleanup and TIFF workflow management.
+Windows EXE toolkit for archival image cleanup and TIFF workflow management.
 
-The app currently includes six tools:
+The app currently includes seven tools:
 - Auto Crop
+- Straighten Images
 - Merge TIFFs
 - Split Multi-Page TIFFs
 - Add Border
@@ -14,30 +15,40 @@ The app currently includes six tools:
 
 ```bash
 pip install -r requirements.txt
-python dpa-image-toolkit.py
+python launch_web.py
 ```
 
-Windows launcher:
+Legacy CustomTkinter desktop launcher:
 
-```batch
-image-toolkit.bat
+```bash
+python dpa-image-toolkit.py
 ```
 
 ## Platform Notes
 
-- `image-toolkit.bat` is for Windows only.
-- The Python app itself can be launched on macOS and other platforms with a working Python/Tk install.
-- Primary target environment is still Windows desktop use.
+- Primary release target is a PyInstaller-built Windows EXE using `launch_web.py`.
+- The EXE starts a local Flask backend and opens the app in a PyWebView native window.
+- Source checkout runs on macOS and other platforms with a working Python/Tk install.
+- The older CustomTkinter UI remains in `dpa-image-toolkit.py`, but it is not the primary release target.
 
 ## Tools
 
 ### Auto Crop
 
-Detects content in scanned images and crops away scanner-created white space while keeping all meaningful detected content inside one crop region.
+Detects content in scanned images and crops away scanner-created white space while keeping all meaningful detected content inside one crop region. The web UI includes an optional `Straighten before crop` checkbox.
 
 - Input: image folder
 - Output: `input_folder/cropped/`
 - Errors: `input_folder/errored-files/`
+
+### Straighten Images
+
+Deskews image folders without cropping, useful for already-cropped images that should keep their current canvas size.
+
+- Input: image folder
+- Output: `input_folder/straightened/`
+- Originals are left untouched
+- Uses the same Hough Line Transform deskew pass as Auto Crop's straighten option
 
 ### Merge TIFFs
 
@@ -127,6 +138,7 @@ Everything before the final `_####` becomes the output PDF base name. A valid si
 
 ```text
 Scanned images
+  -> Straighten Images (optional)
   -> Auto Crop
   -> cropped/
   -> Merge TIFFs
@@ -134,6 +146,7 @@ Scanned images
 ```
 
 You can also use:
+- Straighten Images to deskew already-cropped images without changing crop bounds
 - Split TIFFs to break apart existing multi-page TIFFs
 - Add Border to add consistent margins to image sets such as book scans
 - OCR to PDF to turn a folder of page scans into grouped searchable PDFs in `PDFs/`
@@ -141,7 +154,7 @@ You can also use:
 ## Dependencies
 
 ```bash
-pip install customtkinter pillow opencv-python numpy
+pip install -r requirements.txt
 ```
 
 OCR to PDF requires local OCR tooling:
@@ -151,66 +164,33 @@ OCR to PDF requires local OCR tooling:
 
 The guaranteed local path is Tesseract-based searchable PDF generation.
 
-Or:
+## EXE Release Build
+
+The supported deploy artifact is the PyInstaller Windows zip produced by GitHub Actions.
+
+Tag-based release flow:
 
 ```bash
-pip install -r requirements.txt
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-## Windows Scripts Deployment
-
-Recommended deployment folder:
+The release workflow builds:
 
 ```text
-C:\Users\[user]\Scripts\dpa-img-tk\
-├─ image-toolkit.bat
-├─ dpa-image-toolkit.py
-├─ main.py
-├─ gui\
-├─ modules\
-└─ utils\
+DPA-Image-Toolkit-Windows-vX.Y.Z.zip
+└─ DPA-Image-Toolkit/
+   └─ DPA-Image-Toolkit.exe
 ```
 
-Copy-ready deployment bundle:
+Local Windows build command:
 
-```text
-deploy/
-├─ image-toolkit.bat
-├─ README.md
-└─ dpa-img-tk/
-   ├─ dpa-image-toolkit.py
-   ├─ main.py
-   ├─ requirements.txt
-   ├─ gui/
-   ├─ modules/
-   └─ utils/
+```powershell
+pip install -r requirements.txt pyinstaller
+pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 ```
 
-Copy the contents of `deploy/` into:
-
-```text
-C:\Users\[user]\Scripts\
-```
-
-The launcher batch file is absolute-path aware, so you can keep a copy of `image-toolkit.bat` on the Desktop and it will still launch the app from:
-
-```text
-C:\Users\[user]\Scripts\dpa-img-tk\
-```
-
-Required to run:
-- `image-toolkit.bat`
-- `dpa-image-toolkit.py`
-- `main.py`
-- `gui/`
-- `modules/`
-- `utils/`
-- `requirements.txt`
-
-Not required for launch:
-- `testing/`
-- `docs/`
-- top-level markdown docs
+The old `deploy/` folder is a legacy source-copy bundle for machines where Python is installed. It is not the release artifact for EXE deployment.
 
 ## Repo Layout
 
@@ -218,7 +198,9 @@ Not required for launch:
 gui/        desktop UI panels and main window
 modules/    tool-specific processing logic
 utils/      shared workers, dependency checks, and file helpers
-deploy/     copy-ready Windows deployment bundle
+web/        Flask/PyWebView release UI
+packaging/  PyInstaller spec for the Windows EXE
+deploy/     legacy source-copy Windows bundle
 testing/    per-tool generators, test runners, and local test scratch space
 ```
 
@@ -226,7 +208,7 @@ testing/    per-tool generators, test runners, and local test scratch space
 
 - `README.md` — setup, workflow, naming rules, deployment
 - `TODO.md` — open issues and future enhancements
-- `deploy/README.md` — Windows Scripts deployment notes
+- `deploy/README.md` — legacy Windows Scripts deployment notes
 - `docs/` — GitHub Pages project dashboard (HTML/CSS/JS)
 - CustomTkinter offline docs/code reference (local fork): `/Users/baghead/code/CustomTkinter`
 

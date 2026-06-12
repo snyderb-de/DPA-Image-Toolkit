@@ -287,7 +287,7 @@
     <div class="hero-top">
       <div>
         <h1>DPA Image Toolkit</h1>
-        <p class="hero-desc">Desktop toolkit for archival image cleanup and TIFF workflow management — six tools covering the full scan-to-archive pipeline.</p>
+        <p class="hero-desc">Windows EXE toolkit for archival image cleanup and TIFF workflow management — seven tools covering the full scan-to-archive pipeline.</p>
         <div class="hero-actions">
           <a href="user-manual.html" class="hbtn hbtn-primary">📖 User Manual</a>
           <a href="https://github.com/snyderb-de/DPA-Image-Toolkit" class="hbtn hbtn-ghost" target="_blank" rel="noopener">GitHub Repo</a>
@@ -305,7 +305,7 @@
 
   <!-- ── Stat strip ─────────────────────────────────────────────────── -->
   <section class="stat-strip">
-    <div class="stat-card"><div class="sc-label">Tools</div><div class="sc-val">6</div></div>
+    <div class="stat-card"><div class="sc-label">Tools</div><div class="sc-val">7</div></div>
     <div class="stat-card"><div class="sc-label">Open Issues</div><div class="sc-val" id="s-issues">—</div></div>
     <div class="stat-card"><div class="sc-label">Open PRs</div><div class="sc-val" id="s-prs">—</div></div>
     <div class="stat-card"><div class="sc-label">Stars</div><div class="sc-val" id="s-stars">—</div></div>
@@ -320,7 +320,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">12 items</span>
+        <span class="pbadge">11 items</span>
       </div>
       <div class="pb">
         <div class="todo-list">
@@ -328,8 +328,8 @@
           <div class="todo" style="border-color:var(--orange);background:color-mix(in oklab,var(--warn-bg) 30%,var(--panel))">
             <span class="tid" style="background:var(--warn-bg);border-color:var(--orange);color:var(--orange)">T-000</span>
             <div>
-              <div class="t-title">Web UI rewrite — Flask + PyWebView → single .exe</div>
-              <div class="t-note">Replace CustomTkinter with a Flask backend + HTML/CSS/JS frontend wrapped in PyWebView. PyInstaller bundles to a single .exe — no Python install needed. Keep all existing Python processing (OpenCV, Tesseract, Pillow, pypdf) 100% unchanged. Web UI enables glowing progress bars, animations, and a true shared CSS token design system across the app, manual, and dashboard. Theme support (Catppuccin, Gruvbox, etc.) = CSS variable swap, no code changes. Modeled on the dates-formatter web UI migration plan.</div>
+              <div class="t-title">Validate PyInstaller EXE release candidate</div>
+              <div class="t-note">Primary deploy target is the Flask + HTML/CSS/JS frontend wrapped in PyWebView and packaged with PyInstaller. Confirm the release zip opens cleanly, runs all seven tools, and needs no local Python install.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
@@ -338,7 +338,7 @@
             <span class="tid">T-001</span>
             <div>
               <div class="t-title">Validate on Windows 10 / Windows 11</div>
-              <div class="t-note">Full end-to-end workflow checks on the actual target environment. All six tools. Highest priority before any further distribution.</div>
+              <div class="t-note">Full end-to-end workflow checks on the actual target environment. All seven tools. Highest priority before any further distribution.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
@@ -347,7 +347,7 @@
             <span class="tid">T-002</span>
             <div>
               <div class="t-title">Test at high DPI scaling</div>
-              <div class="t-note">Verify UI layout at 125%, 150%, and 200% display scaling on Windows. CustomTkinter scaling behavior may need tuning.</div>
+              <div class="t-note">Verify web-window layout at 125%, 150%, and 200% display scaling on Windows.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
           </div>
@@ -356,7 +356,7 @@
             <span class="tid">T-003</span>
             <div>
               <div class="t-title">Add GUI screenshots to dashboard</div>
-              <div class="t-note">Capture screenshots of each of the six tool panels. Add a Screenshots section to this dashboard for the GitHub Pages view.</div>
+              <div class="t-note">Capture screenshots of each of the seven tool panels. Add a Screenshots section to this dashboard for the GitHub Pages view.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
           </div>
@@ -474,7 +474,7 @@
   <article class="panel">
     <div class="ph">
       <h2>Included Tools</h2>
-      <span class="pbadge">6 tools</span>
+      <span class="pbadge">7 tools</span>
     </div>
     <div class="pb">
       <div class="tool-grid">
@@ -484,10 +484,21 @@
             <div class="tc-icon">✂</div>
             <div>
               <div class="tc-name">Auto Crop</div>
-              <div class="tc-sub">Detects and crops scanner-created white space. Unions all meaningful contours into one bounding box before cutting.</div>
+              <div class="tc-sub">Detects and crops scanner-created white space. Optional straightening can run before crop analysis.</div>
             </div>
           </div>
           <div class="tc-io"><strong>In:</strong> image folder &nbsp;·&nbsp; <strong>Out:</strong> <code>cropped/</code></div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tc-head">
+            <div class="tc-icon">↻</div>
+            <div>
+              <div class="tc-name">Straighten Images</div>
+              <div class="tc-sub">Deskews already-cropped or raw image folders without changing their crop canvas.</div>
+            </div>
+          </div>
+          <div class="tc-io"><strong>In:</strong> image folder &nbsp;·&nbsp; <strong>Out:</strong> <code>straightened/</code></div>
         </div>
 
         <div class="tool-card">
@@ -569,7 +580,7 @@
           </div>
           <div class="phase-body">
             <div class="ptasks">
-              <div class="ptask"><span class="wid">W-001</span>Audit CustomTkinter panels — map UI logic vs processing logic boundary for each tool</div>
+              <div class="ptask"><span class="wid">W-001</span>Audit processing boundaries for each tool</div>
               <div class="ptask"><span class="wid">W-002</span>Scaffold <code>web/app.py</code> — Flask, localhost only, auto-pick port, serve from <code>web/templates/</code></div>
               <div class="ptask"><span class="wid">W-003</span>Design system — CSS tokens (light/dark + theme slot), shared with manual and dashboard</div>
               <div class="ptask"><span class="wid">W-004</span>Per-tool API routes — <code>POST /api/{tool}/start</code>, <code>GET /api/{tool}/status</code>, <code>POST /api/{tool}/cancel</code></div>
@@ -578,7 +589,7 @@
               <div class="ptask"><span class="wid">W-007</span>PyWebView launcher — <code>launch.py</code> starts Flask daemon, opens PyWebView window, handles shutdown</div>
               <div class="ptask"><span class="wid">W-008</span>Windows launcher — <code>image-toolkit-web.bat</code> entry point</div>
               <div class="ptask"><span class="wid">W-009</span>PyInstaller bundle — single <code>.exe</code>, bundles Flask + PyWebView + all Python deps + Tesseract path config</div>
-              <div class="ptask"><span class="wid">W-010</span>Parity smoke test — all six tools produce identical output to current CustomTkinter version</div>
+              <div class="ptask"><span class="wid">W-010</span>Parity smoke test — all seven tools produce expected output from the web-window EXE</div>
               <div class="ptask"><span class="wid">W-011</span>Theme switcher — light/dark toggle + named theme loader (Catppuccin, Gruvbox as first two)</div>
             </div>
           </div>
@@ -596,10 +607,10 @@
           </div>
           <div class="phase-body">
             <div class="ptasks">
-              <div class="ptask"><span class="wid">W-101</span>End-to-end smoke test of all six tools on Windows 10</div>
-              <div class="ptask"><span class="wid">W-102</span>End-to-end smoke test of all six tools on Windows 11</div>
+              <div class="ptask"><span class="wid">W-101</span>End-to-end smoke test of all seven tools on Windows 10</div>
+              <div class="ptask"><span class="wid">W-102</span>End-to-end smoke test of all seven tools on Windows 11</div>
               <div class="ptask"><span class="wid">W-103</span>Verify UI layout at 125%, 150%, 200% display scaling</div>
-              <div class="ptask"><span class="wid">W-104</span>Confirm <code>image-toolkit.bat</code> launcher and Desktop shortcut work on both platforms</div>
+              <div class="ptask"><span class="wid">W-104</span>Confirm extracted release zip and <code>DPA-Image-Toolkit.exe</code> launch on both platforms</div>
               <div class="ptask"><span class="wid">W-105</span>Validate OCR to PDF with Tesseract installed on the target machine</div>
             </div>
           </div>
@@ -621,7 +632,6 @@
               <div class="ptask"><span class="wid">W-203</span>TIFF Merge: JPEG, LZW, PackBits compression options</div>
               <div class="ptask"><span class="wid">W-204</span>TIFF Merge: streaming approach for 200+ page batches</div>
               <div class="ptask"><span class="wid">W-205</span>Auto Crop: configurable white threshold via UI slider (default 253)</div>
-              <div class="ptask"><span class="wid">W-206</span>Auto Crop: optional image straightening pass (Hough Line Transform deskew)</div>
             </div>
           </div>
         </div>
@@ -677,10 +687,9 @@
           </div>
           <div class="phase-body">
             <div class="ptasks">
-              <div class="ptask"><span class="wid">W-S01</span>PyInstaller standalone <code>.exe</code> — bundle so end users don't need Python installed</div>
-              <div class="ptask"><span class="wid">W-S02</span>Drag-and-drop folder support — drop a folder onto the app window instead of using the picker</div>
-              <div class="ptask"><span class="wid">W-S03</span>Undo support — move output back, restore originals for a completed job</div>
-              <div class="ptask"><span class="wid">W-S04</span>Page reordering / extraction from existing multi-page TIFFs</div>
+              <div class="ptask"><span class="wid">W-S01</span>Drag-and-drop folder support — drop a folder onto the app window instead of using the picker</div>
+              <div class="ptask"><span class="wid">W-S02</span>Undo support — move output back, restore originals for a completed job</div>
+              <div class="ptask"><span class="wid">W-S03</span>Page reordering / extraction from existing multi-page TIFFs</div>
             </div>
           </div>
         </div>
@@ -696,10 +705,12 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">10 items</span>
+        <span class="pbadge">12 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-012</span><span class="dtext">Straighten Images tool — standalone folder job writes deskewed images to <code>straightened/</code> without cropping</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-011</span><span class="dtext">Auto Crop straightening option — optional Hough Line Transform deskew pass before crop analysis</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard rebuilt in dates-formatter style — IBM Plex fonts, navy/orange gradient, collapsible roadmap phases, T-IDs/D-IDs</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-009</span><span class="dtext">User manual HTML — standalone guide with left nav, dark/light theme, Ctrl+F search tip, deploys alongside the app</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file moved to script directory — <code>app-settings.json</code> now alongside the script and manual in <code>dpa-img-tk/</code></span></div>
@@ -723,8 +734,8 @@
       <div class="pb">
         <div class="decisions">
           <div class="decision">
-            <div class="dq">Web UI rewrite: run T-001 Windows validation first, or start T-000 in parallel?</div>
-            <div class="dd">Default: <strong>parallel</strong> — Phase 1 Windows validation uses the current CustomTkinter build; Phase 0 web rewrite is net-new and doesn't touch processing logic. Raise if preferred sequentially.</div>
+            <div class="dq">EXE release validation — where are we?</div>
+            <div class="dd">Default: <strong>validate packaged zip first</strong> — use the PyInstaller release candidate and run all seven tools before tagging a wider release.</div>
           </div>
           <div class="decision">
             <div class="dq">Windows validation — where are we?</div>
@@ -735,8 +746,8 @@
             <div class="dd">Default: <strong>research backlog</strong> — keep in Phase 4 until core tools pass Windows validation. Raise to promote.</div>
           </div>
           <div class="decision">
-            <div class="dq">PyInstaller .exe: no-install build actually needed?</div>
-            <div class="dd">Default: <strong>stretch / optional</strong> — current bat+Python deployment is working. Raise if a standalone .exe would change the user base.</div>
+            <div class="dq">Legacy source-copy deploy bundle — keep or retire?</div>
+            <div class="dd">Default: <strong>keep as legacy only</strong> — the supported deploy artifact is now the PyInstaller EXE zip.</div>
           </div>
           <div class="decision">
             <div class="dq">PDF/A feature — keep as preview or promote?</div>
@@ -760,7 +771,7 @@
         <a href="user-manual.html" class="res-card res-card-highlight">
           <div class="rc-label">End User</div>
           <div class="rc-title">📖 User Manual</div>
-          <div class="rc-desc">Complete guide to all six tools — how to use, inputs, outputs, naming rules, and typical workflow</div>
+          <div class="rc-desc">Complete guide to all seven tools — how to use, inputs, outputs, naming rules, and typical workflow</div>
         </a>
         <a href="https://github.com/snyderb-de/DPA-Image-Toolkit/blob/master/README.md" class="res-card" target="_blank" rel="noopener">
           <div class="rc-label">Setup</div>

@@ -1,7 +1,7 @@
 """
 Background worker threads for long-running operations.
 
-Handles auto-crop and TIFF merge operations with progress callbacks.
+Handles long-running toolkit operations with progress callbacks.
 """
 
 import os
@@ -184,6 +184,94 @@ class AutoCropWorker(OperationWorker):
             summary = (
                 f"✅ Cropped: {self.results['success']} | "
                 f"⚠️ Skipped: {self.results['skipped']} | "
+                f"❌ Failed: {self.results['failed']}"
+            )
+            self.update_status(summary)
+
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
+            self.report_error("operation", str(e))
+
+    def get_results(self) -> dict:
+        """Get operation results."""
+        return self.results
+
+
+class StraightenWorker(OperationWorker):
+    """Worker for standalone image straightening operations."""
+
+    def __init__(
+        self,
+        input_folder: Path,
+        output_folder: Path,
+        error_folder: Path,
+    ):
+        super().__init__(name="StraightenWorker")
+        self.input_folder = Path(input_folder)
+        self.output_folder = Path(output_folder)
+        self.error_folder = Path(error_folder)
+        self.results = {
+            "success": 0,
+            "failed": 0,
+            "skipped": 0,
+            "total": 0,
+            "cancelled": False,
+            "errors": [],
+            "angles": [],
+        }
+
+    def run(self):
+        """Execute standalone straighten operation."""
+        from modules.auto_cropping.core import straighten_image
+
+        try:
+            image_extensions = ('.tif', '.tiff', '.jpg', '.jpeg', '.png', '.bmp', '.gif')
+            image_files = [
+                f for f in self.input_folder.iterdir()
+                if f.is_file() and f.suffix.lower() in image_extensions
+            ]
+
+            if not image_files:
+                self.update_status("No images found")
+                return
+
+            image_files.sort()
+            total = len(image_files)
+            self.results["total"] = total
+
+            for idx, image_file in enumerate(image_files, 1):
+                if self.cancelled:
+                    self.results["cancelled"] = True
+                    self.update_status("Operation cancelled")
+                    return
+
+                self.update_progress(idx, total, image_file.name)
+                self.update_status(f"Straightening: {image_file.name}")
+
+                output_path, error_msg, stats = straighten_image(
+                    image_file,
+                    self.output_folder,
+                    preserve_dpi=True,
+                )
+
+                if error_msg:
+                    self.results["failed"] += 1
+                    self.results["errors"].append({
+                        "file": image_file.name,
+                        "error": error_msg,
+                    })
+                    self.report_error(image_file.name, error_msg)
+                    continue
+
+                self.results["success"] += 1
+                self.results["angles"].append({
+                    "file": image_file.name,
+                    "angle": stats.get("angle", 0.0),
+                    "output": output_path,
+                })
+
+            summary = (
+                f"✅ Straightened: {self.results['success']} | "
                 f"❌ Failed: {self.results['failed']}"
             )
             self.update_status(summary)

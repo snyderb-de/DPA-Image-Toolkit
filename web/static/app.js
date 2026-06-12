@@ -2,7 +2,7 @@
 
 // ── State ─────────────────────────────────────────────────────────────────
 
-const TOOLS = ['auto_crop', 'merge_tiffs', 'split_tiffs', 'add_border', 'ocr_pdf', 'pdf_conversion'];
+const TOOLS = ['auto_crop', 'straighten_images', 'merge_tiffs', 'split_tiffs', 'add_border', 'ocr_pdf', 'pdf_conversion'];
 
 const state = {};
 TOOLS.forEach(id => {

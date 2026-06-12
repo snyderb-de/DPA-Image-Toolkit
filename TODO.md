@@ -1,6 +1,6 @@
 # DPA Image Toolkit — TODO
 
-**Status:** v1.0 complete and functional. Items below are open issues and future enhancements.
+**Status:** v1.1 release candidate work in progress. Primary deploy target is the PyInstaller Windows EXE.
 
 ---
 
@@ -8,14 +8,25 @@
 
 - [ ] **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment
 - [ ] **Test at high DPI scaling** — verify UI at 125%, 150%, 200% display scaling
+- [ ] **Validate packaged EXE on Windows** — run the PyInstaller zip from a clean machine profile
 - [x] **Strengthen automated test coverage** — converted crop/TIFF grouping/OCR grouping checks into discoverable assertion-based test suites
 - [x] **Keep dashboard and docs aligned with shipped behavior** — refreshed `README.md`, `TODO.md`, and `project-dashboard/` for current tool behavior
+- [x] **Make PyInstaller EXE the primary deploy target** — release workflow builds `DPA-Image-Toolkit.exe` from `launch_web.py`
 
 ---
 
 ## Auto-Crop Enhancements
 
 - [ ] Batch preview mode before committing crops
+- [x] Optional straightening before crop
+
+---
+
+## Straighten Images
+
+- [x] Add standalone Straighten Images job for already-cropped image folders
+- [x] Write output to `straightened/` without changing the crop canvas
+- [x] Strengthen automated tests to verify deskew reduces measured skew
 
 ---
 
@@ -77,7 +88,5 @@
 ## Future Release Ideas
 
 - [ ] Configurable white threshold via UI slider
-- [ ] Image straightening before crop (Hough Line Transform)
 - [ ] Extract pages from existing multi-page TIFFs
-- [ ] PyInstaller standalone `.exe` build
 - [ ] Drag-and-drop folder support
