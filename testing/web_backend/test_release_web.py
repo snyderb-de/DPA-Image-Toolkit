@@ -53,6 +53,27 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn("function setPdfInputMode", script)
         self.assertIn("write_remaining_pages", script)
 
+    def test_straighten_tool_is_marked_beta_in_sidebar_and_header(self):
+        template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        stylesheet = (APP_ROOT / "web" / "static" / "app.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="nav-item nav-item-beta" data-tool="straighten_images"', template)
+        self.assertIn("Beta (in Testing)", template)
+        self.assertIn(".nav-item-beta", stylesheet)
+        self.assertIn("var(--beta-line)", stylesheet)
+
+    def test_release_packaging_uses_onefile_exe(self):
+        spec = (APP_ROOT / "packaging" / "dpa-toolkit.spec").read_text(encoding="utf-8")
+        workflow = (APP_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+        self.assertNotIn("COLLECT(", spec)
+        self.assertNotIn("exclude_binaries=True", spec)
+        self.assertIn("a.binaries", spec)
+        self.assertIn("a.datas", spec)
+        self.assertIn("dist/DPA-Image-Toolkit.exe", workflow)
+        self.assertIn("DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe", workflow)
+        self.assertNotIn("Compress-Archive", workflow)
+
     def test_manual_is_built_into_web_app_and_uses_app_theme_assets(self):
         response = self.client.get("/manual")
         self.assertEqual(response.status_code, 200)

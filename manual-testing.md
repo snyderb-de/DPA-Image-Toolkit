@@ -4,8 +4,9 @@ Use this checklist before release packaging or deployment.
 
 ## Setup
 
-- [ ] Download or build the PyInstaller release zip
-- [ ] Extract the zip and launch `DPA-Image-Toolkit.exe`
+- [ ] Download or build the PyInstaller release EXE
+- [ ] Launch `DPA-Image-Toolkit-Windows-vX.Y.Z.exe`
+- [ ] Confirm there is no required `_internal/` folder beside the EXE
 - [ ] Confirm the native app window opens without traceback on first launch
 - [ ] Source checkout fallback: run `python launch_web.py`
 - [ ] Confirm Light/Dark appearance options render correctly
@@ -38,6 +39,7 @@ Use this checklist before release packaging or deployment.
 
 ## Straighten Images
 
+- [ ] Verify the sidebar option is outlined in orange and labeled `Beta (in Testing)`
 - [ ] Select folder with skewed images and run straighten
 - [ ] Verify output in `straightened/`
 - [ ] Verify output image dimensions match the source dimensions
@@ -106,7 +108,7 @@ Use this checklist before release packaging or deployment.
 
 - [ ] Windows 10 full smoke pass
 - [ ] Windows 11 full smoke pass
-- [ ] Packaged EXE smoke pass from extracted release zip
+- [ ] Packaged EXE smoke pass from downloaded release EXE
 - [ ] macOS source checkout smoke pass using `python launch_web.py`
 - [ ] High DPI 125% validation
 - [ ] High DPI 150% validation

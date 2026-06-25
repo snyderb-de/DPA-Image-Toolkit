@@ -14,6 +14,9 @@
       --muted: #6b6054;
       --accent: #205b52;
       --accent-soft: rgba(32, 91, 82, 0.12);
+      --beta: #b45309;
+      --beta-soft: rgba(180, 83, 9, 0.12);
+      --beta-border: rgba(180, 83, 9, 0.36);
       --shadow: 0 18px 38px rgba(60, 46, 27, 0.1);
       --nav-bg: rgba(255, 253, 248, 0.94);
       --nav-width: 220px;
@@ -30,6 +33,9 @@
       --muted: #a89880;
       --accent: #5aaa96;
       --accent-soft: rgba(90, 170, 150, 0.14);
+      --beta: #fbbf24;
+      --beta-soft: rgba(251, 191, 36, 0.13);
+      --beta-border: rgba(251, 191, 36, 0.34);
       --shadow: 0 18px 38px rgba(0, 0, 0, 0.4);
       --nav-bg: rgba(26, 22, 18, 0.96);
     }
@@ -181,6 +187,22 @@
       background: var(--accent);
       color: #fff;
       border-color: var(--accent);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border: 1px solid var(--beta-border);
+      border-radius: 999px;
+      background: var(--beta-soft);
+      color: var(--beta);
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      line-height: 1.35;
     }
 
     /* ── Main content ────────────────────────────────────────── */
@@ -554,9 +576,11 @@
         <div class="card">
           <h3>Launching the App</h3>
           <p>
-            On Windows, extract the release zip and double-click
-            <code>DPA-Image-Toolkit.exe</code>. The EXE opens the toolkit in a
-            native web-window and does not require a local Python install.
+            On Windows, download and double-click
+            <code>DPA-Image-Toolkit-Windows-vX.Y.Z.exe</code>. The release is a
+            single EXE with no required <code>_internal/</code> folder. The EXE
+            opens the toolkit in a native web-window and does not require a
+            local Python install.
           </p>
           <p>
             On macOS or Linux, run <code>python launch_web.py</code> from
@@ -650,7 +674,7 @@
     <section class="section" id="straighten-images">
       <div class="section-header">
         <p class="eyebrow">Tool 2 of 7</p>
-        <h2>Straighten Images</h2>
+        <h2>Straighten Images <span class="tag">Beta (in Testing)</span></h2>
       </div>
       <div class="cards">
         <div class="card">
@@ -1077,8 +1101,8 @@
           <h3>Windows EXE Deployment</h3>
           <p>
             The supported release artifact is
-            <code>DPA-Image-Toolkit-Windows-vX.Y.Z.zip</code>. Extract it, then
-            launch <code>DPA-Image-Toolkit.exe</code> from the extracted folder.
+            <code>DPA-Image-Toolkit-Windows-vX.Y.Z.exe</code>. Download it, then
+            launch the EXE directly.
           </p>
           <p>
             Settings and theme preferences are stored beside the executable and

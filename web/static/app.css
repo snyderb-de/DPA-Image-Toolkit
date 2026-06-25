@@ -90,6 +90,39 @@ select:focus {
   border-left-color: var(--accent);
 }
 
+.nav-item-beta {
+  margin: 2px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--beta-line);
+  border-left: 3px solid var(--beta);
+  border-radius: 8px;
+  background: var(--beta-bg);
+}
+
+.nav-item-beta:hover,
+.nav-item-beta.active {
+  border-color: var(--beta-line);
+  border-left-color: var(--beta);
+  background: color-mix(in oklab, var(--beta-bg) 72%, var(--sidebar-hover));
+}
+
+.nav-label {
+  min-width: 0;
+}
+
+.nav-item-beta .nav-label {
+  display: grid;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.nav-beta {
+  color: var(--beta-text);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .nav-icon {
   width: 20px;
   text-align: center;
@@ -240,6 +273,22 @@ select:focus {
   font-weight: 700;
   color: var(--ink);
   line-height: 1.2;
+}
+
+.panel-beta {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--beta-line);
+  border-radius: 999px;
+  background: var(--beta-bg);
+  color: var(--beta-text);
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .panel-sub {

@@ -76,7 +76,7 @@ class ThemeContrastTests(unittest.TestCase):
 
     def test_text_tokens_meet_wcag_aa_on_primary_surfaces(self):
         for theme_name in ("dark", "light"):
-            for fg_var in ("ink", "muted", "faint", "accent"):
+            for fg_var in ("ink", "muted", "faint", "accent", "beta-text"):
                 for bg_var in ("bg", "panel", "panel2"):
                     with self.subTest(theme=theme_name, foreground=fg_var, background=bg_var):
                         self.assert_aa(
@@ -99,7 +99,7 @@ class ThemeContrastTests(unittest.TestCase):
 
     def test_sidebar_text_meets_wcag_aa(self):
         for theme_name in ("dark", "light"):
-            for fg_var in ("sidebar-ink", "sidebar-ink-act", "sidebar-brand-ink", "accent"):
+            for fg_var in ("sidebar-ink", "sidebar-ink-act", "sidebar-brand-ink", "accent", "beta-text"):
                 with self.subTest(theme=theme_name, foreground=fg_var):
                     self.assert_aa(
                         _contrast_pair(theme_name, fg_var, "sidebar-bg"),

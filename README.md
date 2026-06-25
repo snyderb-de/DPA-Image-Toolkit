@@ -172,7 +172,7 @@ The guaranteed local path is Tesseract-based searchable PDF generation.
 
 ## EXE Release Build
 
-The supported deploy artifact is the PyInstaller Windows zip produced by GitHub Actions.
+The supported deploy artifact is the PyInstaller Windows one-file EXE produced by GitHub Actions.
 
 Tag-based release flow:
 
@@ -181,13 +181,15 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-The release workflow builds:
+The release workflow uploads one file:
 
 ```text
-DPA-Image-Toolkit-Windows-vX.Y.Z.zip
-└─ DPA-Image-Toolkit/
-   └─ DPA-Image-Toolkit.exe
+DPA-Image-Toolkit-Windows-vX.Y.Z.exe
 ```
+
+The release should not include a required `_internal/` folder. If it does, that
+build used PyInstaller `onedir` mode instead of the supported one-file release
+mode.
 
 Local Windows build command:
 
@@ -196,7 +198,7 @@ pip install -r requirements.txt pyinstaller
 pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 ```
 
-The `deploy/` folder contains release/deployment notes only. The old source-copy bundle has been retired so the EXE zip remains the single deploy path.
+The `deploy/` folder contains release/deployment notes only. The old source-copy bundle has been retired so the one-file EXE remains the single deploy path.
 
 ## Repo Layout
 

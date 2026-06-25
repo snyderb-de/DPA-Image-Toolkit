@@ -328,8 +328,8 @@
           <div class="todo" style="border-color:var(--orange);background:color-mix(in oklab,var(--warn-bg) 30%,var(--panel))">
             <span class="tid" style="background:var(--warn-bg);border-color:var(--orange);color:var(--orange)">T-000</span>
             <div>
-              <div class="t-title">Smoke-test released Windows ZIP</div>
-              <div class="t-note">Download <code>DPA-Image-Toolkit-Windows-v1.1.3.zip</code>, extract it from a clean user profile, run all seven tools, and confirm no local Python install is needed.</div>
+              <div class="t-title">Smoke-test released Windows EXE</div>
+              <div class="t-note">Download <code>DPA-Image-Toolkit-Windows-v1.1.4.exe</code> into a clean user profile, run all seven tools, and confirm no local Python install or <code>_internal/</code> folder is needed.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
@@ -494,7 +494,7 @@
           <div class="tc-head">
             <div class="tc-icon">↻</div>
             <div>
-              <div class="tc-name">Straighten Images</div>
+              <div class="tc-name">Straighten Images <span class="pbadge">Beta (in Testing)</span></div>
               <div class="tc-sub">Deskews already-cropped or raw image folders without changing their crop canvas.</div>
             </div>
           </div>
@@ -574,7 +574,7 @@
             <div class="pnum" style="background:var(--orange)">0</div>
             <div>
               <div class="p-title">Windows EXE Release Packaging</div>
-              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller .exe. Published as v1.1.3; remaining checks live in Windows Validation.</div>
+              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller one-file .exe. Published as v1.1.4; remaining checks live in Windows Validation.</div>
             </div>
             <span class="pbadge2 badge-neutral">Complete</span>
           </div>
@@ -610,7 +610,7 @@
               <div class="ptask"><span class="wid">W-101</span>End-to-end smoke test of all seven tools on Windows 10</div>
               <div class="ptask"><span class="wid">W-102</span>End-to-end smoke test of all seven tools on Windows 11</div>
               <div class="ptask"><span class="wid">W-103</span>Verify UI layout at 125%, 150%, 200% display scaling</div>
-              <div class="ptask"><span class="wid">W-104</span>Confirm extracted release zip and <code>DPA-Image-Toolkit.exe</code> launch on both platforms</div>
+              <div class="ptask"><span class="wid">W-104</span>Confirm the one-file release EXE launches on both platforms without a required <code>_internal/</code> folder</div>
               <div class="ptask"><span class="wid">W-105</span>Validate OCR to PDF with Tesseract installed on the target machine</div>
             </div>
           </div>
@@ -705,11 +705,12 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">13 items</span>
+        <span class="pbadge">14 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
-          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-013</span><span class="dtext">v1.1.3 Windows release — GitHub Actions built and attached <code>DPA-Image-Toolkit-Windows-v1.1.3.zip</code></span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-014</span><span class="dtext">v1.1.4 one-file Windows release — GitHub Actions builds and attaches <code>DPA-Image-Toolkit-Windows-v1.1.4.exe</code></span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-013</span><span class="dtext">v1.1.3 Windows release — GitHub Actions built and attached the Windows release asset</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-012</span><span class="dtext">Straighten Images tool — standalone folder job writes deskewed images to <code>straightened/</code> without cropping</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-011</span><span class="dtext">Auto Crop straightening option — optional Hough Line Transform deskew pass before crop analysis</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard refreshed with blue-based light/dark release tracking, collapsible roadmap phases, and T-IDs/D-IDs</span></div>
@@ -736,7 +737,7 @@
         <div class="decisions">
           <div class="decision">
             <div class="dq">EXE release validation — where are we?</div>
-            <div class="dd">Default: <strong>smoke-test the released zip first</strong> — use the v1.1.3 GitHub release asset and run all seven tools before wider distribution.</div>
+            <div class="dd">Default: <strong>smoke-test the released EXE first</strong> — use the GitHub release asset and run all seven tools before wider distribution.</div>
           </div>
           <div class="decision">
             <div class="dq">Windows validation — where are we?</div>
@@ -783,7 +784,7 @@
         <a href="https://github.com/snyderb-de/DPA-Image-Toolkit/blob/master/deploy/README.md" class="res-card" target="_blank" rel="noopener">
           <div class="rc-label">Deployment</div>
           <div class="rc-title">deploy/README.md</div>
-          <div class="rc-desc">EXE deployment notes — release zip, local PyInstaller build, and data safety rule</div>
+          <div class="rc-desc">EXE deployment notes — one-file release, local PyInstaller build, and data safety rule</div>
         </a>
         <a href="https://github.com/snyderb-de/DPA-Image-Toolkit" class="res-card" target="_blank" rel="noopener">
           <div class="rc-label">Source</div>

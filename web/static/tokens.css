@@ -42,6 +42,10 @@
   --ok-dim:   rgba(34, 211, 160, 0.12);
   --warn:     #f5a623;
   --warn-dim: rgba(245, 166, 35, 0.12);
+  --beta:     #f59e0b;
+  --beta-bg:  rgba(245, 158, 11, 0.13);
+  --beta-line: rgba(245, 158, 11, 0.82);
+  --beta-text: #ffd89a;
   --err:      #f05d5d;
   --err-dim:  rgba(240, 93, 93, 0.12);
   --ok-text:   #061b14;
@@ -100,6 +104,10 @@
   --ok-dim:   rgba(3, 105, 79, 0.1);
   --warn:     #92400e;
   --warn-dim: rgba(146, 64, 14, 0.1);
+  --beta:     #b45309;
+  --beta-bg:  rgba(180, 83, 9, 0.12);
+  --beta-line: rgba(180, 83, 9, 0.8);
+  --beta-text: #7c2d12;
   --err:      #b91c1c;
   --err-dim:  rgba(185, 28, 28, 0.1);
   --ok-text:   #ffffff;

@@ -28,13 +28,13 @@ jobs:
       - name: Build
         run: pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
 
-      - name: Zip
+      - name: Prepare release asset
         env:
           TAG: ${{ github.ref_name }}
-        run: Compress-Archive -Path dist/DPA-Image-Toolkit -DestinationPath "DPA-Image-Toolkit-Windows-$env:TAG.zip"
+        run: Copy-Item dist/DPA-Image-Toolkit.exe "DPA-Image-Toolkit-Windows-$env:TAG.exe"
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
-          files: DPA-Image-Toolkit-Windows-${{ github.ref_name }}.zip
+          files: DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe
           fail_on_unmatched_files: true
