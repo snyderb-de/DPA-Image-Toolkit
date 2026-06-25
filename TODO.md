@@ -1,14 +1,16 @@
 # DPA Image Toolkit — TODO
 
-**Status:** v1.1 release candidate work in progress. Primary deploy target is the PyInstaller Windows EXE.
+**Status:** v1.1.3 is the current GitHub release. Primary deploy target is the PyInstaller Windows EXE; remaining release-readiness work is clean-machine Windows validation, high-DPI validation, and distribution polish.
 
 ---
 
 ## Open Issues
 
+- [ ] **Smoke-test released Windows ZIP** — download `DPA-Image-Toolkit-Windows-v1.1.3.zip`, extract it from a clean user profile, run all seven tools, and confirm no local Python install is needed
 - [ ] **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment
 - [ ] **Test at high DPI scaling** — verify UI at 125%, 150%, 200% display scaling
-- [ ] **Validate packaged EXE on Windows** — run the PyInstaller zip from a clean machine profile
+- [ ] **Decide code-signing/distribution policy** — current EXE is unsigned; acceptable for controlled rollout but may trigger Windows SmartScreen warnings
+- [x] **Publish v1.1.3 Windows EXE release** — GitHub Actions built and attached `DPA-Image-Toolkit-Windows-v1.1.3.zip`
 - [x] **Strengthen automated test coverage** — converted crop/TIFF grouping/OCR grouping checks into discoverable assertion-based test suites
 - [x] **Keep dashboard and docs aligned with shipped behavior** — refreshed `README.md`, `TODO.md`, and `project-dashboard/` for current tool behavior
 - [x] **Make PyInstaller EXE the primary deploy target** — release workflow builds `DPA-Image-Toolkit.exe` from `launch_web.py`

@@ -320,7 +320,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">11 items</span>
+        <span class="pbadge">12 items</span>
       </div>
       <div class="pb">
         <div class="todo-list">
@@ -328,8 +328,8 @@
           <div class="todo" style="border-color:var(--orange);background:color-mix(in oklab,var(--warn-bg) 30%,var(--panel))">
             <span class="tid" style="background:var(--warn-bg);border-color:var(--orange);color:var(--orange)">T-000</span>
             <div>
-              <div class="t-title">Validate PyInstaller EXE release candidate</div>
-              <div class="t-note">Primary deploy target is the Flask + HTML/CSS/JS frontend wrapped in PyWebView and packaged with PyInstaller. Confirm the release zip opens cleanly, runs all seven tools, and needs no local Python install.</div>
+              <div class="t-title">Smoke-test released Windows ZIP</div>
+              <div class="t-note">Download <code>DPA-Image-Toolkit-Windows-v1.1.3.zip</code>, extract it from a clean user profile, run all seven tools, and confirm no local Python install is needed.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
@@ -427,8 +427,8 @@
           <div class="todo">
             <span class="tid">T-011</span>
             <div>
-              <div class="t-title">Unify dashboard + user manual visual theme</div>
-              <div class="t-note">Dashboard uses IBM Plex / navy-orange. User manual uses Georgia / warm parchment. Converge to a shared design system. Timeline: after T-001.</div>
+              <div class="t-title">Decide code-signing/distribution policy</div>
+              <div class="t-note">The current EXE is unsigned. That is acceptable for controlled rollout, but broader distribution may need Authenticode signing to reduce Windows SmartScreen friction.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
           </div>
@@ -573,10 +573,10 @@
           <div class="phase-head" onclick="togglePhase(this)" style="border-left:3px solid var(--orange)">
             <div class="pnum" style="background:var(--orange)">0</div>
             <div>
-              <div class="p-title">Web UI Rewrite (T-000)</div>
-              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller .exe. Zero processing rewrite — all existing Python modules stay.</div>
+              <div class="p-title">Windows EXE Release Packaging</div>
+              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller .exe. Published as v1.1.3; remaining checks live in Windows Validation.</div>
             </div>
-            <span class="pbadge2 badge-warn">Top Priority</span>
+            <span class="pbadge2 badge-neutral">Complete</span>
           </div>
           <div class="phase-body">
             <div class="ptasks">
@@ -705,13 +705,14 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">12 items</span>
+        <span class="pbadge">13 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-013</span><span class="dtext">v1.1.3 Windows release — GitHub Actions built and attached <code>DPA-Image-Toolkit-Windows-v1.1.3.zip</code></span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-012</span><span class="dtext">Straighten Images tool — standalone folder job writes deskewed images to <code>straightened/</code> without cropping</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-011</span><span class="dtext">Auto Crop straightening option — optional Hough Line Transform deskew pass before crop analysis</span></div>
-          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard rebuilt in dates-formatter style — IBM Plex fonts, navy/orange gradient, collapsible roadmap phases, T-IDs/D-IDs</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard refreshed with blue-based light/dark release tracking, collapsible roadmap phases, and T-IDs/D-IDs</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-009</span><span class="dtext">User manual HTML — standalone guide with left nav, dark/light theme, Ctrl+F search tip, deploys alongside the app</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file stored beside the launched app — <code>app-settings.json</code> is created automatically next to the executable or source launcher</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-007</span><span class="dtext">Appearance mode persisted — theme preference (light/dark/system) saved to <code>app-settings.json</code> on change</span></div>
@@ -735,7 +736,7 @@
         <div class="decisions">
           <div class="decision">
             <div class="dq">EXE release validation — where are we?</div>
-            <div class="dd">Default: <strong>validate packaged zip first</strong> — use the PyInstaller release candidate and run all seven tools before tagging a wider release.</div>
+            <div class="dd">Default: <strong>smoke-test the released zip first</strong> — use the v1.1.3 GitHub release asset and run all seven tools before wider distribution.</div>
           </div>
           <div class="decision">
             <div class="dq">Windows validation — where are we?</div>
@@ -750,8 +751,8 @@
             <div class="dd">Currently labeled "Preview" in the UI. Default: <strong>keep as preview</strong> until there is a confirmed user need.</div>
           </div>
           <div class="decision">
-            <div class="dq">Dashboard + user manual theme — when to unify?</div>
-            <div class="dd">Default: <strong>after T-001 Windows validation</strong>. Tracked as T-011.</div>
+            <div class="dq">Code signing — required before wider release?</div>
+            <div class="dd">Default: <strong>not required for controlled rollout</strong>. Revisit if Windows SmartScreen warnings become a support issue.</div>
           </div>
         </div>
       </div>
