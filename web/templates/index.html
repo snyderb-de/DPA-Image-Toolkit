@@ -59,6 +59,10 @@
         <span>PDF Conversion</span>
         <span class="nav-state" id="nav-state-pdf_conversion"></span>
       </div>
+      <div class="nav-item" data-tool="updates">
+        <span class="nav-icon">⇧</span>
+        <span>Updates</span>
+      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -554,6 +558,53 @@
         <button class="btn btn-ghost" id="btn-reset-pdf_conversion" onclick="resetTool('pdf_conversion')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-pdf_conversion" disabled onclick="cancelTool('pdf_conversion')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-pdf_conversion" disabled onclick="startTool('pdf_conversion')">▶ Start</button>
+      </div>
+    </div>
+
+    <!-- Updates ───────────────────────────────────────────────────────────── -->
+    <div class="tool-panel" id="panel-updates">
+      <div class="panel-header">
+        <div class="panel-icon">⇧</div>
+        <div>
+          <div class="panel-title">Updates</div>
+          <div class="panel-sub">Check a bundled EXE from an admin-managed update path</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Current App</div>
+        <div class="update-meta-grid">
+          <div class="update-meta-item">
+            <span class="update-meta-label">Version</span>
+            <span class="update-meta-value" id="update-current-version">Loading…</span>
+          </div>
+          <div class="update-meta-item">
+            <span class="update-meta-label">EXE</span>
+            <span class="update-meta-value" id="update-exe-name">DPA-Image-Toolkit.exe</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Update Source</div>
+        <div class="update-source-row">
+          <input type="text" class="update-path-input" id="update-source-path" placeholder="\\server\share\DPA-Image-Toolkit.exe or Z:\Apps\DPA-Image-Toolkit.exe">
+          <button class="pick-btn" onclick="browseUpdateExe()">📄 Browse</button>
+        </div>
+        <div class="options-grid update-options">
+          <label class="check-label">
+            <input type="checkbox" id="opt-check-updates-on-start"> Check on startup
+          </label>
+        </div>
+      </div>
+
+      <div class="status-banner" id="update-status">No update check has run.</div>
+
+      <div class="action-bar">
+        <button class="btn btn-ghost" id="btn-open-update-location" onclick="openUpdateLocation()">📁 Open Location</button>
+        <div class="action-spacer"></div>
+        <button class="btn btn-ghost" id="btn-save-update-settings" onclick="saveUpdateSettings()">✓ Save</button>
+        <button class="btn btn-primary" id="btn-check-updates" onclick="checkForUpdates(false)">⇧ Check for Updates</button>
       </div>
     </div>
 

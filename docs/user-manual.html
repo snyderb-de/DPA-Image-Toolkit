@@ -528,6 +528,7 @@
       <a class="nav-link" href="#add-border">Add Border</a>
       <a class="nav-link" href="#ocr-to-pdf">OCR to PDF</a>
       <a class="nav-link" href="#pdf-conversion">PDF Conversion</a>
+      <a class="nav-link" href="#updates">Updates</a>
 
       <div class="nav-group-label">Reference</div>
       <a class="nav-link" href="#workflow">Typical Workflow</a>
@@ -1005,6 +1006,39 @@
             <li>Split and Extract use pypdfium2 for rendering — included in <code>requirements.txt</code>.</li>
             <li>Page numbers in Extract are 1-based and can be individual values or ranges.</li>
             <li>PDF operations copy outputs into folders and do not overwrite or delete the source PDF.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Updates ──────────────────────────────────────────────── -->
+    <section class="section" id="updates">
+      <div class="section-header">
+        <p class="eyebrow">Settings</p>
+        <h2>Updates</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <p>
+            The Updates panel checks a bundled <code>DPA-Image-Toolkit.exe</code>
+            from an admin-managed UNC share or mapped network drive. The app
+            does not need GitHub access to check that path.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Version Signal</h3>
+          <ul class="guide-list">
+            <li>Release builds stamp Windows EXE metadata from the Git tag.</li>
+            <li><code>ProductVersion</code> carries the tag, such as <code>v1.1.7</code>.</li>
+            <li><code>FileVersion</code> carries the numeric Windows version, such as <code>1.1.7.0</code>.</li>
+            <li>Modified dates are shown only as context and are not used to decide update availability.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Supported Paths</h3>
+          <ul class="guide-list">
+            <li><code>\\server\share\DPA-Image-Toolkit.exe</code></li>
+            <li><code>Z:\Apps\DPA-Image-Toolkit.exe</code></li>
           </ul>
         </div>
       </div>

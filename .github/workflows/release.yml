@@ -11,6 +11,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-2025
+    env:
+      DPA_IMAGE_TOOLKIT_VERSION: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v5
@@ -25,8 +27,14 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s testing -p "test_*.py"
 
+      - name: Generate version metadata
+        run: python packaging/write_version_info.py $env:DPA_IMAGE_TOOLKIT_VERSION build/version-info.txt
+
       - name: Build
         run: pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
+
+      - name: Stamp EXE metadata
+        run: pyi-set_version build/version-info.txt dist/DPA-Image-Toolkit.exe
 
       - name: Prepare release asset
         run: Copy-Item dist/DPA-Image-Toolkit.exe "DPA-Image-Toolkit.exe"

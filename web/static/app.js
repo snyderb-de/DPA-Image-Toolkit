@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNav();
   loadCompressionProfiles();
   loadPdfaProfiles();
+  loadUpdateSettings();
   TOOLS.forEach(id => log(id, 'Ready — select an input to begin.', 'info'));
 
   setPdfInputMode(state.pdf_conversion.inputMode);
@@ -535,6 +536,110 @@ async function openErrorFolder(toolId) {
   } else {
     log(toolId, res.error || 'Could not open error folder.', 'warning');
   }
+}
+
+// ── Updates ───────────────────────────────────────────────────────────────
+
+async function loadUpdateSettings() {
+  try {
+    const res = await fetch('/api/updates/settings');
+    const data = await res.json();
+    const pathEl = document.getElementById('update-source-path');
+    const checkEl = document.getElementById('opt-check-updates-on-start');
+    const versionEl = document.getElementById('update-current-version');
+    const exeEl = document.getElementById('update-exe-name');
+
+    if (pathEl) pathEl.value = data.update_source_path || '';
+    if (checkEl) checkEl.checked = !!data.check_updates_on_start;
+    if (versionEl) versionEl.textContent = data.current_version || 'Unknown';
+    if (exeEl) exeEl.textContent = data.exe_filename || 'DPA-Image-Toolkit.exe';
+
+    if (data.check_updates_on_start && data.update_source_path) {
+      setTimeout(() => checkForUpdates(true), 500);
+    }
+  } catch (e) {
+    setUpdateStatus('Could not load update settings.', 'error');
+  }
+}
+
+async function saveUpdateSettings() {
+  const pathEl = document.getElementById('update-source-path');
+  const checkEl = document.getElementById('opt-check-updates-on-start');
+  const res = await api('/api/updates/settings', {
+    update_source_path: pathEl ? pathEl.value : '',
+    check_updates_on_start: checkEl ? checkEl.checked : false,
+  });
+
+  if (res.ok) {
+    setUpdateStatus('Update settings saved.', 'ok');
+  } else {
+    setUpdateStatus(res.error || 'Could not save update settings.', 'error');
+  }
+}
+
+async function browseUpdateExe() {
+  const pathEl = document.getElementById('update-source-path');
+  const res = await api('/api/updates/pick-exe', {
+    initial_dir: pathEl ? pathEl.value : null,
+  });
+  if (res.path && pathEl) {
+    pathEl.value = res.path;
+    setUpdateStatus('Update source selected.', 'ok');
+  }
+}
+
+async function checkForUpdates(auto) {
+  const btn = document.getElementById('btn-check-updates');
+  const pathEl = document.getElementById('update-source-path');
+  const sourcePath = pathEl ? pathEl.value : '';
+
+  if (!auto && btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Checking…';
+  }
+
+  const res = await api('/api/updates/check', { update_source_path: sourcePath });
+  renderUpdateResult(res, auto);
+
+  if (!auto && btn) {
+    btn.disabled = false;
+    btn.textContent = '⇧ Check for Updates';
+  }
+}
+
+function renderUpdateResult(res, auto) {
+  if (res.ok && res.state === 'available') {
+    setUpdateStatus(`Update available: ${res.candidate_version} (current ${res.current_version})`, 'warn');
+    return;
+  }
+  if (res.ok && res.state === 'current') {
+    setUpdateStatus(`Current: ${res.current_version}`, 'ok');
+    return;
+  }
+  if (auto && res.state === 'not_configured') return;
+  setUpdateStatus(res.message || 'Update check failed.', 'error');
+}
+
+async function openUpdateLocation() {
+  const pathEl = document.getElementById('update-source-path');
+  const res = await api('/api/updates/open-location', {
+    update_source_path: pathEl ? pathEl.value : '',
+  });
+  if (res.ok) {
+    setUpdateStatus(`Opened: ${res.path}`, 'ok');
+  } else {
+    setUpdateStatus(res.error || 'Could not open update location.', 'error');
+  }
+}
+
+function setUpdateStatus(text, level) {
+  const el = document.getElementById('update-status');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'status-banner';
+  if (level === 'ok')    el.classList.add('ok');
+  if (level === 'warn')  el.classList.add('warn');
+  if (level === 'error') el.classList.add('error');
 }
 
 // ── API ───────────────────────────────────────────────────────────────────

@@ -486,6 +486,52 @@ input[type="text"] {
 input[type="text"]:focus { border-color: var(--accent); }
 input[type="text"]::placeholder { color: var(--faint); }
 
+/* ── Updates panel ───────────────────────────────────────────────────────── */
+.update-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.update-meta-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.update-meta-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.update-meta-value {
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-source-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type="text"].update-path-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.update-options {
+  margin-top: 12px;
+}
+
 /* ── Operation selector (PDF Conversion) ─────────────────────────────────── */
 .op-selector {
   display: flex;

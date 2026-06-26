@@ -21,11 +21,29 @@ part of the repo.
 
 ```powershell
 py -3 -m pip install -r requirements.txt pyinstaller
+$env:DPA_IMAGE_TOOLKIT_VERSION="vX.Y.Z"
+py -3 packaging/write_version_info.py $env:DPA_IMAGE_TOOLKIT_VERSION build/version-info.txt
 py -3 -m PyInstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
+pyi-set_version build/version-info.txt dist/DPA-Image-Toolkit.exe
 ```
 
 The built app starts a local Flask backend and opens the toolkit in a PyWebView
 window. No end-user Python install is expected when using the release EXE.
+
+## Admin-Managed Updates
+
+The app can check a configured update source that points to a bundled EXE on a
+UNC share or mapped network drive, for example:
+
+```text
+\\server\share\DPA-Image-Toolkit.exe
+Z:\Apps\DPA-Image-Toolkit.exe
+```
+
+Release builds stamp the EXE with Windows version metadata from the Git tag.
+The app compares the candidate EXE's `ProductVersion` or `FileVersion` against
+the running EXE. Signing can happen after download; the version metadata remains
+the update signal.
 
 ## Data Safety Rule
 

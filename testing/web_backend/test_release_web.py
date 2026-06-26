@@ -63,6 +63,46 @@ class WebReleaseTests(unittest.TestCase):
             self.assertTrue(settings_file.exists())
             self.assertFalse((launch_dir / "app-settings.json").exists())
 
+    def test_update_settings_api_persists_update_source(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_file = Path(temp_dir) / "app-settings.json"
+            update_path = r"\\server\share\DPA-Image-Toolkit.exe"
+
+            with patch.dict(os.environ, {"DPA_IMAGE_TOOLKIT_SETTINGS": str(settings_file)}, clear=True):
+                response = self.client.post("/api/updates/settings", json={
+                    "update_source_path": update_path,
+                    "check_updates_on_start": True,
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.get_json()["ok"])
+
+                response = self.client.get("/api/updates/settings")
+
+            data = response.get_json()
+            self.assertEqual(data["update_source_path"], update_path)
+            self.assertTrue(data["check_updates_on_start"])
+            self.assertIn("current_version", data)
+
+    def test_update_check_api_uses_saved_update_source(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_file = Path(temp_dir) / "app-settings.json"
+            update_path = r"\\server\share\DPA-Image-Toolkit.exe"
+
+            with patch.dict(os.environ, {"DPA_IMAGE_TOOLKIT_SETTINGS": str(settings_file)}, clear=True):
+                self.client.post("/api/updates/settings", json={"update_source_path": update_path})
+                with patch("web.app.update_checker.check_for_update", return_value={
+                    "ok": True,
+                    "state": "available",
+                    "candidate_version": "v1.1.7",
+                    "current_version": "v1.1.6",
+                    "is_newer": True,
+                }) as checker:
+                    response = self.client.post("/api/updates/check", json={})
+
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.get_json()["ok"])
+            checker.assert_called_once_with(update_path)
+
     def test_pdf_folder_mode_controls_are_present(self):
         template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
         script = (APP_ROOT / "web" / "static" / "app.js").read_text(encoding="utf-8")
@@ -92,9 +132,24 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn("dist/DPA-Image-Toolkit.exe", workflow)
         self.assertIn("DPA-Image-Toolkit.exe", workflow)
         self.assertIn("name: DPA Image Toolkit", workflow)
+        self.assertIn("DPA_IMAGE_TOOLKIT_VERSION", workflow)
+        self.assertIn("packaging/write_version_info.py", workflow)
+        self.assertIn("pyi-set_version", workflow)
         self.assertNotIn('"DPA Image Toolkit.exe"', workflow)
         self.assertNotIn("DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe", workflow)
         self.assertNotIn("Compress-Archive", workflow)
+
+    def test_update_settings_panel_and_api_are_present(self):
+        template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        script = (APP_ROOT / "web" / "static" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('data-tool="updates"', template)
+        self.assertIn('id="update-source-path"', template)
+        self.assertIn('id="opt-check-updates-on-start"', template)
+        self.assertIn('id="btn-check-updates"', template)
+        self.assertIn("loadUpdateSettings", script)
+        self.assertIn("/api/updates/check", script)
+        self.assertIn("/api/updates/settings", script)
 
     def test_manual_is_built_into_web_app_and_uses_app_theme_assets(self):
         response = self.client.get("/manual")

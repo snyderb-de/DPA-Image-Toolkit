@@ -195,10 +195,28 @@ Local Windows build command:
 
 ```powershell
 pip install -r requirements.txt pyinstaller
+$env:DPA_IMAGE_TOOLKIT_VERSION="vX.Y.Z"
+python packaging/write_version_info.py $env:DPA_IMAGE_TOOLKIT_VERSION build/version-info.txt
 pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
+pyi-set_version build/version-info.txt dist/DPA-Image-Toolkit.exe
 ```
 
 The `deploy/` folder contains release/deployment notes only. The old source-copy bundle has been retired so the one-file EXE remains the single deploy path.
+
+## EXE Update Checks
+
+The bundled app can check an admin-managed update source without contacting
+GitHub. Configure either a UNC path or a mapped-drive path to the release EXE:
+
+```text
+\\server\share\DPA-Image-Toolkit.exe
+Z:\Apps\DPA-Image-Toolkit.exe
+```
+
+The checker only accepts a bundled `DPA-Image-Toolkit.exe` whose Windows
+metadata identifies `ProductName` as `DPA Image Toolkit` and whose
+`ProductVersion` or `FileVersion` is newer than the running app. Release builds
+stamp that metadata from the Git tag.
 
 ## Repo Layout
 

@@ -33,7 +33,7 @@ else:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from utils import app_settings
+from utils import app_settings, app_version, update_checker
 from modules.ocr_pdf.core import (
     get_ocr_dependency_statuses,
     group_ocr_input_files,
@@ -79,6 +79,9 @@ TOOLS = [
     "ocr_pdf",
     "pdf_conversion",
 ]
+
+UPDATE_SOURCE_KEY = "update_source_path"
+CHECK_UPDATES_ON_START_KEY = "check_updates_on_start"
 
 _lock = threading.Lock()
 _jobs: dict = {
@@ -164,6 +167,17 @@ def _save_settings(data: dict) -> None:
     app_settings.save_settings(data)
 
 
+def _update_settings_payload(settings: dict | None = None) -> dict:
+    s = settings if settings is not None else _load_settings()
+    return {
+        "update_source_path": str(s.get(UPDATE_SOURCE_KEY) or ""),
+        "check_updates_on_start": bool(s.get(CHECK_UPDATES_ON_START_KEY, False)),
+        "current_version": app_version.get_current_version(),
+        "app_name": app_version.APP_NAME,
+        "exe_filename": app_version.EXE_FILENAME,
+    }
+
+
 def _pick_folder(title: str = "Select Folder", initial_dir: str | None = None) -> str | None:
     if not _HAS_TK:
         return None
@@ -217,6 +231,62 @@ def post_settings():
     s.update(data)
     _save_settings(s)
     return jsonify({"ok": True})
+
+
+@app.route("/api/updates/settings", methods=["GET"])
+def get_update_settings():
+    return jsonify(_update_settings_payload())
+
+
+@app.route("/api/updates/settings", methods=["POST"])
+def post_update_settings():
+    data = request.get_json(force=True) or {}
+    s = _load_settings()
+    if UPDATE_SOURCE_KEY in data:
+        s[UPDATE_SOURCE_KEY] = str(data.get(UPDATE_SOURCE_KEY) or "").strip()
+    if CHECK_UPDATES_ON_START_KEY in data:
+        s[CHECK_UPDATES_ON_START_KEY] = bool(data.get(CHECK_UPDATES_ON_START_KEY))
+    _save_settings(s)
+    return jsonify({"ok": True, **_update_settings_payload(s)})
+
+
+@app.route("/api/updates/check", methods=["POST"])
+def check_updates():
+    body = request.get_json(force=True) or {}
+    configured = _load_settings().get(UPDATE_SOURCE_KEY)
+    source_path = body.get(UPDATE_SOURCE_KEY) or configured
+    return jsonify(update_checker.check_for_update(source_path))
+
+
+@app.route("/api/updates/pick-exe", methods=["POST"])
+def pick_update_exe():
+    body = request.get_json(force=True) or {}
+    result = _pick_files(
+        title=body.get("title", "Select DPA Image Toolkit EXE"),
+        filetypes=[
+            ["DPA Image Toolkit", app_version.EXE_FILENAME],
+            ["Executable Files", "*.exe"],
+            ["All Files", "*.*"],
+        ],
+        initial_dir=body.get("initial_dir"),
+    )
+    return jsonify({"path": result[0] if result else None})
+
+
+@app.route("/api/updates/open-location", methods=["POST"])
+def open_update_location():
+    body = request.get_json(force=True) or {}
+    configured = _load_settings().get(UPDATE_SOURCE_KEY)
+    candidate = update_checker.resolve_update_candidate(body.get(UPDATE_SOURCE_KEY) or configured)
+    if candidate is None:
+        return jsonify({"ok": False, "error": "No update EXE path is configured."})
+    folder = candidate if candidate.is_dir() else candidate.parent
+    if not folder.exists():
+        return jsonify({"ok": False, "error": f"Update location does not exist: {folder}"})
+    ok, error = _open_folder(folder)
+    if not ok:
+        return jsonify({"ok": False, "error": error or "Could not open update location"})
+    return jsonify({"ok": True, "path": str(folder)})
 
 
 @app.route("/api/compression-profiles")
