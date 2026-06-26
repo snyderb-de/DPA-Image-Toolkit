@@ -184,7 +184,7 @@ git push origin vX.Y.Z
 The release workflow uploads one file:
 
 ```text
-DPA-Image-Toolkit-Windows-vX.Y.Z.exe
+DPA Image Toolkit.exe
 ```
 
 The release should not include a required `_internal/` folder. If it does, that

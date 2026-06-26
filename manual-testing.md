@@ -5,7 +5,7 @@ Use this checklist before release packaging or deployment.
 ## Setup
 
 - [ ] Download or build the PyInstaller release EXE
-- [ ] Launch `DPA-Image-Toolkit-Windows-vX.Y.Z.exe`
+- [ ] Launch `DPA Image Toolkit.exe`
 - [ ] Confirm there is no required `_internal/` folder beside the EXE
 - [ ] Confirm the native app window opens without traceback on first launch
 - [ ] Source checkout fallback: run `python launch_web.py`

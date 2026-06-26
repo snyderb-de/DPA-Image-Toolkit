@@ -33,6 +33,7 @@ else:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from utils import app_settings
 from modules.ocr_pdf.core import (
     get_ocr_dependency_statuses,
     group_ocr_input_files,
@@ -152,27 +153,15 @@ def _open_folder(path: Path) -> tuple[bool, str | None]:
 
 
 def _settings_path() -> Path:
-    entry = Path(sys.argv[0]).resolve() if sys.argv and sys.argv[0] else Path.cwd()
-    return entry.parent / "app-settings.json"
+    return app_settings.get_settings_path()
 
 
 def _load_settings() -> dict:
-    p = _settings_path()
-    try:
-        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
-    except Exception:
-        return {}
+    return app_settings.load_settings()
 
 
 def _save_settings(data: dict) -> None:
-    p = _settings_path()
-    try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-        tmp.replace(p)
-    except Exception:
-        pass
+    app_settings.save_settings(data)
 
 
 def _pick_folder(title: str = "Select Folder", initial_dir: str | None = None) -> str | None:

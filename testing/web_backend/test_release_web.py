@@ -3,6 +3,7 @@ Release-contract tests for the web backend and static UI.
 """
 
 from pathlib import Path
+import os
 import sys
 import tempfile
 import unittest
@@ -44,6 +45,24 @@ class WebReleaseTests(unittest.TestCase):
             self.assertTrue(response.get_json()["ok"])
             opener.assert_called_once_with(error_folder)
 
+    def test_settings_api_writes_to_user_appdata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            roaming = Path(temp_dir) / "Roaming"
+            launch_dir = Path(temp_dir) / "Program Files" / "DPA Image Toolkit"
+            launch_dir.mkdir(parents=True)
+            launched_exe = launch_dir / "DPA-Image-Toolkit.exe"
+
+            with patch.dict(os.environ, {"APPDATA": str(roaming)}, clear=True):
+                with patch("utils.app_settings.sys.platform", "win32"):
+                    with patch("web.app.sys.argv", [str(launched_exe)]):
+                        response = self.client.post("/api/settings", json={"appearance_mode": "light"})
+
+            settings_file = roaming / "DPA Image Toolkit" / "app-settings.json"
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.get_json()["ok"])
+            self.assertTrue(settings_file.exists())
+            self.assertFalse((launch_dir / "app-settings.json").exists())
+
     def test_pdf_folder_mode_controls_are_present(self):
         template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
         script = (APP_ROOT / "web" / "static" / "app.js").read_text(encoding="utf-8")
@@ -71,7 +90,9 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn("a.binaries", spec)
         self.assertIn("a.datas", spec)
         self.assertIn("dist/DPA-Image-Toolkit.exe", workflow)
-        self.assertIn("DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe", workflow)
+        self.assertIn('"DPA Image Toolkit.exe"', workflow)
+        self.assertIn("name: DPA Image Toolkit", workflow)
+        self.assertNotIn("DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe", workflow)
         self.assertNotIn("Compress-Archive", workflow)
 
     def test_manual_is_built_into_web_app_and_uses_app_theme_assets(self):

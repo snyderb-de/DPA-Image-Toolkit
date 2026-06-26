@@ -5,20 +5,20 @@ Sidebar-navigation layout with light/dark/system appearance, card-based content 
 and a docked status bar with a thin progress indicator.
 """
 
-import json
-import os
-import sys
 from pathlib import Path
 
 import customtkinter as ctk
+from utils.app_settings import (
+    get_settings_path,
+    load_settings,
+    save_settings,
+)
 from .styles import (
     get_theme, get_font,
     SIDEBAR_WIDTH, BUTTON, CARD, PROGRESS, RADIUS,
 )
 
 
-SETTINGS_FILENAME = "app-settings.json"
-SETTINGS_ENV_VAR = "DPA_IMAGE_TOOLKIT_SETTINGS"
 APPEARANCE_MODES = {"light", "dark", "system"}
 APPEARANCE_MENU_LABELS = {
     "system": "System",
@@ -30,58 +30,25 @@ APPEARANCE_MENU_LABEL_TO_MODE = {
 }
 
 
-def _resolve_env_settings_path(raw_path: str) -> Path:
-    """Resolve env var path, allowing either a file or directory path."""
-    candidate = Path(raw_path).expanduser()
-    if candidate.suffix:
-        return candidate
-    return candidate / SETTINGS_FILENAME
-
-
 def _get_settings_path() -> Path:
     """
     Return settings file path.
 
     Priority:
     1. `DPA_IMAGE_TOOLKIT_SETTINGS` environment variable (file or directory)
-    2. `<launch_dir>/app-settings.json` (same folder as the launched script)
+    2. The current user's app settings folder
     """
-    env_path = os.environ.get(SETTINGS_ENV_VAR, "").strip()
-    if env_path:
-        return _resolve_env_settings_path(env_path)
-
-    launch_target = Path(sys.argv[0]).resolve() if sys.argv and sys.argv[0] else Path.cwd()
-    launch_dir = launch_target.parent
-    return launch_dir / SETTINGS_FILENAME
+    return get_settings_path()
 
 
 def _load_app_settings() -> dict:
     """Load settings JSON. Returns empty dict if missing or invalid."""
-    path = _get_settings_path()
-    if not path.exists():
-        return {}
-
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        return {}
-
-    return data if isinstance(data, dict) else {}
+    return load_settings()
 
 
 def _save_app_settings(settings: dict) -> bool:
     """Persist settings JSON atomically. Returns True on success."""
-    path = _get_settings_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(path.suffix + ".tmp")
-        with temp_path.open("w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2, sort_keys=True)
-        temp_path.replace(path)
-        return True
-    except Exception:
-        return False
+    return save_settings(settings)
 
 
 def _normalize_appearance_mode(raw_value) -> str:

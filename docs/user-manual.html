@@ -577,7 +577,7 @@
           <h3>Launching the App</h3>
           <p>
             On Windows, download and double-click
-            <code>DPA-Image-Toolkit-Windows-vX.Y.Z.exe</code>. The release is a
+            <code>DPA Image Toolkit.exe</code>. The release is a
             single EXE with no required <code>_internal/</code> folder. The EXE
             opens the toolkit in a native web-window and does not require a
             local Python install.
@@ -1101,14 +1101,14 @@
           <h3>Windows EXE Deployment</h3>
           <p>
             The supported release artifact is
-            <code>DPA-Image-Toolkit-Windows-vX.Y.Z.exe</code>. Download it, then
+            <code>DPA Image Toolkit.exe</code>. Download it, then
             launch the EXE directly.
           </p>
           <p>
-            Settings and theme preferences are stored beside the executable and
-            are created automatically on first run. The <code>deploy/</code>
-            folder contains EXE release notes only; the old source-copy bundle
-            has been retired.
+            Settings and theme preferences are stored in the current user's app
+            data folder, so the EXE can run from locked-down folders without
+            admin write access. The <code>deploy/</code> folder contains EXE
+            release notes only; the old source-copy bundle has been retired.
           </p>
         </div>
       </div>
@@ -1135,18 +1135,7 @@
   }
 
   function initTheme() {
-    // 1. Try to read app-settings.json from the same folder as this manual.
-    //    Works in Firefox and Edge with local files; Chrome blocks file:// fetches.
-    fetch('./app-settings.json')
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => {
-        const mode = String(data.appearance_mode || data.dark_mode || '').toLowerCase();
-        if (mode === 'dark' || mode === 'true') return applyTheme('dark');
-        if (mode === 'light') return applyTheme('light');
-        // "system" or unknown — fall through to localStorage
-        return fromLocalStorage();
-      })
-      .catch(() => fromLocalStorage());
+    fromLocalStorage();
   }
 
   function fromLocalStorage() {

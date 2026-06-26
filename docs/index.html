@@ -329,7 +329,7 @@
             <span class="tid" style="background:var(--warn-bg);border-color:var(--orange);color:var(--orange)">T-000</span>
             <div>
               <div class="t-title">Smoke-test released Windows EXE</div>
-              <div class="t-note">Download <code>DPA-Image-Toolkit-Windows-v1.1.4.exe</code> into a clean user profile, run all seven tools, and confirm no local Python install or <code>_internal/</code> folder is needed.</div>
+              <div class="t-note">Download <code>DPA Image Toolkit.exe</code> into a clean user profile, run all seven tools, and confirm no local Python install or <code>_internal/</code> folder is needed.</div>
             </div>
             <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
@@ -574,7 +574,7 @@
             <div class="pnum" style="background:var(--orange)">0</div>
             <div>
               <div class="p-title">Windows EXE Release Packaging</div>
-              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller one-file .exe. Published as v1.1.4; remaining checks live in Windows Validation.</div>
+              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller one-file .exe. Published as v1.1.5; remaining checks live in Windows Validation.</div>
             </div>
             <span class="pbadge2 badge-neutral">Complete</span>
           </div>
@@ -709,14 +709,14 @@
       </div>
       <div class="pb">
         <div class="done-list">
-          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-014</span><span class="dtext">v1.1.4 one-file Windows release — GitHub Actions builds and attaches <code>DPA-Image-Toolkit-Windows-v1.1.4.exe</code></span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-014</span><span class="dtext">v1.1.5 one-file Windows release — GitHub Actions builds and attaches <code>DPA Image Toolkit.exe</code></span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-013</span><span class="dtext">v1.1.3 Windows release — GitHub Actions built and attached the Windows release asset</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-012</span><span class="dtext">Straighten Images tool — standalone folder job writes deskewed images to <code>straightened/</code> without cropping</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-011</span><span class="dtext">Auto Crop straightening option — optional Hough Line Transform deskew pass before crop analysis</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-010</span><span class="dtext">Dashboard refreshed with blue-based light/dark release tracking, collapsible roadmap phases, and T-IDs/D-IDs</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-009</span><span class="dtext">User manual HTML — standalone guide with left nav, dark/light theme, Ctrl+F search tip, deploys alongside the app</span></div>
-          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file stored beside the launched app — <code>app-settings.json</code> is created automatically next to the executable or source launcher</span></div>
-          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-007</span><span class="dtext">Appearance mode persisted — theme preference (light/dark/system) saved to <code>app-settings.json</code> on change</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-008</span><span class="dtext">Settings file stored in per-user app data — <code>app-settings.json</code> no longer needs write access beside the EXE</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-007</span><span class="dtext">Appearance mode persisted — theme preference (light/dark/system) saved to user-writable settings on change</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-006</span><span class="dtext">OCR log export — Save Log button exports full run log to disk after job completes</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-005</span><span class="dtext">Two-stage cancel flow — graceful two-stage cancel before hard abort for TIFF split and merge</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-004</span><span class="dtext">'Finished' non-clickable after job — prevents accidental re-runs before a new job is loaded (merge + split)</span></div>
