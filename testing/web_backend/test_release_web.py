@@ -90,8 +90,9 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn("a.binaries", spec)
         self.assertIn("a.datas", spec)
         self.assertIn("dist/DPA-Image-Toolkit.exe", workflow)
-        self.assertIn('"DPA Image Toolkit.exe"', workflow)
+        self.assertIn("DPA-Image-Toolkit.exe", workflow)
         self.assertIn("name: DPA Image Toolkit", workflow)
+        self.assertNotIn('"DPA Image Toolkit.exe"', workflow)
         self.assertNotIn("DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe", workflow)
         self.assertNotIn("Compress-Archive", workflow)
 

@@ -6,7 +6,7 @@ The supported deploy artifact is the PyInstaller Windows one-file EXE produced b
 Use the EXE release for normal deployment:
 
 ```text
-DPA Image Toolkit.exe
+DPA-Image-Toolkit.exe
 ```
 
 Users do not need to keep an `_internal/` folder beside the EXE; seeing that
