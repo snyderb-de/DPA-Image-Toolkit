@@ -17,6 +17,7 @@ from pathlib import Path
 
 APP_NAME = "DPA Image Toolkit"
 EXE_FILENAME = "DPA-Image-Toolkit.exe"
+DEFAULT_UPDATE_SOURCE = f"X:\\Apps\\{EXE_FILENAME}"
 VERSION_ENV_VAR = "DPA_IMAGE_TOOLKIT_VERSION"
 DEFAULT_VERSION = "v0.0.0"
 

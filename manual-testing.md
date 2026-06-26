@@ -28,6 +28,7 @@ Use this checklist before release packaging or deployment.
 - [ ] Select a source folder in one tool, switch tools, verify last source directory is reused
 - [ ] Close app and relaunch, verify last source directory persisted
 - [ ] Verify behavior when settings location is read-only (app should not crash)
+- [ ] Verify update settings default to `X:\Apps\DPA-Image-Toolkit.exe` when no update source is saved
 - [ ] Configure update source as a UNC path to `DPA-Image-Toolkit.exe`; save and restart
 - [ ] Configure update source as a mapped drive path such as `Z:\Apps\DPA-Image-Toolkit.exe`; save and restart
 - [ ] Check for updates against an EXE with newer `ProductVersion`; app reports update available

@@ -78,6 +78,12 @@ class UpdateCheckerTests(unittest.TestCase):
 
         self.assertEqual(str(candidate), path)
 
+    def test_default_update_source_uses_x_apps(self):
+        self.assertEqual(
+            app_version.DEFAULT_UPDATE_SOURCE,
+            r"X:\Apps\DPA-Image-Toolkit.exe",
+        )
+
     def test_rejects_exe_without_dpa_product_identity(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "Other.exe"

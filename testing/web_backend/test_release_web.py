@@ -83,6 +83,19 @@ class WebReleaseTests(unittest.TestCase):
             self.assertTrue(data["check_updates_on_start"])
             self.assertIn("current_version", data)
 
+    def test_update_settings_defaults_to_x_apps_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_file = Path(temp_dir) / "app-settings.json"
+
+            with patch.dict(os.environ, {"DPA_IMAGE_TOOLKIT_SETTINGS": str(settings_file)}, clear=True):
+                response = self.client.get("/api/updates/settings")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.get_json()["update_source_path"],
+                r"X:\Apps\DPA-Image-Toolkit.exe",
+            )
+
     def test_update_check_api_uses_saved_update_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             settings_file = Path(temp_dir) / "app-settings.json"

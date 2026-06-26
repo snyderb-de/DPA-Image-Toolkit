@@ -167,10 +167,16 @@ def _save_settings(data: dict) -> None:
     app_settings.save_settings(data)
 
 
+def _update_source_from_settings(settings: dict | None = None) -> str:
+    s = settings if settings is not None else _load_settings()
+    configured = str(s.get(UPDATE_SOURCE_KEY) or "").strip()
+    return configured or app_version.DEFAULT_UPDATE_SOURCE
+
+
 def _update_settings_payload(settings: dict | None = None) -> dict:
     s = settings if settings is not None else _load_settings()
     return {
-        "update_source_path": str(s.get(UPDATE_SOURCE_KEY) or ""),
+        "update_source_path": _update_source_from_settings(s),
         "check_updates_on_start": bool(s.get(CHECK_UPDATES_ON_START_KEY, False)),
         "current_version": app_version.get_current_version(),
         "app_name": app_version.APP_NAME,
@@ -243,7 +249,11 @@ def post_update_settings():
     data = request.get_json(force=True) or {}
     s = _load_settings()
     if UPDATE_SOURCE_KEY in data:
-        s[UPDATE_SOURCE_KEY] = str(data.get(UPDATE_SOURCE_KEY) or "").strip()
+        update_source = str(data.get(UPDATE_SOURCE_KEY) or "").strip()
+        if update_source:
+            s[UPDATE_SOURCE_KEY] = update_source
+        else:
+            s.pop(UPDATE_SOURCE_KEY, None)
     if CHECK_UPDATES_ON_START_KEY in data:
         s[CHECK_UPDATES_ON_START_KEY] = bool(data.get(CHECK_UPDATES_ON_START_KEY))
     _save_settings(s)
@@ -253,8 +263,7 @@ def post_update_settings():
 @app.route("/api/updates/check", methods=["POST"])
 def check_updates():
     body = request.get_json(force=True) or {}
-    configured = _load_settings().get(UPDATE_SOURCE_KEY)
-    source_path = body.get(UPDATE_SOURCE_KEY) or configured
+    source_path = str(body.get(UPDATE_SOURCE_KEY) or "").strip() or _update_source_from_settings()
     return jsonify(update_checker.check_for_update(source_path))
 
 
@@ -276,8 +285,8 @@ def pick_update_exe():
 @app.route("/api/updates/open-location", methods=["POST"])
 def open_update_location():
     body = request.get_json(force=True) or {}
-    configured = _load_settings().get(UPDATE_SOURCE_KEY)
-    candidate = update_checker.resolve_update_candidate(body.get(UPDATE_SOURCE_KEY) or configured)
+    source_path = str(body.get(UPDATE_SOURCE_KEY) or "").strip() or _update_source_from_settings()
+    candidate = update_checker.resolve_update_candidate(source_path)
     if candidate is None:
         return jsonify({"ok": False, "error": "No update EXE path is configured."})
     folder = candidate if candidate.is_dir() else candidate.parent

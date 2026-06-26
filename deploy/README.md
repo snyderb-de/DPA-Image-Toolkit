@@ -32,10 +32,12 @@ window. No end-user Python install is expected when using the release EXE.
 
 ## Admin-Managed Updates
 
-The app can check a configured update source that points to a bundled EXE on a
-UNC share or mapped network drive, for example:
+The app defaults to `X:\Apps\DPA-Image-Toolkit.exe` and can check any
+configured update source that points to a bundled EXE on a UNC share or mapped
+network drive, for example:
 
 ```text
+X:\Apps\DPA-Image-Toolkit.exe
 \\server\share\DPA-Image-Toolkit.exe
 Z:\Apps\DPA-Image-Toolkit.exe
 ```
