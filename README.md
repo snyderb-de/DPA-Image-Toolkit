@@ -206,12 +206,13 @@ The `deploy/` folder contains release/deployment notes only. The old source-copy
 ## EXE Update Checks
 
 The bundled app can check an admin-managed update source without contacting
-GitHub. The default source is `X:\Apps\DPA-Image-Toolkit.exe`. Admins can
-also configure either a UNC path or another mapped-drive path to the release
-EXE:
+GitHub. The default source is `X:\Apps\DPA-Image-Toolkit.exe`. Admins can also
+configure either a UNC path, another mapped-drive path, or a folder containing
+the release EXE:
 
 ```text
 X:\Apps\DPA-Image-Toolkit.exe
+X:\Apps
 \\server\share\DPA-Image-Toolkit.exe
 Z:\Apps\DPA-Image-Toolkit.exe
 ```
@@ -219,7 +220,8 @@ Z:\Apps\DPA-Image-Toolkit.exe
 The checker only accepts a bundled `DPA-Image-Toolkit.exe` whose Windows
 metadata identifies `ProductName` as `DPA Image Toolkit` and whose
 `ProductVersion` or `FileVersion` is newer than the running app. Release builds
-stamp that metadata from the Git tag.
+stamp that metadata from the Git tag. When an update is available, the app
+stages a local copy and verifies the staged SHA-256 before restart.
 
 ## Repo Layout
 

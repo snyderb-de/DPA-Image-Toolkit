@@ -588,7 +588,7 @@
       <div class="card">
         <div class="card-label">Update Source</div>
         <div class="update-source-row">
-          <input type="text" class="update-path-input" id="update-source-path" placeholder="\\server\share\DPA-Image-Toolkit.exe or Z:\Apps\DPA-Image-Toolkit.exe">
+          <input type="text" class="update-path-input" id="update-source-path" placeholder="X:\Apps\DPA-Image-Toolkit.exe or \\server\share\DPA-Image-Toolkit.exe">
           <button class="pick-btn" onclick="browseUpdateExe()">📄 Browse</button>
         </div>
         <div class="options-grid update-options">
@@ -605,6 +605,7 @@
         <div class="action-spacer"></div>
         <button class="btn btn-ghost" id="btn-save-update-settings" onclick="saveUpdateSettings()">✓ Save</button>
         <button class="btn btn-primary" id="btn-check-updates" onclick="checkForUpdates(false)">⇧ Check for Updates</button>
+        <button class="btn btn-primary" id="btn-apply-update" onclick="applyUpdate()" style="display:none">Restart to Update</button>
       </div>
     </div>
 

@@ -1022,8 +1022,8 @@
           <p>
             The Updates panel checks a bundled <code>DPA-Image-Toolkit.exe</code>
             from an admin-managed UNC share or mapped network drive. The app
-            defaults to <code>X:\Apps\DPA-Image-Toolkit.exe</code> and does not
-            need GitHub access to check that path.
+            defaults to <code>X:\Apps\DPA-Image-Toolkit.exe</code> and does
+            not need GitHub access to check that path.
           </p>
         </div>
         <div class="card">
@@ -1033,12 +1033,14 @@
             <li><code>ProductVersion</code> carries the tag, such as <code>v1.1.7</code>.</li>
             <li><code>FileVersion</code> carries the numeric Windows version, such as <code>1.1.7.0</code>.</li>
             <li>Modified dates are shown only as context and are not used to decide update availability.</li>
+            <li>When an update is available, the app stages a local copy and verifies the staged SHA-256 before restart.</li>
           </ul>
         </div>
         <div class="card">
           <h3>Supported Paths</h3>
           <ul class="guide-list">
             <li><code>X:\Apps\DPA-Image-Toolkit.exe</code></li>
+            <li><code>X:\Apps</code></li>
             <li><code>\\server\share\DPA-Image-Toolkit.exe</code></li>
             <li><code>Z:\Apps\DPA-Image-Toolkit.exe</code></li>
           </ul>

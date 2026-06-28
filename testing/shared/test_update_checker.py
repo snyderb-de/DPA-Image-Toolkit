@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -42,13 +43,15 @@ class VersionParsingTests(unittest.TestCase):
 class UpdateCheckerTests(unittest.TestCase):
     def test_update_available_for_newer_dpa_exe_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            candidate = Path(temp_dir) / "DPA-Image-Toolkit.exe"
+            temp_path = Path(temp_dir)
+            candidate = temp_path / "DPA-Image-Toolkit.exe"
             candidate.write_bytes(b"not a real exe in unit tests")
 
             result = update_checker.check_for_update(
                 str(candidate),
                 current_version="v1.1.6",
                 metadata_reader=lambda path: _metadata(ProductVersion="v1.1.7"),
+                staging_dir=temp_path / "stage",
             )
 
         self.assertTrue(result["ok"])
@@ -78,11 +81,41 @@ class UpdateCheckerTests(unittest.TestCase):
 
         self.assertEqual(str(candidate), path)
 
+    def test_mapped_drive_folder_path_appends_default_exe_name(self):
+        candidate = update_checker.resolve_update_candidate(r"Z:\Enterprise Apps")
+
+        self.assertEqual(
+            str(candidate).replace("/", "\\"),
+            r"Z:\Enterprise Apps\DPA-Image-Toolkit.exe",
+        )
+
     def test_default_update_source_uses_x_apps(self):
         self.assertEqual(
             app_version.DEFAULT_UPDATE_SOURCE,
             r"X:\Apps\DPA-Image-Toolkit.exe",
         )
+
+    def test_update_available_stages_copy_with_sha256(self):
+        payload = b"new dpa image toolkit exe bytes"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            candidate = temp_path / "DPA-Image-Toolkit.exe"
+            candidate.write_bytes(payload)
+
+            result = update_checker.check_for_update(
+                str(candidate),
+                current_version="v1.1.6",
+                metadata_reader=lambda path: _metadata(ProductVersion="v1.1.7"),
+                staging_dir=temp_path / "stage",
+            )
+
+            staged_path = Path(result["staged_path"])
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["state"], "available")
+            self.assertTrue(result["ready_to_restart"])
+            self.assertEqual(result["sha256"], hashlib.sha256(payload).hexdigest())
+            self.assertEqual(staged_path.name, "DPA-Image-Toolkit.exe")
+            self.assertEqual(staged_path.read_bytes(), payload)
 
     def test_rejects_exe_without_dpa_product_identity(self):
         with tempfile.TemporaryDirectory() as temp_dir:

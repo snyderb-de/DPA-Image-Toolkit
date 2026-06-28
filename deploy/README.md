@@ -34,18 +34,21 @@ window. No end-user Python install is expected when using the release EXE.
 
 The app defaults to `X:\Apps\DPA-Image-Toolkit.exe` and can check any
 configured update source that points to a bundled EXE on a UNC share or mapped
-network drive, for example:
+network drive. Folder paths are also accepted when they contain
+`DPA-Image-Toolkit.exe`.
 
 ```text
 X:\Apps\DPA-Image-Toolkit.exe
+X:\Apps
 \\server\share\DPA-Image-Toolkit.exe
 Z:\Apps\DPA-Image-Toolkit.exe
 ```
 
 Release builds stamp the EXE with Windows version metadata from the Git tag.
 The app compares the candidate EXE's `ProductVersion` or `FileVersion` against
-the running EXE. Signing can happen after download; the version metadata remains
-the update signal.
+the running EXE. It stages the newer EXE locally and verifies the staged
+SHA-256 before restart. Signing can happen after download; the version metadata
+remains the update signal.
 
 ## Data Safety Rule
 

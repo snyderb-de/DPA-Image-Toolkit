@@ -116,6 +116,29 @@ class WebReleaseTests(unittest.TestCase):
             self.assertTrue(response.get_json()["ok"])
             checker.assert_called_once_with(update_path)
 
+    def test_update_apply_api_uses_prepared_staged_update(self):
+        with patch("web.app.update_checker.apply_staged_update", return_value=None) as applier:
+            with patch("web.app._schedule_exit_for_update", return_value=None) as scheduler:
+                with _lock:
+                    app.config["PREPARED_UPDATE"] = {
+                        "staged_path": r"C:\Users\me\AppData\Local\Temp\DPA-Image-Toolkit.exe",
+                        "target_path": r"C:\Apps\DPA-Image-Toolkit.exe",
+                        "sha256": "a" * 64,
+                    }
+
+                response = self.client.post("/api/updates/apply", json={})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+        applier.assert_called_once()
+        args = applier.call_args.args
+        self.assertEqual(args[:3], (
+            r"C:\Users\me\AppData\Local\Temp\DPA-Image-Toolkit.exe",
+            r"C:\Apps\DPA-Image-Toolkit.exe",
+            "a" * 64,
+        ))
+        scheduler.assert_called_once()
+
     def test_pdf_folder_mode_controls_are_present(self):
         template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
         script = (APP_ROOT / "web" / "static" / "app.js").read_text(encoding="utf-8")
@@ -160,8 +183,10 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn('id="update-source-path"', template)
         self.assertIn('id="opt-check-updates-on-start"', template)
         self.assertIn('id="btn-check-updates"', template)
+        self.assertIn('id="btn-apply-update"', template)
         self.assertIn("loadUpdateSettings", script)
         self.assertIn("/api/updates/check", script)
+        self.assertIn("/api/updates/apply", script)
         self.assertIn("/api/updates/settings", script)
 
     def test_manual_is_built_into_web_app_and_uses_app_theme_assets(self):

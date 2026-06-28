@@ -13,6 +13,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 try:
@@ -155,6 +156,23 @@ def _open_folder(path: Path) -> tuple[bool, str | None]:
     return True, None
 
 
+def _current_executable_path() -> Path | None:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable)
+    candidate = Path(sys.argv[0])
+    if candidate.suffix.lower() == ".exe":
+        return candidate
+    return None
+
+
+def _schedule_exit_for_update(delay: float = 0.5) -> None:
+    def _exit_later():
+        time.sleep(delay)
+        os._exit(0)
+
+    threading.Thread(target=_exit_later, daemon=True).start()
+
+
 def _settings_path() -> Path:
     return app_settings.get_settings_path()
 
@@ -264,7 +282,42 @@ def post_update_settings():
 def check_updates():
     body = request.get_json(force=True) or {}
     source_path = str(body.get(UPDATE_SOURCE_KEY) or "").strip() or _update_source_from_settings()
-    return jsonify(update_checker.check_for_update(source_path))
+    result = update_checker.check_for_update(source_path)
+    prepared = None
+    target_path = _current_executable_path()
+    if result.get("ready_to_restart") and result.get("staged_path") and result.get("sha256") and target_path is not None:
+        prepared = {
+            "staged_path": result["staged_path"],
+            "target_path": str(target_path),
+            "sha256": result["sha256"],
+        }
+    with _lock:
+        if prepared:
+            app.config["PREPARED_UPDATE"] = prepared
+        else:
+            app.config.pop("PREPARED_UPDATE", None)
+    return jsonify(result)
+
+
+@app.route("/api/updates/apply", methods=["POST"])
+def apply_update():
+    with _lock:
+        prepared = dict(app.config.get("PREPARED_UPDATE") or {})
+    if not prepared:
+        return jsonify({"ok": False, "error": "No update is ready to apply."})
+    try:
+        update_checker.apply_staged_update(
+            prepared["staged_path"],
+            prepared["target_path"],
+            prepared["sha256"],
+            os.getpid(),
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+    with _lock:
+        app.config.pop("PREPARED_UPDATE", None)
+    _schedule_exit_for_update()
+    return jsonify({"ok": True, "message": "Update is applying. DPA Image Toolkit will restart."})
 
 
 @app.route("/api/updates/pick-exe", methods=["POST"])

@@ -23,6 +23,7 @@ state.split_tiffs.files = [];
 // PDF Conversion extra
 state.pdf_conversion.operation = 'reduce_size';
 state.pdf_conversion.inputMode  = 'file';   // file | folder (reduce_size only)
+state.updates = { readyToRestart: false };
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 
@@ -592,6 +593,7 @@ async function checkForUpdates(auto) {
   const btn = document.getElementById('btn-check-updates');
   const pathEl = document.getElementById('update-source-path');
   const sourcePath = pathEl ? pathEl.value : '';
+  setApplyUpdateVisible(false);
 
   if (!auto && btn) {
     btn.disabled = true;
@@ -609,15 +611,50 @@ async function checkForUpdates(auto) {
 
 function renderUpdateResult(res, auto) {
   if (res.ok && res.state === 'available') {
-    setUpdateStatus(`Update available: ${res.candidate_version} (current ${res.current_version})`, 'warn');
+    if (res.ready_to_restart) {
+      setApplyUpdateVisible(true);
+      const hash = res.sha256 ? ` SHA-256 ${res.sha256.slice(0, 12)}…` : '';
+      setUpdateStatus(`Update ready: ${res.candidate_version} (current ${res.current_version}).${hash}`, 'warn');
+    } else {
+      setUpdateStatus(`Update available: ${res.candidate_version} (current ${res.current_version})`, 'warn');
+    }
     return;
   }
   if (res.ok && res.state === 'current') {
+    setApplyUpdateVisible(false);
     setUpdateStatus(`Current: ${res.current_version}`, 'ok');
     return;
   }
   if (auto && res.state === 'not_configured') return;
+  setApplyUpdateVisible(false);
   setUpdateStatus(res.message || 'Update check failed.', 'error');
+}
+
+async function applyUpdate() {
+  const btn = document.getElementById('btn-apply-update');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Applying…';
+  }
+  const res = await api('/api/updates/apply', {});
+  if (res.ok) {
+    setUpdateStatus(res.message || 'Update is applying. The app will restart.', 'ok');
+    return;
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Restart to Update';
+  }
+  setUpdateStatus(res.error || 'Could not apply update.', 'error');
+}
+
+function setApplyUpdateVisible(visible) {
+  state.updates.readyToRestart = !!visible;
+  const btn = document.getElementById('btn-apply-update');
+  if (!btn) return;
+  btn.style.display = visible ? '' : 'none';
+  btn.disabled = false;
+  btn.textContent = 'Restart to Update';
 }
 
 async function openUpdateLocation() {
