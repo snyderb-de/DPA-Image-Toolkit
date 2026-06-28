@@ -6,17 +6,17 @@
 
 ## Open Issues
 
-- [ ] **Smoke-test released Windows EXE** — download `DPA-Image-Toolkit.exe` from a clean user profile, run all seven tools, and confirm no local Python install or `_internal/` folder is needed
+- [ ] **Smoke-test released Windows EXE** — download `image-toolkit.exe` from a clean user profile, run all seven tools, and confirm no local Python install or `_internal/` folder is needed
 - [ ] **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment
 - [ ] **Test at high DPI scaling** — verify UI at 125%, 150%, 200% display scaling
 - [ ] **Decide code-signing/distribution policy** — current EXE is unsigned; acceptable for controlled rollout but may trigger Windows SmartScreen warnings
-- [x] **Publish v1.1.6 one-file Windows EXE release** — GitHub Actions builds and attaches `DPA-Image-Toolkit.exe`
+- [x] **Publish v1.1.6 one-file Windows EXE release** — GitHub Actions builds and attaches `image-toolkit.exe`
 - [x] **Publish v1.1.5 one-file Windows EXE release** — GitHub Actions built and attached the Windows release asset
 - [x] **Publish v1.1.4 one-file Windows EXE release** — GitHub Actions builds and attaches the Windows release asset
 - [x] **Publish v1.1.3 Windows EXE release** — GitHub Actions built and attached the Windows release asset
 - [x] **Strengthen automated test coverage** — converted crop/TIFF grouping/OCR grouping checks into discoverable assertion-based test suites
 - [x] **Keep dashboard and docs aligned with shipped behavior** — refreshed `README.md`, `TODO.md`, and `project-dashboard/` for current tool behavior
-- [x] **Make PyInstaller EXE the primary deploy target** — release workflow builds `DPA-Image-Toolkit.exe` from `launch_web.py`
+- [x] **Make PyInstaller EXE the primary deploy target** — release workflow builds `image-toolkit.exe` from `launch_web.py`
 
 ---
 

@@ -184,7 +184,7 @@ git push origin vX.Y.Z
 The release workflow uploads one file:
 
 ```text
-DPA-Image-Toolkit.exe
+image-toolkit.exe
 ```
 
 The release should not include a required `_internal/` folder. If it does, that
@@ -198,7 +198,7 @@ pip install -r requirements.txt pyinstaller
 $env:DPA_IMAGE_TOOLKIT_VERSION="vX.Y.Z"
 python packaging/write_version_info.py $env:DPA_IMAGE_TOOLKIT_VERSION build/version-info.txt
 pyinstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
-pyi-set_version build/version-info.txt dist/DPA-Image-Toolkit.exe
+pyi-set_version build/version-info.txt dist/image-toolkit.exe
 ```
 
 The `deploy/` folder contains release/deployment notes only. The old source-copy bundle has been retired so the one-file EXE remains the single deploy path.
@@ -206,18 +206,18 @@ The `deploy/` folder contains release/deployment notes only. The old source-copy
 ## EXE Update Checks
 
 The bundled app can check an admin-managed update source without contacting
-GitHub. The default source is `X:\Apps\DPA-Image-Toolkit.exe`. Admins can also
+GitHub. The default source is `X:\Apps\image-toolkit.exe`. Admins can also
 configure either a UNC path, another mapped-drive path, or a folder containing
 the release EXE:
 
 ```text
-X:\Apps\DPA-Image-Toolkit.exe
+X:\Apps\image-toolkit.exe
 X:\Apps
-\\server\share\DPA-Image-Toolkit.exe
-Z:\Apps\DPA-Image-Toolkit.exe
+\\server\share\image-toolkit.exe
+Z:\Apps\image-toolkit.exe
 ```
 
-The checker only accepts a bundled `DPA-Image-Toolkit.exe` whose Windows
+The checker only accepts a bundled `image-toolkit.exe` whose Windows
 metadata identifies `ProductName` as `DPA Image Toolkit` and whose
 `ProductVersion` or `FileVersion` is newer than the running app. Release builds
 stamp that metadata from the Git tag. When an update is available, the app

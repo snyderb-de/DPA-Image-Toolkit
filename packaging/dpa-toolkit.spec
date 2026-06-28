@@ -39,7 +39,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="DPA-Image-Toolkit",
+    name="image-toolkit",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

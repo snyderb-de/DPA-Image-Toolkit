@@ -50,7 +50,7 @@ class WebReleaseTests(unittest.TestCase):
             roaming = Path(temp_dir) / "Roaming"
             launch_dir = Path(temp_dir) / "Program Files" / "DPA Image Toolkit"
             launch_dir.mkdir(parents=True)
-            launched_exe = launch_dir / "DPA-Image-Toolkit.exe"
+            launched_exe = launch_dir / "image-toolkit.exe"
 
             with patch.dict(os.environ, {"APPDATA": str(roaming)}, clear=True):
                 with patch("utils.app_settings.sys.platform", "win32"):
@@ -66,7 +66,7 @@ class WebReleaseTests(unittest.TestCase):
     def test_update_settings_api_persists_update_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             settings_file = Path(temp_dir) / "app-settings.json"
-            update_path = r"\\server\share\DPA-Image-Toolkit.exe"
+            update_path = r"\\server\share\image-toolkit.exe"
 
             with patch.dict(os.environ, {"DPA_IMAGE_TOOLKIT_SETTINGS": str(settings_file)}, clear=True):
                 response = self.client.post("/api/updates/settings", json={
@@ -93,13 +93,13 @@ class WebReleaseTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(
                 response.get_json()["update_source_path"],
-                r"X:\Apps\DPA-Image-Toolkit.exe",
+                r"X:\Apps\image-toolkit.exe",
             )
 
     def test_update_check_api_uses_saved_update_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             settings_file = Path(temp_dir) / "app-settings.json"
-            update_path = r"\\server\share\DPA-Image-Toolkit.exe"
+            update_path = r"\\server\share\image-toolkit.exe"
 
             with patch.dict(os.environ, {"DPA_IMAGE_TOOLKIT_SETTINGS": str(settings_file)}, clear=True):
                 self.client.post("/api/updates/settings", json={"update_source_path": update_path})
@@ -121,8 +121,8 @@ class WebReleaseTests(unittest.TestCase):
             with patch("web.app._schedule_exit_for_update", return_value=None) as scheduler:
                 with _lock:
                     app.config["PREPARED_UPDATE"] = {
-                        "staged_path": r"C:\Users\me\AppData\Local\Temp\DPA-Image-Toolkit.exe",
-                        "target_path": r"C:\Apps\DPA-Image-Toolkit.exe",
+                        "staged_path": r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe",
+                        "target_path": r"C:\Apps\image-toolkit.exe",
                         "sha256": "a" * 64,
                     }
 
@@ -133,8 +133,8 @@ class WebReleaseTests(unittest.TestCase):
         applier.assert_called_once()
         args = applier.call_args.args
         self.assertEqual(args[:3], (
-            r"C:\Users\me\AppData\Local\Temp\DPA-Image-Toolkit.exe",
-            r"C:\Apps\DPA-Image-Toolkit.exe",
+            r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe",
+            r"C:\Apps\image-toolkit.exe",
             "a" * 64,
         ))
         scheduler.assert_called_once()
@@ -165,14 +165,17 @@ class WebReleaseTests(unittest.TestCase):
         self.assertNotIn("exclude_binaries=True", spec)
         self.assertIn("a.binaries", spec)
         self.assertIn("a.datas", spec)
-        self.assertIn("dist/DPA-Image-Toolkit.exe", workflow)
-        self.assertIn("DPA-Image-Toolkit.exe", workflow)
+        self.assertIn('name="image-toolkit"', spec)
+        self.assertIn("dist/image-toolkit.exe", workflow)
+        self.assertIn("image-toolkit.exe", workflow)
         self.assertIn("name: DPA Image Toolkit", workflow)
         self.assertIn("DPA_IMAGE_TOOLKIT_VERSION", workflow)
         self.assertIn("packaging/write_version_info.py", workflow)
         self.assertIn("pyi-set_version", workflow)
         self.assertNotIn('"DPA Image Toolkit.exe"', workflow)
         self.assertNotIn("DPA-Image-Toolkit-Windows-${{ github.ref_name }}.exe", workflow)
+        self.assertNotIn("DPA-Image-Toolkit.exe", workflow)
+        self.assertNotIn('name="DPA-Image-Toolkit"', spec)
         self.assertNotIn("Compress-Archive", workflow)
 
     def test_update_settings_panel_and_api_are_present(self):

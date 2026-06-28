@@ -2,7 +2,7 @@
 Offline update checks for the bundled PyInstaller EXE.
 
 The configured update source may be either a direct EXE path or a directory
-containing DPA-Image-Toolkit.exe. Version metadata on the candidate EXE is the
+containing image-toolkit.exe. Version metadata on the candidate EXE is the
 authoritative update signal.
 """
 

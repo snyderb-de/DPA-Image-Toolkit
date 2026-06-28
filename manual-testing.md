@@ -5,7 +5,7 @@ Use this checklist before release packaging or deployment.
 ## Setup
 
 - [ ] Download or build the PyInstaller release EXE
-- [ ] Launch `DPA-Image-Toolkit.exe`
+- [ ] Launch `image-toolkit.exe`
 - [ ] Confirm there is no required `_internal/` folder beside the EXE
 - [ ] Confirm the native app window opens without traceback on first launch
 - [ ] Source checkout fallback: run `python launch_web.py`
@@ -28,9 +28,9 @@ Use this checklist before release packaging or deployment.
 - [ ] Select a source folder in one tool, switch tools, verify last source directory is reused
 - [ ] Close app and relaunch, verify last source directory persisted
 - [ ] Verify behavior when settings location is read-only (app should not crash)
-- [ ] Verify update settings default to `X:\Apps\DPA-Image-Toolkit.exe` when no update source is saved
-- [ ] Configure update source as a UNC path to `DPA-Image-Toolkit.exe`; save and restart
-- [ ] Configure update source as a mapped drive path such as `Z:\Apps\DPA-Image-Toolkit.exe`; save and restart
+- [ ] Verify update settings default to `X:\Apps\image-toolkit.exe` when no update source is saved
+- [ ] Configure update source as a UNC path to `image-toolkit.exe`; save and restart
+- [ ] Configure update source as a mapped drive path such as `Z:\Apps\image-toolkit.exe`; save and restart
 - [ ] Check for updates against an EXE with newer `ProductVersion`; app reports update available
 - [ ] Check for updates against an EXE with the same `ProductVersion`; app reports current
 

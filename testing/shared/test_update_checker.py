@@ -16,7 +16,7 @@ from utils import app_version, update_checker
 def _metadata(**overrides):
     data = {
         "ProductName": "DPA Image Toolkit",
-        "OriginalFilename": "DPA-Image-Toolkit.exe",
+        "OriginalFilename": "image-toolkit.exe",
         "ProductVersion": "v1.1.7",
         "FileVersion": "1.1.7.0",
     }
@@ -44,7 +44,7 @@ class UpdateCheckerTests(unittest.TestCase):
     def test_update_available_for_newer_dpa_exe_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            candidate = temp_path / "DPA-Image-Toolkit.exe"
+            candidate = temp_path / "image-toolkit.exe"
             candidate.write_bytes(b"not a real exe in unit tests")
 
             result = update_checker.check_for_update(
@@ -61,7 +61,7 @@ class UpdateCheckerTests(unittest.TestCase):
 
     def test_directory_update_path_resolves_default_exe_name(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            candidate = Path(temp_dir) / "DPA-Image-Toolkit.exe"
+            candidate = Path(temp_dir) / "image-toolkit.exe"
             candidate.write_bytes(b"not a real exe in unit tests")
 
             result = update_checker.check_for_update(
@@ -72,10 +72,10 @@ class UpdateCheckerTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["state"], "current")
-        self.assertEqual(Path(result["candidate_path"]).name, "DPA-Image-Toolkit.exe")
+        self.assertEqual(Path(result["candidate_path"]).name, "image-toolkit.exe")
 
     def test_mapped_drive_exe_path_is_preserved(self):
-        path = r"Z:\Enterprise Apps\DPA-Image-Toolkit.exe"
+        path = r"Z:\Enterprise Apps\image-toolkit.exe"
 
         candidate = update_checker.resolve_update_candidate(path)
 
@@ -86,20 +86,20 @@ class UpdateCheckerTests(unittest.TestCase):
 
         self.assertEqual(
             str(candidate).replace("/", "\\"),
-            r"Z:\Enterprise Apps\DPA-Image-Toolkit.exe",
+            r"Z:\Enterprise Apps\image-toolkit.exe",
         )
 
     def test_default_update_source_uses_x_apps(self):
         self.assertEqual(
             app_version.DEFAULT_UPDATE_SOURCE,
-            r"X:\Apps\DPA-Image-Toolkit.exe",
+            r"X:\Apps\image-toolkit.exe",
         )
 
     def test_update_available_stages_copy_with_sha256(self):
         payload = b"new dpa image toolkit exe bytes"
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            candidate = temp_path / "DPA-Image-Toolkit.exe"
+            candidate = temp_path / "image-toolkit.exe"
             candidate.write_bytes(payload)
 
             result = update_checker.check_for_update(
@@ -114,7 +114,7 @@ class UpdateCheckerTests(unittest.TestCase):
             self.assertEqual(result["state"], "available")
             self.assertTrue(result["ready_to_restart"])
             self.assertEqual(result["sha256"], hashlib.sha256(payload).hexdigest())
-            self.assertEqual(staged_path.name, "DPA-Image-Toolkit.exe")
+            self.assertEqual(staged_path.name, "image-toolkit.exe")
             self.assertEqual(staged_path.read_bytes(), payload)
 
     def test_rejects_exe_without_dpa_product_identity(self):
@@ -134,7 +134,7 @@ class UpdateCheckerTests(unittest.TestCase):
 
     def test_missing_version_metadata_is_invalid(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            candidate = Path(temp_dir) / "DPA-Image-Toolkit.exe"
+            candidate = Path(temp_dir) / "image-toolkit.exe"
             candidate.write_bytes(b"not a real exe in unit tests")
 
             result = update_checker.check_for_update(
@@ -164,7 +164,7 @@ class VersionInfoGenerationTests(unittest.TestCase):
         self.assertIn("FileVersion", rendered)
         self.assertIn("(1, 2, 3, 0)", rendered)
         self.assertIn("OriginalFilename", rendered)
-        self.assertIn("DPA-Image-Toolkit.exe", rendered)
+        self.assertIn("image-toolkit.exe", rendered)
 
 
 if __name__ == "__main__":

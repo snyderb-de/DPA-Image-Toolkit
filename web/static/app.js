@@ -553,7 +553,7 @@ async function loadUpdateSettings() {
     if (pathEl) pathEl.value = data.update_source_path || '';
     if (checkEl) checkEl.checked = !!data.check_updates_on_start;
     if (versionEl) versionEl.textContent = data.current_version || 'Unknown';
-    if (exeEl) exeEl.textContent = data.exe_filename || 'DPA-Image-Toolkit.exe';
+    if (exeEl) exeEl.textContent = data.exe_filename || 'image-toolkit.exe';
 
     if (data.check_updates_on_start && data.update_source_path) {
       setTimeout(() => checkForUpdates(true), 500);

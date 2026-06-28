@@ -6,7 +6,7 @@ The supported deploy artifact is the PyInstaller Windows one-file EXE produced b
 Use the EXE release for normal deployment:
 
 ```text
-DPA-Image-Toolkit.exe
+image-toolkit.exe
 ```
 
 Users do not need to keep an `_internal/` folder beside the EXE; seeing that
@@ -24,7 +24,7 @@ py -3 -m pip install -r requirements.txt pyinstaller
 $env:DPA_IMAGE_TOOLKIT_VERSION="vX.Y.Z"
 py -3 packaging/write_version_info.py $env:DPA_IMAGE_TOOLKIT_VERSION build/version-info.txt
 py -3 -m PyInstaller packaging/dpa-toolkit.spec --distpath dist --workpath build
-pyi-set_version build/version-info.txt dist/DPA-Image-Toolkit.exe
+pyi-set_version build/version-info.txt dist/image-toolkit.exe
 ```
 
 The built app starts a local Flask backend and opens the toolkit in a PyWebView
@@ -32,16 +32,16 @@ window. No end-user Python install is expected when using the release EXE.
 
 ## Admin-Managed Updates
 
-The app defaults to `X:\Apps\DPA-Image-Toolkit.exe` and can check any
+The app defaults to `X:\Apps\image-toolkit.exe` and can check any
 configured update source that points to a bundled EXE on a UNC share or mapped
 network drive. Folder paths are also accepted when they contain
-`DPA-Image-Toolkit.exe`.
+`image-toolkit.exe`.
 
 ```text
-X:\Apps\DPA-Image-Toolkit.exe
+X:\Apps\image-toolkit.exe
 X:\Apps
-\\server\share\DPA-Image-Toolkit.exe
-Z:\Apps\DPA-Image-Toolkit.exe
+\\server\share\image-toolkit.exe
+Z:\Apps\image-toolkit.exe
 ```
 
 Release builds stamp the EXE with Windows version metadata from the Git tag.
