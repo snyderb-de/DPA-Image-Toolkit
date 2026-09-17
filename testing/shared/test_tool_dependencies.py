@@ -36,14 +36,14 @@ class ToolDependencyTests(unittest.TestCase):
 
     def test_check_tool_dependencies_reports_missing_labels(self):
         with patch("utils.tool_dependencies._module_available", return_value=False):
-            ok, message, details = check_tool_dependencies("tiff_merge")
+            ok, message, details = check_tool_dependencies("merge_tiffs")
 
         self.assertFalse(ok)
         self.assertIn("Merge TIFF Files cannot start", message)
         self.assertEqual([item["label"] for item in details["missing"]], ["Pillow"])
 
     def test_panel_content_includes_heading_and_support(self):
-        content = get_tool_dependency_panel_content("tiff_split")
+        content = get_tool_dependency_panel_content("split_tiffs")
         self.assertIn("heading", content)
         self.assertIn("support_lines", content)
         self.assertTrue(content["support_lines"])

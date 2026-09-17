@@ -68,7 +68,7 @@ TOOL_DEPENDENCY_CONFIGS = {
             },
         ),
     },
-    "tiff_merge": {
+    "merge_tiffs": {
         "display_name": "Merge TIFF Files",
         "heading": "TIFF merge readiness for this machine",
         "support_lines": (
@@ -86,7 +86,7 @@ TOOL_DEPENDENCY_CONFIGS = {
             },
         ),
     },
-    "tiff_split": {
+    "split_tiffs": {
         "display_name": "Split Multi-Page TIFFs",
         "heading": "TIFF split readiness for this machine",
         "support_lines": (
@@ -126,11 +126,6 @@ TOOL_DEPENDENCY_CONFIGS = {
 
 
 def _get_tool_config(tool_key: str) -> dict:
-    aliases = {
-        "merge_tiffs": "tiff_merge",
-        "split_tiffs": "tiff_split",
-    }
-    tool_key = aliases.get(tool_key, tool_key)
     if tool_key not in TOOL_DEPENDENCY_CONFIGS:
         raise KeyError(f"Unknown tool dependency key: {tool_key}")
     return TOOL_DEPENDENCY_CONFIGS[tool_key]

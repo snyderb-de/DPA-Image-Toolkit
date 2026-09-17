@@ -14,7 +14,7 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from web.app import _jobs, _lock, app
+from web.app import _lock, app, runner
 
 
 class WebReleaseTests(unittest.TestCase):
@@ -31,12 +31,38 @@ class WebReleaseTests(unittest.TestCase):
             self.assertIn("label", data[0])
             self.assertIn("ok", data[0])
 
+    def test_start_without_prepare_never_runs_against_the_working_directory(self):
+        """Regression: Path("") is Path("."), so a blank folder used to pass is_dir().
+
+        Reachable by POSTing start directly; only the disabled Start button in
+        the browser was holding it. The job must be refused and nothing may be
+        written next to the running process.
+        """
+        for tool_id, output_name in (
+            ("auto_crop", "cropped"),
+            ("straighten_images", "straightened"),
+            ("add_border", "bordered"),
+            ("ocr_pdf", "PDFs"),
+        ):
+            for blank in (None, "", "   "):
+                runner.replace_data(tool_id, {} if blank is None else {"folder": blank})
+                response = self.client.post(f"/api/{tool_id}/start", json={})
+
+                self.assertEqual(response.status_code, 200)
+                payload = response.get_json()
+                self.assertFalse(payload["ok"], f"{tool_id} started on {blank!r}")
+                self.assertEqual(payload["error"], "No folder prepared")
+
+                cwd = Path.cwd()
+                self.assertFalse((cwd / output_name).exists(), f"{tool_id} wrote into cwd")
+                self.assertFalse((cwd / "errored-files").exists(), f"{tool_id} wrote into cwd")
+            runner.reset(tool_id)
+
     def test_open_errors_route_opens_recorded_error_folder(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             error_folder = Path(temp_dir) / "errored-files"
             error_folder.mkdir()
-            with _lock:
-                _jobs["auto_crop"]["data"] = {"error_folder": str(error_folder)}
+            runner.replace_data("auto_crop", {"error_folder": str(error_folder)})
 
             with patch("web.app._open_folder", return_value=(True, None)) as opener:
                 response = self.client.post("/api/auto_crop/open-errors", json={})
