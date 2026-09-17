@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import queue
 import threading
+from pathlib import Path
 from typing import Any, Callable, Optional
+
+from utils.job_result import JobResult, write_error_report
 
 MAX_QUEUE_EVENTS = 500
 
@@ -22,6 +25,7 @@ def _idle_job() -> dict:
         "queues": [],
         "results": None,
         "data": {},
+        "report_name": None,
         # Set once the job reaches a terminal state and its results are
         # published. Joining the worker thread is not enough: the monitor
         # thread still has to record the outcome.
@@ -100,8 +104,12 @@ class JobRunner:
 
     # ── Running ───────────────────────────────────────────────────────────
 
-    def start(self, tool_id: str, worker) -> None:
-        """Wire callbacks, run the worker, and publish its events."""
+    def start(self, tool_id: str, worker, report_name: Optional[str] = None) -> None:
+        """Wire callbacks, run the worker, and publish its events.
+
+        `report_name` names the tool in the error report written when the job
+        finishes with failures.
+        """
         worker.set_progress_callback(
             lambda progress: self._push(tool_id, {"type": "progress", **progress})
         )
@@ -119,6 +127,7 @@ class JobRunner:
             self._jobs[tool_id]["state"] = "running"
             self._jobs[tool_id]["results"] = None
             self._jobs[tool_id]["finished"] = threading.Event()
+            self._jobs[tool_id]["report_name"] = report_name
 
         worker.start()
         threading.Thread(
@@ -131,6 +140,7 @@ class JobRunner:
     def _await_worker(self, tool_id: str, worker) -> None:
         worker.join()
         results = worker.get_results()
+        self._write_error_report(tool_id, worker)
         with self._lock:
             self._jobs[tool_id]["state"] = "done"
             self._jobs[tool_id]["results"] = results
@@ -138,6 +148,18 @@ class JobRunner:
         self._push(tool_id, {"type": "done", "results": results})
         self._push(tool_id, None)
         finished.set()
+
+    def _write_error_report(self, tool_id: str, worker) -> None:
+        """Leave a plain-text report beside the failed files, if any."""
+        result = getattr(worker, "results", None)
+        if not isinstance(result, JobResult):
+            return
+        with self._lock:
+            job = self._jobs[tool_id]
+            error_folder = job["data"].get("error_folder")
+            name = job.get("report_name") or tool_id
+        if error_folder:
+            write_error_report(result, Path(error_folder), name)
 
     def cancel(self, tool_id: str, force: bool = False) -> bool:
         """Ask the running worker to stop. Returns False if nothing is running."""

@@ -365,7 +365,7 @@ def tool_start(tool_id):
 
     if started.error_folder is not None:
         runner.update_data(tool_id, error_folder=str(started.error_folder))
-    runner.start(tool_id, started.worker)
+    runner.start(tool_id, started.worker, report_name=spec.display_name)
     return jsonify({"ok": True})
 
 

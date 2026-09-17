@@ -29,6 +29,7 @@ from modules.pdf_tools.core import (
     get_pdf_conversion_dependency_statuses,
 )
 from modules.tiff_combine.naming import validate_naming_convention
+from utils.job_result import write_error_report
 from utils.file_handler import (
     create_error_folder,
     validate_image_files,
