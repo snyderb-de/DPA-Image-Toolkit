@@ -113,7 +113,12 @@ def _deskew_image(image):
         return image, 0.0
     angles = []
     for line in lines:
-        x1, y1, x2, y2 = line[0]
+        # OpenCV 4 returns (N, 1, 4) from HoughLinesP; OpenCV 5 returns (N, 4).
+        # Flatten so either shape yields the four endpoint coordinates.
+        coords = np.asarray(line).reshape(-1)
+        if coords.size < 4:
+            continue
+        x1, y1, x2, y2 = (int(v) for v in coords[:4])
         if x2 == x1:
             continue
         angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))

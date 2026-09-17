@@ -63,7 +63,11 @@ def _estimate_skew_angle(image) -> float | None:
 
     angles = []
     for line in lines:
-        x1, y1, x2, y2 = line[0]
+        # Same shape handling as _deskew_image: (N, 1, 4) on OpenCV 4, (N, 4) on 5.
+        coords = np.asarray(line).reshape(-1)
+        if coords.size < 4:
+            continue
+        x1, y1, x2, y2 = (int(v) for v in coords[:4])
         if x2 == x1:
             continue
         angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
