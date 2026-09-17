@@ -1,16 +1,10 @@
 """
-Tool-specific dependency checks for DPA Image Toolkit panels.
+Tool-specific dependency checks for DPA Image Toolkit tools.
 """
 
 from __future__ import annotations
 
 import importlib.util
-try:
-    from tkinter import messagebox as _messagebox
-    _HAS_TK = True
-except ImportError:
-    _messagebox = None
-    _HAS_TK = False
 
 
 TOOL_DEPENDENCY_CONFIGS = {
@@ -203,15 +197,3 @@ def build_dependency_warning_message(tool_name: str, message: str) -> str:
         f"{message}\n\n"
         "Please contact support for dependency installation on this machine."
     )
-
-
-def show_dependency_warning(parent, tool_name: str, message: str) -> str:
-    warning_text = build_dependency_warning_message(tool_name, message)
-    if not _HAS_TK or _messagebox is None:
-        return warning_text
-    _messagebox.showwarning(
-        title=f"{tool_name} Dependencies",
-        message=warning_text,
-        parent=parent,
-    )
-    return warning_text
