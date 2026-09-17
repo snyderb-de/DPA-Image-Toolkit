@@ -140,6 +140,23 @@
       border-radius: 5px; padding: 2px 6px; white-space: nowrap; margin-top: 2px;
     }
     [data-theme="dark"] .tid { color: #7cb4ff; }
+    .pe { display: flex; gap: 4px; align-items: center; }
+    .pri, .eff {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
+      padding: 2px 5px; border-radius: 5px; border: 1px solid transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .pri.p0 { background: #fde2e2; border-color: #e88; color: #8c1c1c; }
+    .pri.p1 { background: var(--warn-bg); border-color: var(--orange); color: var(--warn-ink); }
+    .pri.p2 { background: var(--chip-bg); border-color: var(--chip-line); color: var(--blue); }
+    .pri.p3 { background: transparent; border-color: var(--line); color: var(--muted); }
+    .eff { background: var(--code-bg); border-color: var(--chip-line); color: var(--code-ink); }
+    [data-theme="dark"] .pri.p0 { background: #3a1616; border-color: #a14; color: #ffb4b4; }
+    [data-theme="dark"] .pri.p2 { color: #7cb4ff; }
+    [data-theme="dark"] .eff { color: #9fc6ff; }
+    .todo-group { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin: 12px 0 2px; }
+    .todo-group:first-child { margin-top: 0; }
     .t-title { font-size: 0.84rem; font-weight: 600; color: var(--ink); }
     .t-note { font-size: 0.76rem; color: var(--muted); margin-top: 3px; line-height: 1.45; }
     .imp { display: flex; gap: 2px; margin-top: 4px; }
@@ -320,119 +337,215 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">12 items</span>
+        <span class="pbadge">29 items</span>
       </div>
       <div class="pb">
+        <p class="t-note" style="margin:0 0 10px">
+          Grouped by priority, sorted by effort within each group.
+          <strong>P0</strong> blocks the next release &middot; <strong>P1</strong> defect or friction felt now &middot;
+          <strong>P2</strong> planned &middot; <strong>P3</strong> research.
+          <strong>E0</strong> under an hour &middot; <strong>E1</strong> about half a day &middot; <strong>E2</strong> multi-day or larger.
+        </p>
         <div class="todo-list">
-
+          <div class="todo-group">P0 &mdash; Blocks the next release</div>
           <div class="todo" style="border-color:var(--orange);background:color-mix(in oklab,var(--warn-bg) 30%,var(--panel))">
-            <span class="tid" style="background:var(--warn-bg);border-color:var(--orange);color:var(--orange)">T-000</span>
+            <span class="pe"><span class="pri p0">P0</span><span class="eff">E1</span></span>
             <div>
-              <div class="t-title">Smoke-test released Windows EXE</div>
-              <div class="t-note">Download <code>image-toolkit.exe</code> into a clean user profile, run all seven tools, and confirm no local Python install or <code>_internal/</code> folder is needed.</div>
+              <div class="t-title">Smoke-test the released Windows EXE</div>
+              <div class="t-note">Download <code>image-toolkit.exe</code> into a clean user profile, run all seven tools, confirm no local Python install or <code>_internal/</code> folder is needed. The architecture work changed what <code>launch_web.py</code> pulls in and none of it has been exercised on Windows.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
-
+          <div class="todo-group">P1 &mdash; Defect or friction felt now</div>
           <div class="todo">
-            <span class="tid">T-001</span>
+            <span class="pe"><span class="pri p1">P1</span><span class="eff">E0</span></span>
+            <div>
+              <div class="t-title">Run the test suite on pull requests</div>
+              <div class="t-note"><code>release.yml</code> triggers only on <code>push: tags: v*</code>, so the suite runs only at release time. That is why the OpenCV 5 break sat undetected until it blocked a tag.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p1">P1</span><span class="eff">E1</span></span>
             <div>
               <div class="t-title">Validate on Windows 10 / Windows 11</div>
-              <div class="t-note">Full end-to-end workflow checks on the actual target environment. All seven tools. Highest priority before any further distribution.</div>
+              <div class="t-note">Full end-to-end workflow checks on the actual target environment. All seven tools.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-002</span>
+            <span class="pe"><span class="pri p1">P1</span><span class="eff">E1</span></span>
+            <div>
+              <div class="t-title">Finish moving the batch loop behind the module interface</div>
+              <div class="t-note">Merge, OCR and PDF conversion still own their iteration. <code>ocr_folder_to_pdfs</code> is dead in production, and auto-crop still classifies skip-vs-fail by substring-matching the error text.</div>
+            </div>
+          </div>
+          <div class="todo-group">P2 &mdash; Planned improvement</div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
+            <div>
+              <div class="t-title">Drop the inert customtkinter exclude</div>
+              <div class="t-note"><code>packaging/dpa-toolkit.spec</code> still names a package nothing depends on. Held until the EXE build is verified on Windows.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
+            <div>
+              <div class="t-title">Return a staged-update handle</div>
+              <div class="t-note"><code>web/app.py</code> rebuilds the staged/target/sha triple from a loose dict and parks it in <code>app.config</code>.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
+            <div>
+              <div class="t-title">Decide code-signing / distribution policy</div>
+              <div class="t-note">The EXE is unsigned. Acceptable for a controlled rollout, but may trigger Windows SmartScreen warnings.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
+            <div>
+              <div class="t-title">Add screenshots to the dashboard</div>
+              <div class="t-note">Capture each of the seven tool panels and add a Screenshots section to this page.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
             <div>
               <div class="t-title">Test at high DPI scaling</div>
-              <div class="t-note">Verify web-window layout at 125%, 150%, and 200% display scaling on Windows.</div>
+              <div class="t-note">Verify web-window layout at 125%, 150% and 200% display scaling on Windows.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-003</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
             <div>
-              <div class="t-title">Add GUI screenshots to dashboard</div>
-              <div class="t-note">Capture screenshots of each of the seven tool panels. Add a Screenshots section to this dashboard for the GitHub Pages view.</div>
+              <div class="t-title">Shrink the OCR interface</div>
+              <div class="t-note">17 public functions; <code>ocr_document_to_pdf</code> takes 13 parameters. Wants the batch-loop item finished first.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-004</span>
-            <div>
-              <div class="t-title">Auto Crop: batch preview mode</div>
-              <div class="t-note">Preview detected crop regions for all files before committing the full batch. Requires a preview rendering pass using OpenCV contour results.</div>
-            </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
-          </div>
-
-          <div class="todo">
-            <span class="tid">T-005</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
             <div>
               <div class="t-title">TIFF Merge: per-page DPI preservation</div>
-              <div class="t-note">Current behavior takes DPI from the first valid file in the group. Each page should carry its source DPI into the merged output.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-006</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
             <div>
               <div class="t-title">TIFF Merge: advanced compression options</div>
-              <div class="t-note">Add JPEG, LZW, and PackBits compression to merge output. Currently writes uncompressed or default TIFF compression only.</div>
+              <div class="t-note">JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-007</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
             <div>
-              <div class="t-title">TIFF Merge: memory-safe streaming for large batches</div>
-              <div class="t-note">Batches of 200+ pages can exhaust memory. Need a streaming approach that writes pages incrementally rather than loading all frames at once.</div>
+              <div class="t-title">OCR: tune the messy-scan heuristic</div>
+              <div class="t-note">Against real production samples.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-008</span>
-            <div>
-              <div class="t-title">OCR: tune messy-scan heuristic against production samples</div>
-              <div class="t-note">Quality precheck thresholds need calibration against real workflow scans. Lab test set may not reflect actual microfilm or archival scan quality.</div>
-            </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
-          </div>
-
-          <div class="todo">
-            <span class="tid">T-009</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
             <div>
               <div class="t-title">OCR: manual override for quality-flagged pages</div>
-              <div class="t-note">Let users override the quality gate on a per-page basis. Currently flagged pages are handled automatically with no user control after the fact.</div>
+              <div class="t-note">A way to force OCR on scans the quality gate skipped.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-010</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
+            <div>
+              <div class="t-title">Configurable white threshold via a UI slider</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
+            <div>
+              <div class="t-title">Drag-and-drop folder support</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E1</span></span>
+            <div>
+              <div class="t-title">Refresh the project dashboard</div>
+              <div class="t-note">Now that the repo cleanup has settled.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Auto Crop: batch preview mode</div>
+              <div class="t-note">Before committing crops.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">TIFF Merge: memory-safe streaming</div>
+              <div class="t-note">For very large batches (200+ pages).</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Page reordering and extraction from existing multi-page TIFFs</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E2</span></span>
             <div>
               <div class="t-title">Undo support</div>
-              <div class="t-note">Move output back and restore originals for a completed job. Output always goes to a subfolder currently so no data is at risk — purely a convenience workflow.</div>
+              <div class="t-note">Move output back, restore originals.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
           </div>
-
           <div class="todo">
-            <span class="tid">T-011</span>
+            <span class="pe"><span class="pri p2">P2</span><span class="eff">E2</span></span>
             <div>
-              <div class="t-title">Decide code-signing/distribution policy</div>
-              <div class="t-note">The current EXE is unsigned. That is acceptable for controlled rollout, but broader distribution may need Authenticode signing to reduce Windows SmartScreen friction.</div>
+              <div class="t-title">Multi-language OCR option</div>
+              <div class="t-note">Back into the UI once the workflow and support/install story are settled.</div>
             </div>
-            <div class="imp"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
           </div>
-
+          <div class="todo-group">P3 &mdash; Research / someday</div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E1</span></span>
+            <div>
+              <div class="t-title">Decide where handwriting support belongs</div>
+              <div class="t-note">Main OCR tool, or a separate HCR panel.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E1</span></span>
+            <div>
+              <div class="t-title">Gather a benchmark set of handwritten samples</div>
+              <div class="t-note">Before choosing an HCR engine.</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Test TrOCR for English handwriting</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Test PaddleOCR for English handwriting</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Test Kraken for historical handwriting</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Test Calamari OCR for line-based handwriting</div>
+            </div>
+          </div>
+          <div class="todo">
+            <span class="pe"><span class="pri p3">P3</span><span class="eff">E2</span></span>
+            <div>
+              <div class="t-title">Compare each HCR candidate</div>
+              <div class="t-note">On cursive, mixed print/handwriting, noisy microfilm, Windows install complexity, and searchable-PDF feasibility.</div>
+            </div>
+          </div>
         </div>
       </div>
     </article>
@@ -705,10 +818,21 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">14 items</span>
+        <span class="pbadge">25 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-025</span><span class="dtext">Web UI writes an error report — only the desktop UI ever did, so the error folder could hold nothing explaining what failed</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-024</span><span class="dtext">Per-file batch loop shared — <code>utils/batch.py</code>; four copied loops collapsed into one, now testable without threads</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-023</span><span class="dtext">Job results typed — <code>utils/job_result.py</code>; seven workers built four different dict shapes and composed summaries the browser re-derived differently</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-022</span><span class="dtext">Unprepared start guarded — <code>Path("")</code> is <code>Path(".")</code>, so starting without preparing ran the job against the working directory</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-021</span><span class="dtext">Tool ids unified — <code>merge_tiffs</code>/<code>tiff_merge</code> were reconciled by an alias map; one vocabulary now</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-020</span><span class="dtext">Dependency gate added to the web UI — jobs started without OpenCV failed per-file instead of refusing up front</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-019</span><span class="dtext">One tool registry and job runner — <code>utils/tool_registry.py</code> + <code>utils/job_runner.py</code>; 14 per-tool routes became 2, <code>web/app.py</code> 817 &rarr; 445 lines</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-018</span><span class="dtext">ADR 0001 recorded — <code>docs/adr/0001-single-web-ui-adapter.md</code> explains the single UI adapter and why tkinter stays</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-017</span><span class="dtext">Legacy CustomTkinter desktop UI retired — 6,069 untested lines the PyInstaller spec already excluded from the EXE</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-016</span><span class="dtext">Dependency majors capped — every requirement was lower-bound only; Pillow, pypdf and pypdfium2 had already crossed a major unnoticed</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-015</span><span class="dtext">Deskewing fixed for OpenCV 5 — <code>HoughLinesP</code> changed shape from <code>(N,1,4)</code> to <code>(N,4)</code>, which blocked the next tagged build</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-014</span><span class="dtext">v1.1.6 one-file Windows release — GitHub Actions builds and attaches <code>image-toolkit.exe</code></span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-013</span><span class="dtext">v1.1.3 Windows release — GitHub Actions built and attached the Windows release asset</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-012</span><span class="dtext">Straighten Images tool — standalone folder job writes deskewed images to <code>straightened/</code> without cropping</span></div>

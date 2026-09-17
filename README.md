@@ -231,7 +231,7 @@ testing/    per-tool generators, test runners, and local test scratch space
 ## Documentation
 
 - `README.md` — setup, workflow, naming rules, deployment
-- `TODO.md` — open issues and future enhancements
+- `TODO.md` — open work, prioritised P0–P3 and sized E0–E2
 - `deploy/README.md` — EXE release/deployment notes
 - `docs/` — GitHub Pages project dashboard (HTML/CSS/JS)
 - `docs/adr/` — architecture decision records
