@@ -234,6 +234,7 @@ testing/    per-tool generators, test runners, and local test scratch space
 - `TODO.md` — open issues and future enhancements
 - `deploy/README.md` — EXE release/deployment notes
 - `docs/` — GitHub Pages project dashboard (HTML/CSS/JS)
+- `docs/adr/` — architecture decision records
 
 ## Testing
 
