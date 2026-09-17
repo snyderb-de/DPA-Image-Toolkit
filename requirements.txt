@@ -1,8 +1,12 @@
-customtkinter>=5.0.0
-Pillow>=10.0.0
-opencv-python>=4.8.0
-numpy>=1.24.0
-pypdf>=5.0.0
-pypdfium2>=4.30.0
-flask>=3.0.0
-pywebview>=4.4.0
+# Upper bounds are deliberate. Every pin here was lower-bound only until
+# OpenCV 5 changed the HoughLinesP return shape and broke deskewing — caught
+# only because the release workflow runs the suite before building.
+# Raise a cap consciously, after running the suite against the new major.
+customtkinter>=5.0.0,<6
+Pillow>=10.0.0,<13
+opencv-python>=4.8.0,<6
+numpy>=1.24.0,<3
+pypdf>=5.0.0,<7
+pypdfium2>=4.30.0,<6
+flask>=3.0.0,<4
+pywebview>=4.4.0,<7
