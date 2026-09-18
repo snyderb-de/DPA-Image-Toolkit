@@ -337,7 +337,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">28 items</span>
+        <span class="pbadge">25 items</span>
       </div>
       <div class="pb">
         <p class="t-note" style="margin:0 0 10px">
@@ -363,28 +363,7 @@
               <div class="t-note">Full end-to-end workflow checks on the actual target environment. All seven tools.</div>
             </div>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p1">P1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Move the TIFF merge loop behind a testable seam</div>
-              <div class="t-note"><code>TiffMergeWorker</code> is the last worker owning its own iteration — a ThreadPoolExecutor over groups with a two-stage force-cancel, and no direct test coverage.</div>
-            </div>
-          </div>
           <div class="todo-group">P2 &mdash; Planned improvement</div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
-            <div>
-              <div class="t-title">Drop the inert customtkinter exclude</div>
-              <div class="t-note"><code>packaging/dpa-toolkit.spec</code> still names a package nothing depends on. Held until the EXE build is verified on Windows.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
-            <div>
-              <div class="t-title">Return a staged-update handle</div>
-              <div class="t-note"><code>web/app.py</code> rebuilds the staged/target/sha triple from a loose dict and parks it in <code>app.config</code>.</div>
-            </div>
-          </div>
           <div class="todo">
             <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
             <div>
@@ -396,7 +375,7 @@
             <span class="pe"><span class="pri p2">P2</span><span class="eff">E0</span></span>
             <div>
               <div class="t-title">Add screenshots to the dashboard</div>
-              <div class="t-note">Capture each of the seven tool panels and add a Screenshots section to this page.</div>
+              <div class="t-note">Capture each of the seven tool panels and add a Screenshots section to this page. Needs a browser session.</div>
             </div>
           </div>
           <div class="todo">
@@ -811,10 +790,14 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">32 items</span>
+        <span class="pbadge">36 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-036</span><span class="dtext">Inert customtkinter exclude dropped from the PyInstaller spec</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-035</span><span class="dtext">Staged-update handle — <code>StagedUpdate</code> carries staged path, target and hash together, so the route no longer reassembles the triple</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-034</span><span class="dtext">Merge core creates its own output folder — four of five cores did; this one failed confusingly when a caller did not</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-033</span><span class="dtext">TIFF merge scheduler behind a testable seam — <code>run_group_batch</code>; the last worker owning its own loop and the last untested</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-032</span><span class="dtext">Split round trip fixed — <code>tiff_split</code> writes <code>{stem}_{page:03d}.tif</code>, which OCR never grouped and merge rejected when the source stem had no underscore</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-031</span><span class="dtext">One grouping rule app-wide — <code>modules/grouping.py</code>; merge and OCR had drifted to different rules, so the same folder grouped differently depending on which tool opened it</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-030</span><span class="dtext">OcrPdfWorker's loop covered — the longest loop in the codebase, previously untested; skips cleanly where Tesseract is absent</span></div>

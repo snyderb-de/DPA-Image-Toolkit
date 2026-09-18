@@ -204,14 +204,9 @@ def check_updates():
     body = request.get_json(force=True) or {}
     source_path = str(body.get(UPDATE_SOURCE_KEY) or "").strip() or _update_source_from_settings()
     result = update_checker.check_for_update(source_path)
-    prepared = None
-    target_path = _current_executable_path()
-    if result.get("ready_to_restart") and result.get("staged_path") and result.get("sha256") and target_path is not None:
-        prepared = {
-            "staged_path": result["staged_path"],
-            "target_path": str(target_path),
-            "sha256": result["sha256"],
-        }
+    prepared = update_checker.StagedUpdate.from_check_result(
+        result, _current_executable_path()
+    )
     with _lock:
         if prepared:
             app.config["PREPARED_UPDATE"] = prepared
@@ -223,16 +218,11 @@ def check_updates():
 @app.route("/api/updates/apply", methods=["POST"])
 def apply_update():
     with _lock:
-        prepared = dict(app.config.get("PREPARED_UPDATE") or {})
+        prepared = app.config.get("PREPARED_UPDATE")
     if not prepared:
         return jsonify({"ok": False, "error": "No update is ready to apply."})
     try:
-        update_checker.apply_staged_update(
-            prepared["staged_path"],
-            prepared["target_path"],
-            prepared["sha256"],
-            os.getpid(),
-        )
+        prepared.apply(os.getpid())
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)})
     with _lock:

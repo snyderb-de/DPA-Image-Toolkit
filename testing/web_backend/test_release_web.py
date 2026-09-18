@@ -15,6 +15,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from utils.tool_registry import get_spec
+from utils.update_checker import StagedUpdate
 from web.app import _lock, app, runner
 
 
@@ -155,11 +156,11 @@ class WebReleaseTests(unittest.TestCase):
         with patch("web.app.update_checker.apply_staged_update", return_value=None) as applier:
             with patch("web.app._schedule_exit_for_update", return_value=None) as scheduler:
                 with _lock:
-                    app.config["PREPARED_UPDATE"] = {
-                        "staged_path": r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe",
-                        "target_path": r"C:\Apps\image-toolkit.exe",
-                        "sha256": "a" * 64,
-                    }
+                    app.config["PREPARED_UPDATE"] = StagedUpdate(
+                        staged_path=Path(r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe"),
+                        target_path=Path(r"C:\Apps\image-toolkit.exe"),
+                        sha256="a" * 64,
+                    )
 
                 response = self.client.post("/api/updates/apply", json={})
 
@@ -168,8 +169,8 @@ class WebReleaseTests(unittest.TestCase):
         applier.assert_called_once()
         args = applier.call_args.args
         self.assertEqual(args[:3], (
-            r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe",
-            r"C:\Apps\image-toolkit.exe",
+            Path(r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe"),
+            Path(r"C:\Apps\image-toolkit.exe"),
             "a" * 64,
         ))
         scheduler.assert_called_once()

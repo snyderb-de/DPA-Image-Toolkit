@@ -34,16 +34,13 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 ## P1 — Defect or friction felt now
 
 - [ ] **E1 — Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
-- [ ] **E1 — Move the TIFF merge loop behind a testable seam** — `TiffMergeWorker` is the last worker owning its own iteration. Its loop is a `ThreadPoolExecutor` over groups with dynamic submission and a two-stage force-cancel (`utils/worker.py`), and it has no direct test coverage. It does not fit the per-file loop in `utils/batch.py`; it needs either a group-level equivalent or tests that reach it directly.
 
 ---
 
 ## P2 — Planned improvement
 
-- [ ] **E0 — Drop the inert customtkinter exclude** — `packaging/dpa-toolkit.spec` still carries `excludes=["customtkinter"]`, which now names a package nothing depends on. Left in place until the EXE build is verified on Windows.
-- [ ] **E0 — Return a staged-update handle** — `web/app.py` rebuilds the staged/target/sha triple from a loose dict and parks it in `app.config["PREPARED_UPDATE"]`. `utils/update_checker.py` should hand back one value instead.
 - [ ] **E0 — Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
-- [ ] **E0 — Add screenshots to the dashboard** — the project page has no images of the shipped web UI.
+- [ ] **E0 — Add screenshots to the dashboard** — the project page has no images of the shipped web UI. Needs a browser session to capture the seven panels.
 - [ ] **E1 — Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
 - [ ] **E1 — Shrink the OCR interface** — `modules/ocr_pdf/` exposes 17 public functions and `ocr_document_to_pdf` takes 13 parameters. An options object plus one folder-level entry point; the discovery helpers become internal.
   Fold in the `ocr_folder_to_pdfs` question here rather than treating it as loop work: it is still called only by tests, but it is *shallower* than the loop in `OcrPdfWorker`, which adds the dependency gate, job-level progress, the PDF/A fallback warning and `details{}` interpretation. Production cannot adopt it as-is, so it is either deleted or grown into the real entry point — and that is an interface decision, not a loop one.
@@ -98,6 +95,11 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ## Recently completed
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
+
+- [x] **TIFF merge scheduler behind a testable seam** — `utils/batch.py` gains `run_group_batch`, the group-level counterpart to `run_file_batch`: bounded concurrency, submit-as-you-complete, and a cancel that stops queueing without abandoning running groups. `TiffMergeWorker` was the last worker owning its own loop and the last with no direct coverage.
+- [x] **Merge core creates its own output folder** — four of five module cores did; `tiff_combine` relied on its caller and failed with a confusing "No such file or directory" when one did not.
+- [x] **Staged-update handle** — `utils/update_checker.StagedUpdate` carries staged path, target and hash together, so `web/app.py` no longer reassembles the triple and `apply()` takes one argument.
+- [x] **Dropped the inert customtkinter exclude** — `packaging/dpa-toolkit.spec` named a package nothing depends on.
 
 - [x] **One grouping rule, app-wide** — `modules/grouping.py`. TIFF merge and OCR each inferred document grouping separately and had drifted: OCR demanded exactly four digits, so the `filename_seq` form the workflow produces was never grouped; merge *validated* against a two-underscore pattern and rejected that form outright. Sequences are now any width and order numerically.
 - [x] **Fixed the split round trip** — `tiff_split` writes `{stem}_{page:03d}.tif`. OCR grouped none of it (three digits, not four), and merge rejected any page whose source stem had no underscore — so a split TIFF could not be merged back or OCR'd as one document.
