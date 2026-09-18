@@ -14,6 +14,7 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
+from utils.tool_registry import get_spec
 from web.app import _lock, app, runner
 
 
@@ -51,7 +52,15 @@ class WebReleaseTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 payload = response.get_json()
                 self.assertFalse(payload["ok"], f"{tool_id} started on {blank!r}")
-                self.assertEqual(payload["error"], "No folder prepared")
+
+                # The dependency gate runs before the folder guard, so on a
+                # machine without Tesseract ocr_pdf is refused for that reason
+                # instead. Either refusal is correct; what must never happen is
+                # the job running. Only assert the folder message when the
+                # tool's dependencies are actually present.
+                deps_ok, _ = get_spec(tool_id).check({})
+                if deps_ok:
+                    self.assertEqual(payload["error"], "No folder prepared")
 
                 cwd = Path.cwd()
                 self.assertFalse((cwd / output_name).exists(), f"{tool_id} wrote into cwd")

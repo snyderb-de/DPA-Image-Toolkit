@@ -67,8 +67,9 @@ class RunFileBatchTests(unittest.TestCase):
         self.assertEqual(reporter.statuses, ["No TIFF files selected"])
 
     def test_each_outcome_lands_in_the_right_bucket(self):
+        written = Path("/out/a.tif")
         outcomes = {
-            "a.tif": ItemOutcome.ok(Path("/out/a.tif")),
+            "a.tif": ItemOutcome.ok(written),
             "b.tif": ItemOutcome.skip("blank"),
             "c.tif": ItemOutcome.fail("unreadable"),
         }
@@ -81,7 +82,8 @@ class RunFileBatchTests(unittest.TestCase):
         )
 
         self.assertEqual((result.total, result.success, result.skipped, result.failed), (3, 1, 1, 1))
-        self.assertEqual(result.outputs, ["/out/a.tif"])
+        # record_success stores str(path); the separator is platform-specific.
+        self.assertEqual(result.outputs, [str(written)])
         self.assertEqual(reporter.errors, [("c.tif", "unreadable")])
 
     def test_progress_counts_up_to_the_total(self):
