@@ -159,6 +159,10 @@
     .todo-group { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--muted); margin: 12px 0 2px; }
     .todo-group:first-child { margin-top: 0; }
+    .tid-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.6rem; color: var(--muted); letter-spacing: 0.02em;
+    }
     .tbands { display: grid; gap: 6px; }
     .tband, .tnext {
       display: flex; align-items: center; gap: 8px;
@@ -386,18 +390,22 @@
           <div class="tnext">
             <span class="pri p0">P0</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">Smoke-test the released Windows EXE</span>
+            <span class="tid-code">P0-W3-E1-001</span>
           </div>
           <div class="tnext">
             <span class="pri p1">P1</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">Validate on Windows 10 / Windows 11</span>
+            <span class="tid-code">P1-W3-E1-002</span>
           </div>
           <div class="tnext">
             <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">OCR: tune the messy-scan heuristic</span>
+            <span class="tid-code">P2-W3-E1-003</span>
           </div>
           <div class="tnext">
             <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">OCR: manual override for quality-flagged pages</span>
+            <span class="tid-code">P2-W3-E1-004</span>
           </div>
         </div>
       </div>

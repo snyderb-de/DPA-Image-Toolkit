@@ -29,6 +29,10 @@ Every item carries a priority, an effort estimate and a win score. Items are gro
 | **W2** | Noticeable, not felt daily |
 | **W1** | Barely felt day to day |
 
+Each open item carries an id like `P2-W3-E1-007`. The trailing number is the
+identity and never changes; the `P`, `W` and `E` parts are descriptive, so an
+item re-scored from P2 to P1 becomes `P1-W3-E1-007` and is still the same item.
+
 Within P2, items are ordered by win per unit of effort — best payoff for the
 least work first, so the cheap high-win items float to the top. P0 and P1 are
 ordered by priority alone; P3 keeps dependency order, since the research steps
@@ -38,31 +42,31 @@ feed each other.
 
 ## P0 — Blocks the next release
 
-- [ ] **W3 · E1** — **Smoke-test the released Windows EXE** — download `image-toolkit.exe` into a clean user profile, run all seven tools, confirm no local Python install or `_internal/` folder is needed. More important than it was: the architecture work changed what `launch_web.py` pulls in and deleted a package `packaging/dpa-toolkit.spec` still references, and none of it has been exercised on Windows.
+- [ ] `P0-W3-E1-001` **W3 · E1** — **Smoke-test the released Windows EXE** — download `image-toolkit.exe` into a clean user profile, run all seven tools, confirm no local Python install or `_internal/` folder is needed. More important than it was: the architecture work changed what `launch_web.py` pulls in and deleted a package `packaging/dpa-toolkit.spec` still references, and none of it has been exercised on Windows.
 
 ---
 
 ## P1 — Defect or friction felt now
 
-- [ ] **W3 · E1** — **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
+- [ ] `P1-W3-E1-002` **W3 · E1** — **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
 
 ---
 
 ## P2 — Planned improvement
 
-- [ ] **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
-- [ ] **W3 · E1** — **OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped. Today there is no way through except reprocessing outside the toolkit.
-- [ ] **W3 · E1** — **Drag-and-drop folder support** — every job starts with a folder pick today.
-- [ ] **W2 · E0** — **Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
-- [ ] **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
-- [ ] **W3 · E2** — **TIFF Merge: memory-safe streaming** for very large batches (200+ pages), which currently have to be split up by hand.
-- [ ] **W3 · E2** — **Undo support** — move output back, restore originals. A wrong run means manual cleanup today.
-- [ ] **W2 · E1** — **Configurable white threshold via a UI slider** — tune per batch instead of re-running with defaults that do not suit the material.
-- [ ] **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
-- [ ] **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] **W1 · E1** — **TIFF Merge: per-page DPI preservation** — a correctness detail, invisible most days.
-- [ ] **W1 · E1** — **TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
-- [ ] **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
+- [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
+- [ ] `P2-W3-E1-004` **W3 · E1** — **OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped. Today there is no way through except reprocessing outside the toolkit.
+- [ ] `P2-W3-E1-005` **W3 · E1** — **Drag-and-drop folder support** — every job starts with a folder pick today.
+- [ ] `P2-W2-E0-006` **W2 · E0** — **Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
+- [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
+- [ ] `P2-W3-E2-008` **W3 · E2** — **TIFF Merge: memory-safe streaming** for very large batches (200+ pages), which currently have to be split up by hand.
+- [ ] `P2-W3-E2-009` **W3 · E2** — **Undo support** — move output back, restore originals. A wrong run means manual cleanup today.
+- [ ] `P2-W2-E1-010` **W2 · E1** — **Configurable white threshold via a UI slider** — tune per batch instead of re-running with defaults that do not suit the material.
+- [ ] `P2-W2-E2-011` **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
+- [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
+- [ ] `P2-W1-E1-013` **W1 · E1** — **TIFF Merge: per-page DPI preservation** — a correctness detail, invisible most days.
+- [ ] `P2-W1-E1-014` **W1 · E1** — **TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
+- [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
 
@@ -72,25 +76,25 @@ feed each other.
 
 Handwriting recognition for handwriting-heavy material, separate from the current printed-text OCR workflow.
 
-- [ ] **W1 · E1** — **Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
-- [ ] **W1 · E1** — **Gather a benchmark set** of real English handwritten samples before choosing an engine.
-- [ ] **W1 · E2** — **Test `TrOCR`** for English handwriting recognition
+- [ ] `P3-W1-E1-016` **W1 · E1** — **Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
+- [ ] `P3-W1-E1-017` **W1 · E1** — **Gather a benchmark set** of real English handwritten samples before choosing an engine.
+- [ ] `P3-W1-E2-018` **W1 · E2** — **Test `TrOCR`** for English handwriting recognition
   - *What:* transformer-based OCR models from Microsoft, including handwritten checkpoints
   - *Pros:* modern model family; strongest open-source-looking starting point for English handwriting; no dependency on Tesseract OCR quality
   - *Cons:* heavier ML/runtime footprint; not naturally aligned with simple PDF/A archival workflows; likely requires a custom page-to-text pipeline
-- [ ] **W1 · E2** — **Test `PaddleOCR`** for English handwriting recognition
+- [ ] `P3-W1-E2-019` **W1 · E2** — **Test `PaddleOCR`** for English handwriting recognition
   - *What:* general OCR toolkit with support for printed text and handwriting scenarios
   - *Pros:* broader OCR stack; active project; may handle mixed page conditions better than Tesseract
   - *Cons:* heavier install and model management; not a drop-in archival PDF/A replacement; would need evaluation on microfilm-derived scans
-- [ ] **W1 · E2** — **Test `Kraken`** for historical or manuscript-like handwriting
+- [ ] `P3-W1-E2-020` **W1 · E2** — **Test `Kraken`** for historical or manuscript-like handwriting
   - *What:* OCR/HTR toolkit with strong historical-text and handwritten-text reputation
   - *Pros:* better fit for specialized handwriting and historical-text workflows; strong research/community use in HTR contexts
   - *Cons:* steeper workflow; less turnkey for desktop staff use; often expects more document prep or model selection effort
-- [ ] **W1 · E2** — **Test `Calamari OCR`** for line-based handwriting recognition
+- [ ] `P3-W1-E2-021` **W1 · E2** — **Test `Calamari OCR`** for line-based handwriting recognition
   - *What:* OCR/HTR engine commonly used in historical-text pipelines
   - *Pros:* respected in handwritten and historical OCR circles; good candidate if line-level workflows become acceptable
   - *Cons:* less page-oriented; may require segmentation or model work first; weaker fit for a simple folder-to-PDF desktop tool
-- [ ] **W1 · E2** — **Compare each HCR candidate** on:
+- [ ] `P3-W1-E2-022` **W1 · E2** — **Compare each HCR candidate** on:
   - plain cursive handwriting
   - mixed print + handwriting pages
   - noisy microfilm scans
@@ -99,7 +103,7 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Dashboard polish
 
-- [ ] **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
+- [ ] `P3-W1-E0-023` **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
 
 ---
 
