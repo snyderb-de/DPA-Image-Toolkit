@@ -159,6 +159,17 @@
     .todo-group { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--muted); margin: 12px 0 2px; }
     .todo-group:first-child { margin-top: 0; }
+    .tbands { display: grid; gap: 6px; }
+    .tband, .tnext {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px; border: 1px solid var(--line);
+      border-radius: 8px; background: var(--panel);
+    }
+    .tband-n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 700; font-size: 0.9rem; color: var(--ink); min-width: 1.6em; text-align: right; }
+    .tband-label, .tnext-title { font-size: 0.78rem; color: var(--muted); }
+    .tnext-title { color: var(--ink); font-weight: 600; }
+    .tnexts { display: grid; gap: 6px; }
     .t-title { font-size: 0.84rem; font-weight: 600; color: var(--ink); }
     .t-note { font-size: 0.76rem; color: var(--muted); margin-top: 3px; line-height: 1.45; }
     .imp { display: flex; gap: 2px; margin-top: 4px; }
@@ -336,184 +347,59 @@
   <div class="col2">
 
     <!-- Active TODOs -->
+        <!-- Active TODOs -->
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">24 items</span>
+        <span class="pbadge">24 open</span>
       </div>
       <div class="pb">
-        <p class="t-note" style="margin:0 0 10px">
-          Grouped by priority, sorted by effort within each group.
-          <strong>P0</strong> blocks the next release &middot; <strong>P1</strong> defect or friction felt now &middot;
-          <strong>P2</strong> planned &middot; <strong>P3</strong> research.
-          <strong>E0</strong> under an hour &middot; <strong>E1</strong> about half a day &middot; <strong>E2</strong> multi-day or larger. <strong>W</strong> is staff time saved: <strong>W3</strong> removes real manual work from every job, <strong>W1</strong> is barely felt. P2 is ordered by win per unit of effort.
+        <p class="t-note" style="margin:0 0 12px">
+          <strong>P</strong> priority &middot; <strong>E</strong> effort &middot; <strong>W</strong> staff time saved.
+          P2 is ordered by win per unit of effort. The full list, with the reasoning for each item, lives in
+          <a href="https://github.com/snyderb-de/DPA-Image-Toolkit/blob/master/TODO.md"><code>TODO.md</code></a>.
         </p>
-        <div class="todo-list">
-          <div class="todo-group">P0 &mdash; Blocks the next release</div>
-          <div class="todo" style="border-color:var(--orange);background:color-mix(in oklab,var(--warn-bg) 30%,var(--panel))">
-            <span class="pe"><span class="pri p0">P0</span><span class="win">W3</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Smoke-test the released Windows EXE</div>
-              <div class="t-note">Download <code>image-toolkit.exe</code> into a clean user profile, run all seven tools, confirm no local Python install or <code>_internal/</code> folder is needed. The architecture work changed what <code>launch_web.py</code> pulls in and none of it has been exercised on Windows.</div>
-            </div>
+        <div class="tbands">
+          <div class="tband">
+            <span class="pri p0">P0</span>
+            <span class="tband-n">1</span>
+            <span class="tband-label">Blocks the next release</span>
           </div>
-          <div class="todo-group">P1 &mdash; Defect or friction felt now</div>
-          <div class="todo">
-            <span class="pe"><span class="pri p1">P1</span><span class="win">W3</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Validate on Windows 10 / Windows 11</div>
-              <div class="t-note">Full end-to-end workflow checks on the actual target environment. All seven tools.</div>
-            </div>
+          <div class="tband">
+            <span class="pri p1">P1</span>
+            <span class="tband-n">1</span>
+            <span class="tband-label">Defect or friction felt now</span>
           </div>
-          <div class="todo-group">P2 &mdash; Planned improvement</div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">OCR: tune the messy-scan heuristic</div>
-              <div class="t-note">Against real production samples.</div>
-            </div>
+          <div class="tband">
+            <span class="pri p2">P2</span>
+            <span class="tband-n">14</span>
+            <span class="tband-label">Planned improvement</span>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">OCR: manual override for quality-flagged pages</div>
-              <div class="t-note">A way to force OCR on scans the quality gate skipped.</div>
-            </div>
+          <div class="tband">
+            <span class="pri p3">P3</span>
+            <span class="tband-n">8</span>
+            <span class="tband-label">Research / someday</span>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Drag-and-drop folder support</div>
-            </div>
+        </div>
+        <p class="t-note" style="margin:14px 0 8px"><strong>Up next</strong></p>
+        <div class="tnexts">
+          <div class="tnext">
+            <span class="pri p0">P0</span><span class="win">W3</span><span class="eff">E1</span>
+            <span class="tnext-title">Smoke-test the released Windows EXE</span>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W2</span><span class="eff">E0</span></span>
-            <div>
-              <div class="t-title">Decide code-signing / distribution policy</div>
-              <div class="t-note">The EXE is unsigned. Acceptable for a controlled rollout, but may trigger Windows SmartScreen warnings.</div>
-            </div>
+          <div class="tnext">
+            <span class="pri p1">P1</span><span class="win">W3</span><span class="eff">E1</span>
+            <span class="tnext-title">Validate on Windows 10 / Windows 11</span>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Auto Crop: batch preview mode</div>
-              <div class="t-note">Before committing crops.</div>
-            </div>
+          <div class="tnext">
+            <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
+            <span class="tnext-title">OCR: tune the messy-scan heuristic</span>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">TIFF Merge: memory-safe streaming</div>
-              <div class="t-note">For very large batches (200+ pages).</div>
-            </div>
+          <div class="tnext">
+            <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
+            <span class="tnext-title">OCR: manual override for quality-flagged pages</span>
           </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Undo support</div>
-              <div class="t-note">Move output back, restore originals.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W2</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Configurable white threshold via a UI slider</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W2</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Page reordering and extraction from existing multi-page TIFFs</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Test at high DPI scaling</div>
-              <div class="t-note">Verify web-window layout at 125%, 150% and 200% display scaling on Windows.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">TIFF Merge: per-page DPI preservation</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">TIFF Merge: advanced compression options</div>
-              <div class="t-note">JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Refresh the project dashboard</div>
-              <div class="t-note">Now that the repo cleanup has settled.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p2">P2</span><span class="win">W1</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Multi-language OCR option</div>
-              <div class="t-note">Back into the UI once the workflow and support/install story are settled.</div>
-            </div>
-          </div>
-          <div class="todo-group">P3 &mdash; Research / someday</div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Decide where handwriting support belongs</div>
-              <div class="t-note">Main OCR tool, or a separate HCR panel.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E1</span></span>
-            <div>
-              <div class="t-title">Gather a benchmark set of handwritten samples</div>
-              <div class="t-note">Before choosing an HCR engine.</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Test TrOCR for English handwriting</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Test PaddleOCR for English handwriting</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Test Kraken for historical handwriting</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Test Calamari OCR for line-based handwriting</div>
-            </div>
-          </div>
-          <div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E2</span></span>
-            <div>
-              <div class="t-title">Compare each HCR candidate</div>
-              <div class="t-note">On cursive, mixed print/handwriting, noisy microfilm, Windows install complexity, and searchable-PDF feasibility.</div>
-            </div>
-          </div>
-<div class="todo">
-            <span class="pe"><span class="pri p3">P3</span><span class="win">W1</span><span class="eff">E0</span></span>
-            <div>
-              <div class="t-title">Add screenshots to the dashboard</div>
-              <div class="t-note">Seven images, one per tool panel, plus a Screenshots section on this page. Cosmetic, Pages only. Needs a browser session.</div>
-            </div>
-          </div>
-                  </div>
+        </div>
       </div>
     </article>
 
@@ -641,142 +527,7 @@
   </article>
 
   <!-- ── Roadmap ─────────────────────────────────────────────────────── -->
-  <article class="panel">
-    <div class="ph">
-      <h2>Roadmap</h2>
-      <span class="pbadge">5 phases + stretch</span>
-    </div>
-    <div class="pb">
-      <div class="phases">
-
-        <div class="phase" style="border-color:var(--orange)">
-          <div class="phase-head" onclick="togglePhase(this)" style="border-left:3px solid var(--orange)">
-            <div class="pnum" style="background:var(--orange)">0</div>
-            <div>
-              <div class="p-title">Windows EXE Release Packaging</div>
-              <div class="p-sub">Flask backend + HTML/CSS/JS frontend + PyWebView native window + PyInstaller one-file .exe. Published as v1.1.9; remaining checks live in Windows Validation.</div>
-            </div>
-            <span class="pbadge2 badge-neutral">Complete</span>
-          </div>
-          <div class="phase-body">
-            <div class="ptasks">
-              <div class="ptask"><span class="wid">W-001</span>Audit processing boundaries for each tool</div>
-              <div class="ptask"><span class="wid">W-002</span>Scaffold <code>web/app.py</code> — Flask, localhost only, auto-pick port, serve from <code>web/templates/</code></div>
-              <div class="ptask"><span class="wid">W-003</span>Design system — CSS tokens (light/dark + theme slot), shared with manual and dashboard</div>
-              <div class="ptask"><span class="wid">W-004</span>Per-tool API routes — <code>POST /api/{tool}/start</code>, <code>GET /api/{tool}/status</code>, <code>POST /api/{tool}/cancel</code></div>
-              <div class="ptask"><span class="wid">W-005</span>Frontend shell — sidebar nav, tool panels, glowing animated progress bars, live log stream</div>
-              <div class="ptask"><span class="wid">W-006</span>Folder/file picker — <code>tkinter.filedialog</code> called from Python side, result returned via API (no browser file picker)</div>
-              <div class="ptask"><span class="wid">W-007</span>PyWebView launcher — <code>launch.py</code> starts Flask daemon, opens PyWebView window, handles shutdown</div>
-              <div class="ptask"><span class="wid">W-008</span>Windows launcher — <code>image-toolkit-web.bat</code> entry point</div>
-              <div class="ptask"><span class="wid">W-009</span>PyInstaller bundle — single <code>.exe</code>, bundles Flask + PyWebView + all Python deps + Tesseract path config</div>
-              <div class="ptask"><span class="wid">W-010</span>Parity smoke test — all seven tools produce expected output from the web-window EXE</div>
-              <div class="ptask"><span class="wid">W-011</span>Theme switcher — clear blue-based light and dark modes shared with the manual</div>
-            </div>
-          </div>
-        </div>
-
-
-        <div class="phase">
-          <div class="phase-head" onclick="togglePhase(this)">
-            <div class="pnum">1</div>
-            <div>
-              <div class="p-title">Windows Validation</div>
-              <div class="p-sub">Full workflow verification on target hardware before wider distribution.</div>
-            </div>
-            <span class="pbadge2 badge-neutral">In Progress</span>
-          </div>
-          <div class="phase-body">
-            <div class="ptasks">
-              <div class="ptask"><span class="wid">W-101</span>End-to-end smoke test of all seven tools on Windows 10</div>
-              <div class="ptask"><span class="wid">W-102</span>End-to-end smoke test of all seven tools on Windows 11</div>
-              <div class="ptask"><span class="wid">W-103</span>Verify UI layout at 125%, 150%, 200% display scaling</div>
-              <div class="ptask"><span class="wid">W-104</span>Confirm the one-file release EXE launches on both platforms without a required <code>_internal/</code> folder</div>
-              <div class="ptask"><span class="wid">W-105</span>Validate OCR to PDF with Tesseract installed on the target machine</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="phase">
-          <div class="phase-head" onclick="togglePhase(this)">
-            <div class="pnum">2</div>
-            <div>
-              <div class="p-title">Core Tool Enhancements</div>
-              <div class="p-sub">Quality-of-life improvements to Auto Crop, TIFF Merge, and OCR — after Phase 1 validates baseline behavior.</div>
-            </div>
-            <span class="pbadge2 badge-neutral">Pending</span>
-          </div>
-          <div class="phase-body">
-            <div class="ptasks">
-              <div class="ptask"><span class="wid">W-201</span>Auto Crop: batch preview mode — render detected contour boxes before committing the batch</div>
-              <div class="ptask"><span class="wid">W-202</span>TIFF Merge: per-page DPI preservation — carry source DPI per page into merged output</div>
-              <div class="ptask"><span class="wid">W-203</span>TIFF Merge: JPEG, LZW, PackBits compression options</div>
-              <div class="ptask"><span class="wid">W-204</span>TIFF Merge: streaming approach for 200+ page batches</div>
-              <div class="ptask"><span class="wid">W-205</span>Auto Crop: configurable white threshold via UI slider (default 253)</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="phase">
-          <div class="phase-head" onclick="togglePhase(this)">
-            <div class="pnum">3</div>
-            <div>
-              <div class="p-title">OCR Improvements</div>
-              <div class="p-sub">Tune the quality gate against real production samples and add user control over flagged pages.</div>
-            </div>
-            <span class="pbadge2 badge-neutral">Pending</span>
-          </div>
-          <div class="phase-body">
-            <div class="ptasks">
-              <div class="ptask"><span class="wid">W-301</span>Gather real production scan samples — mix of clean, messy, and microfilm-derived pages</div>
-              <div class="ptask"><span class="wid">W-302</span>Calibrate messy-scan heuristic thresholds against real sample set</div>
-              <div class="ptask"><span class="wid">W-303</span>Add per-page manual override flow for quality-flagged pages</div>
-              <div class="ptask"><span class="wid">W-304</span>Multi-language OCR option — language selector once install/support workflow is settled</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="phase">
-          <div class="phase-head" onclick="togglePhase(this)">
-            <div class="pnum">4</div>
-            <div>
-              <div class="p-title">HCR Research Track</div>
-              <div class="p-sub">Evaluate handwriting recognition engines for a future HCR tool, separate from the current Tesseract OCR workflow.</div>
-            </div>
-            <span class="pbadge2 badge-neutral">Research</span>
-          </div>
-          <div class="phase-body">
-            <div class="ptasks">
-              <div class="ptask"><span class="wid">W-401</span>Gather benchmark set: plain cursive, mixed print/handwriting, noisy microfilm</div>
-              <div class="ptask"><span class="wid">W-402</span>Evaluate TrOCR (Microsoft) — leading candidate for English handwriting, no Tesseract dependency</div>
-              <div class="ptask"><span class="wid">W-403</span>Evaluate PaddleOCR — broader OCR stack, may handle mixed print+handwriting pages better</div>
-              <div class="ptask"><span class="wid">W-404</span>Evaluate Kraken and Calamari OCR as specialist historical-text options</div>
-              <div class="ptask"><span class="wid">W-405</span>Decide: separate HCR panel, or extended OCR panel with mode selector</div>
-              <div class="ptask"><span class="wid">W-406</span>Confirm feasibility of searchable PDF output without misleading text layers</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="phase">
-          <div class="phase-head" onclick="togglePhase(this)">
-            <div class="pnum stretch">S</div>
-            <div>
-              <div class="p-title">Stretch: Distribution + UX</div>
-              <div class="p-sub">No-install packaging and quality-of-life features that require broader scoping decisions first.</div>
-            </div>
-            <span class="pbadge2 badge-warn">Optional</span>
-          </div>
-          <div class="phase-body">
-            <div class="ptasks">
-              <div class="ptask"><span class="wid">W-S01</span>Drag-and-drop folder support — drop a folder onto the app window instead of using the picker</div>
-              <div class="ptask"><span class="wid">W-S02</span>Undo support — move output back, restore originals for a completed job</div>
-              <div class="ptask"><span class="wid">W-S03</span>Page reordering / extraction from existing multi-page TIFFs</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </article>
+  
 
   <!-- ── Bottom two-col ─────────────────────────────────────────────── -->
   <div class="col2">
@@ -785,10 +536,11 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">37 items</span>
+        <span class="pbadge">38 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-038</span><span class="dtext">Dashboard refreshed — TODO detail collapsed to band counts read from <code>TODO.md</code>, the all-shipped Roadmap removed, Open Decisions pruned to the one still open</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-037</span><span class="dtext">OCR interface shrunk — 17 exports for 5 used; <code>OcrOptions</code> takes <code>ocr_document_to_pdf</code> from 13 parameters to 6, and two dead folder entry points removed</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-036</span><span class="dtext">Inert customtkinter exclude dropped from the PyInstaller spec</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-035</span><span class="dtext">Staged-update handle — <code>StagedUpdate</code> carries staged path, target and hash together, so the route no longer reassembles the triple</span></div>
@@ -831,34 +583,20 @@
     </article>
 
     <!-- Open decisions -->
-    <article class="panel">
+        <article class="panel">
       <div class="ph">
         <h2>Open Decisions</h2>
-        <span class="pbadge">5 items</span>
+        <span class="pbadge">1 item</span>
       </div>
       <div class="pb">
-        <div class="decisions">
-          <div class="decision">
-            <div class="dq">EXE release validation — where are we?</div>
-            <div class="dd">Default: <strong>smoke-test the released EXE first</strong> — use the GitHub release asset and run all seven tools before wider distribution.</div>
-          </div>
-          <div class="decision">
-            <div class="dq">Windows validation — where are we?</div>
-            <div class="dd">Full workflow checks on Win10/11 are P1. Which tools have been tested end-to-end on the actual target machines?</div>
-          </div>
-          <div class="decision">
-            <div class="dq">HCR tool: near-term prototype or research backlog?</div>
-            <div class="dd">Default: <strong>research backlog</strong> — keep in Phase 4 until core tools pass Windows validation. Raise to promote.</div>
-          </div>
-          <div class="decision">
-            <div class="dq">PDF/A feature — keep as preview or promote?</div>
-            <div class="dd">Currently labeled "Preview" in the UI. Default: <strong>keep as preview</strong> until there is a confirmed user need.</div>
-          </div>
-          <div class="decision">
-            <div class="dq">Code signing — required before wider release?</div>
-            <div class="dd">Default: <strong>not required for controlled rollout</strong>. Revisit if Windows SmartScreen warnings become a support issue.</div>
-          </div>
+        <div class="decision">
+          <div class="dq">PDF/A — keep as preview or promote?</div>
+          <div class="dd">Currently labelled &ldquo;Preview&rdquo; in the UI. Default: <strong>keep as preview</strong> until there is a confirmed user need.</div>
         </div>
+        <p class="t-note" style="margin-top:10px">
+          Everything else that sat here is now tracked as a TODO: EXE validation is the P0,
+          Windows validation is P1, code signing is P2, and HCR is P3 research.
+        </p>
       </div>
     </article>
 

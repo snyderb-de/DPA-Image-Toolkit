@@ -62,7 +62,6 @@ feed each other.
 - [ ] **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
 - [ ] **W1 · E1** — **TIFF Merge: per-page DPI preservation** — a correctness detail, invisible most days.
 - [ ] **W1 · E1** — **TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
-- [ ] **W1 · E1** — **Refresh the project dashboard** — now that the repo cleanup has settled.
 - [ ] **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
@@ -73,25 +72,25 @@ feed each other.
 
 Handwriting recognition for handwriting-heavy material, separate from the current printed-text OCR workflow.
 
-- [ ] **W1 · E1** — Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
-- [ ] **W1 · E1** — Gather a benchmark set** of real English handwritten samples before choosing an engine.
-- [ ] **W1 · E2** — Test `TrOCR`** for English handwriting recognition
+- [ ] **W1 · E1** — **Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
+- [ ] **W1 · E1** — **Gather a benchmark set** of real English handwritten samples before choosing an engine.
+- [ ] **W1 · E2** — **Test `TrOCR`** for English handwriting recognition
   - *What:* transformer-based OCR models from Microsoft, including handwritten checkpoints
   - *Pros:* modern model family; strongest open-source-looking starting point for English handwriting; no dependency on Tesseract OCR quality
   - *Cons:* heavier ML/runtime footprint; not naturally aligned with simple PDF/A archival workflows; likely requires a custom page-to-text pipeline
-- [ ] **W1 · E2** — Test `PaddleOCR`** for English handwriting recognition
+- [ ] **W1 · E2** — **Test `PaddleOCR`** for English handwriting recognition
   - *What:* general OCR toolkit with support for printed text and handwriting scenarios
   - *Pros:* broader OCR stack; active project; may handle mixed page conditions better than Tesseract
   - *Cons:* heavier install and model management; not a drop-in archival PDF/A replacement; would need evaluation on microfilm-derived scans
-- [ ] **W1 · E2** — Test `Kraken`** for historical or manuscript-like handwriting
+- [ ] **W1 · E2** — **Test `Kraken`** for historical or manuscript-like handwriting
   - *What:* OCR/HTR toolkit with strong historical-text and handwritten-text reputation
   - *Pros:* better fit for specialized handwriting and historical-text workflows; strong research/community use in HTR contexts
   - *Cons:* steeper workflow; less turnkey for desktop staff use; often expects more document prep or model selection effort
-- [ ] **W1 · E2** — Test `Calamari OCR`** for line-based handwriting recognition
+- [ ] **W1 · E2** — **Test `Calamari OCR`** for line-based handwriting recognition
   - *What:* OCR/HTR engine commonly used in historical-text pipelines
   - *Pros:* respected in handwritten and historical OCR circles; good candidate if line-level workflows become acceptable
   - *Cons:* less page-oriented; may require segmentation or model work first; weaker fit for a simple folder-to-PDF desktop tool
-- [ ] **W1 · E2** — Compare each HCR candidate** on:
+- [ ] **W1 · E2** — **Compare each HCR candidate** on:
   - plain cursive handwriting
   - mixed print + handwriting pages
   - noisy microfilm scans
@@ -100,13 +99,15 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Dashboard polish
 
-- [ ] **W1 · E0** — Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
+- [ ] **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
 
 ---
 
 ## Recently completed
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
+
+- [x] **Refreshed the project dashboard** — Active TODOs was 24 cards of duplicated detail; it is now four band counts plus the next four items, with the counts read from this file so the two cannot drift. The Roadmap was 135 lines of web-UI-rewrite phases, every one of them shipped, which Recently Completed already records. Open Decisions kept only the one question still open; the other four were TODO items restated.
 
 - [x] **Shrank the OCR interface** — `modules/ocr_pdf` exported 17 names for the 5 production used. `OcrOptions` collapses eight settings into one value, so `ocr_document_to_pdf` takes 6 parameters instead of 13. `ocr_folder_to_pdf` had no callers at all and `ocr_folder_to_pdfs` only tests, so both are gone — the shipped loop is `OcrPdfWorker`'s, and it now has its own coverage.
 
