@@ -1,6 +1,6 @@
 # DPA Image Toolkit — TODO
 
-**Status:** v1.1.6 is the current GitHub release. Primary deploy target is the PyInstaller Windows one-file EXE built from `launch_web.py`.
+**Status:** v1.1.9 is the current GitHub release. Primary deploy target is the PyInstaller Windows one-file EXE built from `launch_web.py`.
 
 The next release was blocked by an OpenCV 5 incompatibility in deskewing — the release workflow runs the suite before building, so the break stopped a tagged build rather than shipping. That is fixed and dependency majors are now capped. The EXE itself has not been rebuilt or smoke-tested since the architecture work, which is the P0 below.
 
@@ -124,7 +124,7 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Earlier
 
-- [x] Publish v1.1.3 – v1.1.6 one-file Windows EXE releases via GitHub Actions
+- [x] Publish v1.1.3 – v1.1.9 one-file Windows EXE releases via GitHub Actions
 - [x] Make the PyInstaller EXE the primary deploy target
 - [x] Strengthen automated test coverage — suite now at 124 tests
 - [x] Add a standalone Straighten Images job writing to `straightened/`
