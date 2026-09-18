@@ -40,7 +40,6 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 ## P2 — Planned improvement
 
 - [ ] **E0 — Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
-- [ ] **E0 — Add screenshots to the dashboard** — the project page has no images of the shipped web UI. Needs a browser session to capture the seven panels.
 - [ ] **E1 — Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
 - [ ] **E1 — Shrink the OCR interface** — `modules/ocr_pdf/` exposes 17 public functions and `ocr_document_to_pdf` takes 13 parameters. An options object plus one folder-level entry point; the discovery helpers become internal.
   Fold in the `ocr_folder_to_pdfs` question here rather than treating it as loop work: it is still called only by tests, but it is *shallower* than the loop in `OcrPdfWorker`, which adds the dependency gate, job-level progress, the PDF/A fallback warning and `details{}` interpretation. Production cannot adopt it as-is, so it is either deleted or grown into the real entry point — and that is an interface decision, not a loop one.
@@ -89,6 +88,10 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
   - noisy microfilm scans
   - installation complexity on Windows
   - feasibility of producing searchable PDF outputs without misleading text layers
+
+### Dashboard polish
+
+- [ ] **E0 — Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
 
 ---
 
