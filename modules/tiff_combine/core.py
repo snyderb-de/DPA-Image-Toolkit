@@ -53,6 +53,10 @@ def merge_tiff_group(
     """
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
+    # Every other module core creates its own output folder; this one relied on
+    # the caller, and failed with a confusing "No such file or directory" when a
+    # caller did not. No-op in production, where the route creates it first.
+    output_folder.mkdir(parents=True, exist_ok=True)
     error_list = []
 
     def _cancelled() -> bool:

@@ -12,11 +12,13 @@ into an `ItemOutcome`; everything around that is shared and directly testable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Protocol
+from typing import Callable, Iterable, Optional, Protocol, Sequence
 
-from utils.job_result import JobResult
+from utils.job_result import JobError, JobResult
 
 IMAGE_EXTENSIONS = (".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp", ".gif")
 
@@ -123,3 +125,137 @@ def run_file_batch(
 
     reporter.update_status(result.summary())
     return result
+
+
+# ── Group batches ──────────────────────────────────────────────────────────
+#
+# TIFF merge works on groups of pages rather than single files, and runs them
+# in parallel because each group is independent. That scheduler — bounded
+# concurrency, submit-as-you-complete, and a cancel that stops queueing without
+# killing work already in flight — lived inside the worker thread where no test
+# could reach it.
+
+
+@dataclass(frozen=True)
+class GroupOutcome:
+    """What happened to one group."""
+
+    status: str
+    errors: tuple = ()
+
+    @classmethod
+    def ok(cls) -> "GroupOutcome":
+        return cls(SUCCESS)
+
+    @classmethod
+    def fail(cls, errors: Iterable) -> "GroupOutcome":
+        """`errors` are (filename, message) pairs describing what went wrong."""
+        return cls(FAILED, tuple(errors))
+
+    @classmethod
+    def abort(cls) -> "GroupOutcome":
+        """Cancelled part-way through this group — stop the whole batch."""
+        return cls(CANCELLED)
+
+
+def choose_worker_count(total: int, cap: int = 4) -> int:
+    """A modest parallel width: never more than the work, the CPUs, or `cap`."""
+    if total <= 1:
+        return 1
+    return max(1, min(total, os.cpu_count() or 2, cap))
+
+
+def run_group_batch(
+    names: Sequence[str],
+    *,
+    result: JobResult,
+    process: Callable[[str], GroupOutcome],
+    reporter: BatchReporter,
+    max_workers: Optional[int] = None,
+    empty_message: str = "No groups to process",
+) -> JobResult:
+    """Run `process` over `names` in parallel, recording outcomes into `result`.
+
+    Cancellation stops new groups being queued; groups already running are left
+    to finish, which is what makes the first cancel graceful. A group that
+    reports it was cancelled mid-work ends the batch.
+
+    Unlike the per-file loop, a failed group increments `failed` once while
+    contributing however many per-file errors it found.
+    """
+    names = list(names)
+    if not names:
+        reporter.update_status(empty_message)
+        return result
+
+    result.total = len(names)
+    workers = max_workers or choose_worker_count(len(names))
+    reporter.update_status(
+        f"Running {len(names)} groups with {workers} parallel workers"
+        if workers > 1
+        else f"Running {len(names)} group(s) sequentially"
+    )
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        running: dict = {}
+        next_index = 0
+
+        def submit_more() -> None:
+            nonlocal next_index
+            while (
+                not reporter.cancelled
+                and next_index < len(names)
+                and len(running) < workers
+            ):
+                name = names[next_index]
+                next_index += 1
+                running[executor.submit(_guarded(process), name)] = name
+
+        submit_more()
+
+        while running:
+            done, _pending = wait(set(running), timeout=0.1, return_when=FIRST_COMPLETED)
+            if not done:
+                continue
+
+            for future in done:
+                name = running.pop(future)
+                outcome = future.result()
+                completed += 1
+                reporter.update_progress(completed, result.total, name)
+
+                if outcome.status == CANCELLED:
+                    result.mark_cancelled()
+                    reporter.cancelled = True
+                    continue
+
+                if outcome.status == SUCCESS:
+                    result.record_success()
+                    reporter.update_status(f"Merged: {name}")
+                else:
+                    # failed counts groups; errors carry the per-file detail
+                    result.failed += 1
+                    reporter.update_status(f"Failed: {name}")
+                    for filename, message in outcome.errors:
+                        result.errors.append(JobError(filename, message))
+                        reporter.report_error(filename, message)
+
+            submit_more()
+
+    if reporter.cancelled:
+        result.mark_cancelled()
+    reporter.update_status(result.summary())
+    return result
+
+
+def _guarded(process: Callable[[str], GroupOutcome]) -> Callable[[str], GroupOutcome]:
+    """One group raising must not take the executor down with it."""
+
+    def run(name: str) -> GroupOutcome:
+        try:
+            return process(name)
+        except Exception as exc:
+            return GroupOutcome.fail([(name, f"Merge failed: {exc}")])
+
+    return run

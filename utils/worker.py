@@ -4,15 +4,19 @@ Background worker threads for long-running operations.
 Handles long-running toolkit operations with progress callbacks.
 """
 
-import os
 import threading
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Callable, Optional, List
 
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
-from utils.batch import ItemOutcome, find_image_files, run_file_batch
+from utils.batch import (
+    GroupOutcome,
+    ItemOutcome,
+    find_image_files,
+    run_file_batch,
+    run_group_batch,
+)
 from utils.job_result import JobError, JobResult
 
 class OperationWorker(threading.Thread):
@@ -235,49 +239,30 @@ class TiffMergeWorker(OperationWorker):
         self.results = JobResult(verb="Merged")
         self.force_cancel_requested = False
 
-    def _get_worker_count(self, total_groups: int) -> int:
-        """Choose a modest worker count for parallel group merges."""
-        if total_groups <= 1:
-            return 1
-
-        cpu_count = os.cpu_count() or 2
-        return max(1, min(total_groups, cpu_count, 4))
-
-    def _merge_single_group(self, group_name: str) -> dict:
-        """Merge one TIFF group and return a structured result."""
+    def _merge_one(self, group_name: str) -> GroupOutcome:
+        """Merge one TIFF group."""
         from modules.tiff_combine.core import merge_tiff_group
 
-        try:
-            success, output_path, errors = merge_tiff_group(
-                group_name,
-                self.input_folder,
-                self.output_folder,
-                dpi_per_file=True,
-                should_cancel=lambda: self.force_cancel_requested,
-            )
-            cancelled = any(
-                bool(error.get("cancelled"))
-                or "cancelled" in str(error.get("error", "")).lower()
-                for error in (errors or [])
-            )
-            return {
-                "group": group_name,
-                "success": success,
-                "output_path": output_path,
-                "errors": errors or [],
-                "cancelled": cancelled,
-            }
-        except Exception as e:
-            return {
-                "group": group_name,
-                "success": False,
-                "output_path": None,
-                "errors": [{
-                    "file": group_name,
-                    "error": f"Merge failed: {str(e)}",
-                }],
-                "cancelled": False,
-            }
+        success, _output_path, errors = merge_tiff_group(
+            group_name,
+            self.input_folder,
+            self.output_folder,
+            dpi_per_file=True,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+        errors = errors or []
+
+        # merge_tiff_group flags a cancellation on the error it records, so the
+        # flag is authoritative — no need to read the message text.
+        if any(error.get("cancelled") for error in errors):
+            return GroupOutcome.abort()
+
+        if success:
+            return GroupOutcome.ok()
+        return GroupOutcome.fail(
+            (error.get("file", group_name), error.get("error", "Unknown error"))
+            for error in errors
+        )
 
     def cancel(self, force: bool = False):
         """
@@ -293,84 +278,13 @@ class TiffMergeWorker(OperationWorker):
     def run(self):
         """Execute TIFF merge operation."""
         try:
-            group_names = sorted(self.groups.keys())
-            total_groups = len(group_names)
-
-            if total_groups == 0:
-                self.update_status("No groups to merge")
-                return
-
-            self.results.total = total_groups
-            worker_count = self._get_worker_count(total_groups)
-            completed = 0
-
-            if worker_count > 1:
-                self.update_status(
-                    f"Running {total_groups} groups with {worker_count} parallel workers"
-                )
-            else:
-                self.update_status(f"Running {total_groups} group(s) sequentially")
-
-            with ThreadPoolExecutor(max_workers=worker_count) as executor:
-                running_futures = {}
-                next_index = 0
-
-                def _submit_more_groups():
-                    nonlocal next_index
-                    while (
-                        not self.cancelled
-                        and next_index < total_groups
-                        and len(running_futures) < worker_count
-                    ):
-                        group_name = group_names[next_index]
-                        next_index += 1
-                        future = executor.submit(self._merge_single_group, group_name)
-                        running_futures[future] = group_name
-
-                _submit_more_groups()
-
-                while running_futures:
-                    done, _pending = wait(
-                        set(running_futures.keys()),
-                        timeout=0.1,
-                        return_when=FIRST_COMPLETED,
-                    )
-                    if not done:
-                        continue
-
-                    for future in done:
-                        group_name = running_futures.pop(future)
-                        result = future.result()
-                        completed += 1
-                        self.update_progress(completed, total_groups, group_name)
-
-                        if result.get("cancelled"):
-                            self.results.mark_cancelled()
-                            self.cancelled = True
-                            continue
-
-                        if result["success"]:
-                            self.results.record_success()
-                            self.update_status(f"Merged: {group_name}")
-                        else:
-                            # failed counts groups; errors carry per-file detail
-                            self.results.failed += 1
-                            self.update_status(f"Failed: {group_name}")
-                            for error_info in result["errors"]:
-                                file_name = error_info.get("file", group_name)
-                                message = error_info.get("error", "Unknown error")
-                                self.results.errors.append(JobError(file_name, message))
-                                self.report_error(file_name, message)
-
-                    _submit_more_groups()
-
-            if self.cancelled:
-                self.results.mark_cancelled()
-                self.update_status(self.results.summary())
-                return
-
-            self.update_status(self.results.summary())
-
+            run_group_batch(
+                sorted(self.groups),
+                result=self.results,
+                process=self._merge_one,
+                reporter=self,
+                empty_message="No groups to merge",
+            )
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
