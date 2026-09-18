@@ -14,7 +14,9 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from web.app import _jobs, _lock, app
+from utils.tool_registry import get_spec
+from utils.update_checker import StagedUpdate
+from web.app import _lock, app, runner
 
 
 class WebReleaseTests(unittest.TestCase):
@@ -31,12 +33,46 @@ class WebReleaseTests(unittest.TestCase):
             self.assertIn("label", data[0])
             self.assertIn("ok", data[0])
 
+    def test_start_without_prepare_never_runs_against_the_working_directory(self):
+        """Regression: Path("") is Path("."), so a blank folder used to pass is_dir().
+
+        Reachable by POSTing start directly; only the disabled Start button in
+        the browser was holding it. The job must be refused and nothing may be
+        written next to the running process.
+        """
+        for tool_id, output_name in (
+            ("auto_crop", "cropped"),
+            ("straighten_images", "straightened"),
+            ("add_border", "bordered"),
+            ("ocr_pdf", "PDFs"),
+        ):
+            for blank in (None, "", "   "):
+                runner.replace_data(tool_id, {} if blank is None else {"folder": blank})
+                response = self.client.post(f"/api/{tool_id}/start", json={})
+
+                self.assertEqual(response.status_code, 200)
+                payload = response.get_json()
+                self.assertFalse(payload["ok"], f"{tool_id} started on {blank!r}")
+
+                # The dependency gate runs before the folder guard, so on a
+                # machine without Tesseract ocr_pdf is refused for that reason
+                # instead. Either refusal is correct; what must never happen is
+                # the job running. Only assert the folder message when the
+                # tool's dependencies are actually present.
+                deps_ok, _ = get_spec(tool_id).check({})
+                if deps_ok:
+                    self.assertEqual(payload["error"], "No folder prepared")
+
+                cwd = Path.cwd()
+                self.assertFalse((cwd / output_name).exists(), f"{tool_id} wrote into cwd")
+                self.assertFalse((cwd / "errored-files").exists(), f"{tool_id} wrote into cwd")
+            runner.reset(tool_id)
+
     def test_open_errors_route_opens_recorded_error_folder(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             error_folder = Path(temp_dir) / "errored-files"
             error_folder.mkdir()
-            with _lock:
-                _jobs["auto_crop"]["data"] = {"error_folder": str(error_folder)}
+            runner.replace_data("auto_crop", {"error_folder": str(error_folder)})
 
             with patch("web.app._open_folder", return_value=(True, None)) as opener:
                 response = self.client.post("/api/auto_crop/open-errors", json={})
@@ -120,11 +156,11 @@ class WebReleaseTests(unittest.TestCase):
         with patch("web.app.update_checker.apply_staged_update", return_value=None) as applier:
             with patch("web.app._schedule_exit_for_update", return_value=None) as scheduler:
                 with _lock:
-                    app.config["PREPARED_UPDATE"] = {
-                        "staged_path": r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe",
-                        "target_path": r"C:\Apps\image-toolkit.exe",
-                        "sha256": "a" * 64,
-                    }
+                    app.config["PREPARED_UPDATE"] = StagedUpdate(
+                        staged_path=Path(r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe"),
+                        target_path=Path(r"C:\Apps\image-toolkit.exe"),
+                        sha256="a" * 64,
+                    )
 
                 response = self.client.post("/api/updates/apply", json={})
 
@@ -133,8 +169,8 @@ class WebReleaseTests(unittest.TestCase):
         applier.assert_called_once()
         args = applier.call_args.args
         self.assertEqual(args[:3], (
-            r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe",
-            r"C:\Apps\image-toolkit.exe",
+            Path(r"C:\Users\me\AppData\Local\Temp\image-toolkit.exe"),
+            Path(r"C:\Apps\image-toolkit.exe"),
             "a" * 64,
         ))
         scheduler.assert_called_once()
@@ -148,14 +184,39 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn("function setPdfInputMode", script)
         self.assertIn("write_remaining_pages", script)
 
-    def test_straighten_tool_is_marked_beta_in_sidebar_and_header(self):
+    def test_straighten_tool_carries_no_beta_marking(self):
+        """The beta label and its amber highlight were removed from the UI."""
         template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        manual = (APP_ROOT / "web" / "templates" / "manual.html").read_text(encoding="utf-8")
         stylesheet = (APP_ROOT / "web" / "static" / "app.css").read_text(encoding="utf-8")
+        tokens = (APP_ROOT / "web" / "static" / "tokens.css").read_text(encoding="utf-8")
 
-        self.assertIn('class="nav-item nav-item-beta" data-tool="straighten_images"', template)
-        self.assertIn("Beta (in Testing)", template)
-        self.assertIn(".nav-item-beta", stylesheet)
-        self.assertIn("var(--beta-line)", stylesheet)
+        dashboard = (APP_ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+        for name, text in (("index.html", template), ("manual.html", manual),
+                           ("docs/index.html", dashboard)):
+            self.assertNotIn("Beta (in Testing)", text, name)
+        self.assertNotIn("nav-item-beta", template)
+        self.assertNotIn("panel-beta", template)
+        self.assertNotIn(".nav-item-beta", stylesheet)
+        self.assertNotIn("var(--beta", stylesheet)
+        self.assertNotIn("--beta", tokens, "dead beta tokens left behind")
+
+    def test_every_sidebar_icon_renders_in_the_app_font(self):
+        """One icon was U+1F5CE, an emoji-block glyph IBM Plex Sans lacks, so
+        PDF Conversion showed as a tofu rectangle. Icons must stay in the BMP,
+        where the UI font actually has coverage."""
+        import re as _re
+
+        template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        icons = _re.findall(r'<span class="nav-icon">([^<]+)</span>', template)
+        self.assertGreaterEqual(len(icons), 7)
+        for icon in icons:
+            for char in icon.strip():
+                with self.subTest(icon=icon):
+                    self.assertLessEqual(
+                        ord(char), 0xFFFF,
+                        f"U+{ord(char):04X} is outside the BMP and will not render",
+                    )
 
     def test_release_packaging_uses_onefile_exe(self):
         spec = (APP_ROOT / "packaging" / "dpa-toolkit.spec").read_text(encoding="utf-8")

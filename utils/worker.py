@@ -4,14 +4,20 @@ Background worker threads for long-running operations.
 Handles long-running toolkit operations with progress callbacks.
 """
 
-import os
 import threading
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Callable, Optional, List
 
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
+from utils.batch import (
+    GroupOutcome,
+    ItemOutcome,
+    find_image_files,
+    run_file_batch,
+    run_group_batch,
+)
+from utils.job_result import JobError, JobResult
 
 class OperationWorker(threading.Thread):
     """Base worker thread for operations."""
@@ -110,85 +116,46 @@ class AutoCropWorker(OperationWorker):
         self.error_folder = Path(error_folder)
         self.straighten = straighten
 
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "skipped": 0,
-            "total": 0,
-            "cancelled": False,
-            "errors": [],
-        }
+        self.results = JobResult(verb="Cropped")
+
+    def _crop_one(self, image_file: Path) -> ItemOutcome:
+        from modules.auto_cropping.core import (
+            CROP_SKIPPED,
+            CROP_SUCCESS,
+            crop_image,
+        )
+
+        output_path, error_msg, status = crop_image(
+            image_file,
+            self.output_folder,
+            preserve_dpi=True,
+            straighten=self.straighten,
+        )
+        if status == CROP_SUCCESS:
+            return ItemOutcome.ok(output_path)
+        if status == CROP_SKIPPED:
+            # Inputs are never moved; the source stays available for review.
+            self.results.errors.append(JobError(image_file.name, error_msg))
+            return ItemOutcome.skip(error_msg)
+        return ItemOutcome.fail(error_msg)
 
     def run(self):
         """Execute auto-crop operation."""
-        from modules.auto_cropping.core import crop_image
-
         try:
-            # Find all image files
-            image_extensions = ('.tif', '.tiff', '.jpg', '.jpeg', '.png', '.bmp', '.gif')
-            image_files = [
-                f for f in self.input_folder.iterdir()
-                if f.is_file() and f.suffix.lower() in image_extensions
-            ]
-
-            if not image_files:
-                self.update_status("No images found")
-                return
-
-            # Sort for consistent processing
-            image_files.sort()
-            total = len(image_files)
-            self.results["total"] = total
-
-            for idx, image_file in enumerate(image_files, 1):
-                if self.cancelled:
-                    self.results["cancelled"] = True
-                    self.update_status("Operation cancelled")
-                    return
-
-                self.update_progress(idx, total, image_file.name)
-                self.update_status(f"Cropping: {image_file.name}")
-
-                # Crop image
-                output_path, error_msg = crop_image(
-                    image_file,
-                    self.output_folder,
-                    preserve_dpi=True,
-                    straighten=self.straighten,
-                )
-
-                if error_msg:
-                    # Failed or skipped
-                    self.results["errors"].append({
-                        "file": image_file.name,
-                        "error": error_msg,
-                    })
-
-                    # Inputs are never moved. Real errors are reported so the
-                    # source file remains available for review and retry.
-                    if "too small" not in error_msg and "blank" not in error_msg and "white" not in error_msg:
-                        self.results["failed"] += 1
-                        self.report_error(image_file.name, error_msg)
-                    else:
-                        self.results["skipped"] += 1
-                else:
-                    self.results["success"] += 1
-
-            # Generate summary
-            summary = (
-                f"✅ Cropped: {self.results['success']} | "
-                f"⚠️ Skipped: {self.results['skipped']} | "
-                f"❌ Failed: {self.results['failed']}"
+            run_file_batch(
+                find_image_files(self.input_folder),
+                result=self.results,
+                process=self._crop_one,
+                reporter=self,
+                gerund="Cropping",
             )
-            self.update_status(summary)
-
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
 
     def get_results(self) -> dict:
         """Get operation results."""
-        return self.results
+        return self.results.to_dict()
 
 
 class StraightenWorker(OperationWorker):
@@ -204,79 +171,43 @@ class StraightenWorker(OperationWorker):
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
         self.error_folder = Path(error_folder)
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "skipped": 0,
-            "total": 0,
-            "cancelled": False,
-            "errors": [],
-            "angles": [],
-        }
+        self.results = JobResult(verb="Straightened", extra={"angles": []})
+
+    def _straighten_one(self, image_file: Path) -> ItemOutcome:
+        from modules.auto_cropping.core import straighten_image
+
+        output_path, error_msg, stats = straighten_image(
+            image_file,
+            self.output_folder,
+            preserve_dpi=True,
+        )
+        if error_msg:
+            return ItemOutcome.fail(error_msg)
+
+        self.results.extra["angles"].append({
+            "file": image_file.name,
+            "angle": stats.get("angle", 0.0),
+            "output": output_path,
+        })
+        return ItemOutcome.ok()
 
     def run(self):
         """Execute standalone straighten operation."""
-        from modules.auto_cropping.core import straighten_image
-
         try:
-            image_extensions = ('.tif', '.tiff', '.jpg', '.jpeg', '.png', '.bmp', '.gif')
-            image_files = [
-                f for f in self.input_folder.iterdir()
-                if f.is_file() and f.suffix.lower() in image_extensions
-            ]
-
-            if not image_files:
-                self.update_status("No images found")
-                return
-
-            image_files.sort()
-            total = len(image_files)
-            self.results["total"] = total
-
-            for idx, image_file in enumerate(image_files, 1):
-                if self.cancelled:
-                    self.results["cancelled"] = True
-                    self.update_status("Operation cancelled")
-                    return
-
-                self.update_progress(idx, total, image_file.name)
-                self.update_status(f"Straightening: {image_file.name}")
-
-                output_path, error_msg, stats = straighten_image(
-                    image_file,
-                    self.output_folder,
-                    preserve_dpi=True,
-                )
-
-                if error_msg:
-                    self.results["failed"] += 1
-                    self.results["errors"].append({
-                        "file": image_file.name,
-                        "error": error_msg,
-                    })
-                    self.report_error(image_file.name, error_msg)
-                    continue
-
-                self.results["success"] += 1
-                self.results["angles"].append({
-                    "file": image_file.name,
-                    "angle": stats.get("angle", 0.0),
-                    "output": output_path,
-                })
-
-            summary = (
-                f"✅ Straightened: {self.results['success']} | "
-                f"❌ Failed: {self.results['failed']}"
+            run_file_batch(
+                find_image_files(self.input_folder),
+                result=self.results,
+                process=self._straighten_one,
+                reporter=self,
+                gerund="Straightening",
             )
-            self.update_status(summary)
-
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
 
     def get_results(self) -> dict:
         """Get operation results."""
-        return self.results
+        return self.results.to_dict()
 
 
 class TiffMergeWorker(OperationWorker):
@@ -305,58 +236,33 @@ class TiffMergeWorker(OperationWorker):
         self.error_folder = Path(error_folder)
         self.groups = groups
 
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "total": 0,
-            "cancelled": False,
-            "errors": [],
-        }
+        self.results = JobResult(verb="Merged")
         self.force_cancel_requested = False
 
-    def _get_worker_count(self, total_groups: int) -> int:
-        """Choose a modest worker count for parallel group merges."""
-        if total_groups <= 1:
-            return 1
-
-        cpu_count = os.cpu_count() or 2
-        return max(1, min(total_groups, cpu_count, 4))
-
-    def _merge_single_group(self, group_name: str) -> dict:
-        """Merge one TIFF group and return a structured result."""
+    def _merge_one(self, group_name: str) -> GroupOutcome:
+        """Merge one TIFF group."""
         from modules.tiff_combine.core import merge_tiff_group
 
-        try:
-            success, output_path, errors = merge_tiff_group(
-                group_name,
-                self.input_folder,
-                self.output_folder,
-                dpi_per_file=True,
-                should_cancel=lambda: self.force_cancel_requested,
-            )
-            cancelled = any(
-                bool(error.get("cancelled"))
-                or "cancelled" in str(error.get("error", "")).lower()
-                for error in (errors or [])
-            )
-            return {
-                "group": group_name,
-                "success": success,
-                "output_path": output_path,
-                "errors": errors or [],
-                "cancelled": cancelled,
-            }
-        except Exception as e:
-            return {
-                "group": group_name,
-                "success": False,
-                "output_path": None,
-                "errors": [{
-                    "file": group_name,
-                    "error": f"Merge failed: {str(e)}",
-                }],
-                "cancelled": False,
-            }
+        success, _output_path, errors = merge_tiff_group(
+            group_name,
+            self.input_folder,
+            self.output_folder,
+            dpi_per_file=True,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+        errors = errors or []
+
+        # merge_tiff_group flags a cancellation on the error it records, so the
+        # flag is authoritative — no need to read the message text.
+        if any(error.get("cancelled") for error in errors):
+            return GroupOutcome.abort()
+
+        if success:
+            return GroupOutcome.ok()
+        return GroupOutcome.fail(
+            (error.get("file", group_name), error.get("error", "Unknown error"))
+            for error in errors
+        )
 
     def cancel(self, force: bool = False):
         """
@@ -372,97 +278,20 @@ class TiffMergeWorker(OperationWorker):
     def run(self):
         """Execute TIFF merge operation."""
         try:
-            group_names = sorted(self.groups.keys())
-            total_groups = len(group_names)
-
-            if total_groups == 0:
-                self.update_status("No groups to merge")
-                return
-
-            self.results["total"] = total_groups
-            worker_count = self._get_worker_count(total_groups)
-            completed = 0
-
-            if worker_count > 1:
-                self.update_status(
-                    f"Running {total_groups} groups with {worker_count} parallel workers"
-                )
-            else:
-                self.update_status(f"Running {total_groups} group(s) sequentially")
-
-            with ThreadPoolExecutor(max_workers=worker_count) as executor:
-                running_futures = {}
-                next_index = 0
-
-                def _submit_more_groups():
-                    nonlocal next_index
-                    while (
-                        not self.cancelled
-                        and next_index < total_groups
-                        and len(running_futures) < worker_count
-                    ):
-                        group_name = group_names[next_index]
-                        next_index += 1
-                        future = executor.submit(self._merge_single_group, group_name)
-                        running_futures[future] = group_name
-
-                _submit_more_groups()
-
-                while running_futures:
-                    done, _pending = wait(
-                        set(running_futures.keys()),
-                        timeout=0.1,
-                        return_when=FIRST_COMPLETED,
-                    )
-                    if not done:
-                        continue
-
-                    for future in done:
-                        group_name = running_futures.pop(future)
-                        result = future.result()
-                        completed += 1
-                        self.update_progress(completed, total_groups, group_name)
-
-                        if result.get("cancelled"):
-                            self.results["cancelled"] = True
-                            self.cancelled = True
-                            continue
-
-                        if result["success"]:
-                            self.results["success"] += 1
-                            self.update_status(f"Merged: {group_name}")
-                        else:
-                            self.results["failed"] += 1
-                            self.update_status(f"Failed: {group_name}")
-                            for error_info in result["errors"]:
-                                self.results["errors"].append(error_info)
-                                self.report_error(
-                                    error_info.get("file", group_name),
-                                    error_info.get("error", "Unknown error"),
-                                )
-
-                    _submit_more_groups()
-
-            if self.cancelled:
-                self.results["cancelled"] = True
-                self.update_status(
-                    f"Cancelled — Merged: {self.results['success']} | "
-                    f"Failed: {self.results['failed']}"
-                )
-                return
-
-            self.update_status(
-                f"✅ Merged: {self.results['success']} | "
-                f"❌ Failed: {self.results['failed']}"
+            run_group_batch(
+                sorted(self.groups),
+                result=self.results,
+                process=self._merge_one,
+                reporter=self,
+                empty_message="No groups to merge",
             )
-
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
 
     def get_results(self) -> dict:
         """Get operation results."""
-        return self.results
+        return self.results.to_dict()
 
 
 class TiffSplitWorker(OperationWorker):
@@ -478,14 +307,7 @@ class TiffSplitWorker(OperationWorker):
         self.input_files = [Path(file_path) for file_path in input_files]
         self.output_root = Path(output_root) if output_root else None
         self.use_root_output = use_root_output
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "skipped": 0,
-            "total": len(self.input_files),
-            "cancelled": False,
-            "errors": [],
-        }
+        self.results = JobResult(verb="Split", total=len(self.input_files))
         self.force_cancel_requested = False
 
     def cancel(self, force: bool = False):
@@ -499,69 +321,44 @@ class TiffSplitWorker(OperationWorker):
         if force:
             self.force_cancel_requested = True
 
-    def run(self):
-        """Execute TIFF split operation."""
+    def _split_one(self, file_path: Path) -> ItemOutcome:
         from modules.tiff_split.core import split_tiff_file
 
+        output_folder = self.output_root if (self.use_root_output and self.output_root) else None
+        success, _output_paths, error_msg, stats = split_tiff_file(
+            file_path,
+            output_folder=output_folder,
+            skip_single_page=True,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+
+        if not success:
+            if stats.get("cancelled"):
+                return ItemOutcome.abort()
+            return ItemOutcome.fail(error_msg or "Split failed")
+
+        if stats.get("skipped"):
+            return ItemOutcome.skip(stats.get("reason") or "Single-page TIFF")
+        return ItemOutcome.ok()
+
+    def run(self):
+        """Execute TIFF split operation."""
         try:
-            total = len(self.input_files)
-            if total == 0:
-                self.update_status("No TIFF files selected")
-                return
-
-            for idx, file_path in enumerate(self.input_files, 1):
-                if self.cancelled:
-                    self.results["cancelled"] = True
-                    self.update_status("Operation cancelled")
-                    return
-
-                self.update_progress(idx, total, file_path.name)
-                self.update_status(f"Splitting: {file_path.name}")
-
-                if self.use_root_output and self.output_root:
-                    output_folder = self.output_root
-                else:
-                    output_folder = None
-
-                success, output_paths, error_msg, stats = split_tiff_file(
-                    file_path,
-                    output_folder=output_folder,
-                    skip_single_page=True,
-                    should_cancel=lambda: self.force_cancel_requested,
-                )
-
-                if not success:
-                    if stats.get("cancelled"):
-                        self.results["cancelled"] = True
-                        self.update_status("Operation cancelled")
-                        return
-                    self.results["failed"] += 1
-                    self.results["errors"].append({
-                        "file": file_path.name,
-                        "error": error_msg,
-                    })
-                    self.report_error(file_path.name, error_msg)
-                    continue
-
-                if stats.get("skipped"):
-                    self.results["skipped"] += 1
-                else:
-                    self.results["success"] += 1
-
-            summary = (
-                f"✅ Split: {self.results['success']} | "
-                f"⚠️ Skipped: {self.results['skipped']} | "
-                f"❌ Failed: {self.results['failed']}"
+            run_file_batch(
+                self.input_files,
+                result=self.results,
+                process=self._split_one,
+                reporter=self,
+                gerund="Splitting",
+                empty_message="No TIFF files selected",
             )
-            self.update_status(summary)
-
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
 
     def get_results(self) -> dict:
         """Get operation results."""
-        return self.results
+        return self.results.to_dict()
 
 
 class AddBorderWorker(OperationWorker):
@@ -575,71 +372,35 @@ class AddBorderWorker(OperationWorker):
         super().__init__(name="AddBorderWorker")
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "total": 0,
-            "cancelled": False,
-            "errors": [],
-        }
+        self.results = JobResult(verb="Bordered")
+
+    def _border_one(self, image_file: Path) -> ItemOutcome:
+        from modules.image_border.core import add_border_to_image
+
+        _output_path, error_msg, _stats = add_border_to_image(
+            image_file,
+            self.output_folder,
+            preserve_dpi=True,
+        )
+        return ItemOutcome.fail(error_msg) if error_msg else ItemOutcome.ok()
 
     def run(self):
         """Execute add-border operation."""
-        from modules.image_border.core import add_border_to_image
-
         try:
-            image_extensions = ('.tif', '.tiff', '.jpg', '.jpeg', '.png', '.bmp', '.gif')
-            image_files = [
-                f for f in self.input_folder.iterdir()
-                if f.is_file() and f.suffix.lower() in image_extensions
-            ]
-
-            if not image_files:
-                self.update_status("No images found")
-                return
-
-            image_files.sort()
-            total = len(image_files)
-            self.results["total"] = total
-
-            for idx, image_file in enumerate(image_files, 1):
-                if self.cancelled:
-                    self.results["cancelled"] = True
-                    self.update_status("Operation cancelled")
-                    return
-
-                self.update_progress(idx, total, image_file.name)
-                self.update_status(f"Adding border: {image_file.name}")
-
-                output_path, error_msg, _stats = add_border_to_image(
-                    image_file,
-                    self.output_folder,
-                    preserve_dpi=True,
-                )
-
-                if error_msg:
-                    self.results["failed"] += 1
-                    self.results["errors"].append({
-                        "file": image_file.name,
-                        "error": error_msg,
-                    })
-                    self.report_error(image_file.name, error_msg)
-                else:
-                    self.results["success"] += 1
-
-            summary = (
-                f"✅ Bordered: {self.results['success']} | "
-                f"❌ Failed: {self.results['failed']}"
+            run_file_batch(
+                find_image_files(self.input_folder),
+                result=self.results,
+                process=self._border_one,
+                reporter=self,
+                gerund="Adding border",
             )
-            self.update_status(summary)
-
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
 
     def get_results(self) -> dict:
         """Get operation results."""
-        return self.results
+        return self.results.to_dict()
 
 
 class OcrPdfWorker(OperationWorker):
@@ -672,18 +433,7 @@ class OcrPdfWorker(OperationWorker):
         self.metadata = metadata or {}
         self.tesseract_path = Path(tesseract_path) if tesseract_path else None
         self.force_cancel_requested = False
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "skipped": 0,
-            "total": 0,
-            "total_pages": 0,
-            "cancelled": False,
-            "errors": [],
-            "skip_reasons": [],
-            "warnings": [],
-            "outputs": [],
-        }
+        self.results = JobResult(verb="OCR'd", extra={"total_pages": 0})
 
     def cancel(self, force: bool = False):
         """
@@ -695,6 +445,21 @@ class OcrPdfWorker(OperationWorker):
         self.cancelled = True
         if force:
             self.force_cancel_requested = True
+
+    def _ocr_options(self):
+        """The OCR settings for this run, as one value."""
+        from modules.ocr_pdf.core import OcrOptions
+
+        return OcrOptions(
+            language=self.language,
+            skip_existing=self.skip_existing,
+            save_pdfa=self.save_pdfa,
+            skip_messy=self.skip_messy,
+            metadata=self.metadata,
+            tesseract_path=self.tesseract_path,
+            reduce_size_enabled=self.reduce_size_enabled,
+            compression_profile_key=self.compression_profile_key,
+        )
 
     def _emit_ocr_progress(
         self,
@@ -757,14 +522,11 @@ class OcrPdfWorker(OperationWorker):
             )
             if not ok:
                 self.update_status("OCR dependencies are missing")
-                self.results["errors"].append({
-                    "file": "dependency",
-                    "error": error_msg,
-                })
+                self.results.record_failure("dependency", error_msg)
                 self.report_error("dependency", error_msg)
                 return
             if error_msg:
-                self.results["warnings"].append(error_msg)
+                self.results.note(error_msg)
                 self.update_status(error_msg)
 
             self.update_status("Scanning folder for OCR page images...")
@@ -775,8 +537,8 @@ class OcrPdfWorker(OperationWorker):
                 return
 
             summary = summarize_ocr_documents(documents)
-            self.results["total"] = summary["document_count"]
-            self.results["total_pages"] = summary["page_count"]
+            self.results.total = summary["document_count"]
+            self.results.extra["total_pages"] = summary["page_count"]
             self.update_status(
                 "Found "
                 f"{summary['page_count']} page image(s) across "
@@ -784,7 +546,7 @@ class OcrPdfWorker(OperationWorker):
             )
 
             if self.cancelled:
-                self.results["cancelled"] = True
+                self.results.mark_cancelled()
                 self.update_status("Operation cancelled")
                 return
 
@@ -794,7 +556,7 @@ class OcrPdfWorker(OperationWorker):
             completed_pages = 0
             for index, document in enumerate(documents, start=1):
                 if self.cancelled:
-                    self.results["cancelled"] = True
+                    self.results.mark_cancelled()
                     self.update_status("Operation cancelled")
                     break
 
@@ -887,24 +649,16 @@ class OcrPdfWorker(OperationWorker):
                     input_files=document["files"],
                     output_pdf_path=output_pdf_path,
                     document_name=document_name,
-                    language=self.language,
-                    skip_existing=self.skip_existing,
-                    save_pdfa=self.save_pdfa,
-                    skip_messy=self.skip_messy,
-                    reduce_size_enabled=self.reduce_size_enabled,
-                    compression_profile_key=self.compression_profile_key,
-                    metadata=self.metadata,
-                    tesseract_path=self.tesseract_path,
+                    options=self._ocr_options(),
                     progress_callback=_on_document_progress,
                     should_cancel=lambda: self.force_cancel_requested,
                 )
 
                 if result["status"] == "success":
-                    self.results["success"] += 1
-                    self.results["outputs"].append(str(result["output_path"]))
+                    self.results.record_success(result["output_path"])
                     details = result.get("details") or {}
                     for warning in details.get("warnings", []):
-                        self.results["warnings"].append(warning)
+                        self.results.note(warning)
                         self.update_status(warning)
                     for flagged_page in details.get("flagged_pages", []):
                         reason_text = ", ".join(flagged_page.get("reasons", [])) or "flagged by quality precheck"
@@ -923,32 +677,24 @@ class OcrPdfWorker(OperationWorker):
                             "PDF/A was unavailable or incompatible with selected options — "
                             "created standard searchable PDFs instead."
                         )
-                        self.results["warnings"].append(warning)
+                        self.results.note(warning)
                         self.update_status(warning)
                         pdfa_warning_added = True
                 elif result["status"] == "skipped":
-                    self.results["skipped"] += 1
                     skip_reason = result.get("error") or "Skipped"
-                    self.results["skip_reasons"].append({
-                        "file": output_pdf_path.name,
-                        "reason": skip_reason,
-                    })
+                    self.results.record_skip(output_pdf_path.name, skip_reason)
                     self.update_status(f"Skipped: {output_pdf_path.name} — {skip_reason}")
                     details = result.get("details") or {}
                     for page in details.get("flagged_pages", []):
                         reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
                         self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
                 elif result["status"] == "cancelled":
-                    self.results["cancelled"] = True
+                    self.results.mark_cancelled()
                     self.update_status("Operation cancelled by user")
                     break
                 else:
-                    self.results["failed"] += 1
                     doc_error = result.get("error") or "OCR failed"
-                    self.results["errors"].append({
-                        "file": output_pdf_path.name,
-                        "error": doc_error,
-                    })
+                    self.results.record_failure(output_pdf_path.name, doc_error)
                     self.report_error(output_pdf_path.name, doc_error)
 
                 completed_pages += document_pages
@@ -967,17 +713,7 @@ class OcrPdfWorker(OperationWorker):
                     filename=output_pdf_path.name,
                 )
 
-            summary = (
-                f"✅ OCR'd: {self.results['success']} PDF(s) | "
-                f"⚠️ Skipped: {self.results['skipped']} | "
-                f"❌ Failed: {self.results['failed']}"
-            )
-            if self.results["cancelled"]:
-                summary = (
-                    f"Cancelled — OCR'd: {self.results['success']} PDF(s) | "
-                    f"Skipped: {self.results['skipped']} | Failed: {self.results['failed']}"
-                )
-            self.update_status(summary)
+            self.update_status(self.results.summary())
 
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
@@ -985,7 +721,7 @@ class OcrPdfWorker(OperationWorker):
 
     def get_results(self) -> dict:
         """Get operation results."""
-        return self.results
+        return self.results.to_dict()
 
 
 class PdfConversionWorker(OperationWorker):
@@ -1016,24 +752,70 @@ class PdfConversionWorker(OperationWorker):
         self.remove_extracted_pages = bool(remove_extracted_pages)
         self.extract_removal_mode = str(extract_removal_mode or "safe")
         self.pdfa_profile_key = str(pdfa_profile_key or DEFAULT_PDFA_PROFILE_KEY)
-        self.results = {
-            "success": 0,
-            "failed": 0,
-            "total": 0,
-            "cancelled": False,
-            "errors": [],
-            "outputs": [],
-            "warnings": [],
-        }
+        self.results = JobResult(verb="Converted")
 
     def _set_cancelled(self):
-        self.results["cancelled"] = True
+        self.results.mark_cancelled()
         self.update_status("Operation cancelled")
 
     def _record_error(self, filename: str, error: str):
-        self.results["failed"] += 1
-        self.results["errors"].append({"file": filename, "error": error})
+        self.results.record_failure(filename, error)
         self.report_error(filename, error)
+
+    def _pdf_files(self) -> List[Path]:
+        """Every PDF the selection covers, in stable order."""
+        if self.selection_mode != "folder":
+            return [self.input_path]
+        return sorted(
+            (path for path in self.input_path.iterdir()
+             if path.is_file() and path.suffix.lower() == ".pdf"),
+            key=lambda path: path.name.lower(),
+        )
+
+    def _output_root(self, name: str) -> Path:
+        base = self.input_path if self.selection_mode == "folder" else self.input_path.parent
+        root = base / name
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    @staticmethod
+    def _outcome(status: str, error: Optional[str], output: Path, fallback: str) -> ItemOutcome:
+        """Map the (status, error, stats) shape every pdf_tools op returns."""
+        if status == "cancelled":
+            return ItemOutcome.abort()
+        if status != "success":
+            return ItemOutcome.fail(error or fallback)
+        return ItemOutcome.ok(output)
+
+    def _reduce_one(self, pdf_path: Path) -> ItemOutcome:
+        from modules.pdf_tools.core import reduce_pdf_size
+        import shutil
+
+        output_pdf_path = self._reduce_root / pdf_path.name
+        if not self.reduce_size_enabled:
+            shutil.copy2(pdf_path, output_pdf_path)
+            return ItemOutcome.ok(output_pdf_path)
+
+        status, error, _stats = reduce_pdf_size(
+            input_pdf_path=pdf_path,
+            output_pdf_path=output_pdf_path,
+            reduce_size_enabled=True,
+            compression_profile_key=self.compression_profile_key,
+            should_cancel=lambda: self.cancelled,
+        )
+        return self._outcome(status, error, output_pdf_path, "Reduce size failed")
+
+    def _pdfa_one(self, pdf_path: Path) -> ItemOutcome:
+        from modules.pdf_tools.core import convert_pdf_to_pdfa
+
+        output_pdf_path = self._pdfa_root / pdf_path.name
+        status, error, _stats = convert_pdf_to_pdfa(
+            input_pdf_path=pdf_path,
+            output_pdf_path=output_pdf_path,
+            pdfa_profile_key=self.pdfa_profile_key,
+            should_cancel=lambda: self.cancelled,
+        )
+        return self._outcome(status, error, output_pdf_path, "PDF/A conversion failed")
 
     def run(self):
         """Execute selected PDF conversion operation."""
@@ -1046,121 +828,30 @@ class PdfConversionWorker(OperationWorker):
         )
         import shutil
 
+        # One result type, but each operation describes itself differently.
+        self.results.verb = {
+            "reduce_size": "Reduced",
+            "pdfa": "PDF/A Converted",
+            "split_pdf": "Split",
+            "extract_pages": "Extracted",
+        }.get(self.operation, "Converted")
+
         try:
-            if self.operation == "reduce_size":
-                if self.selection_mode == "folder":
-                    pdf_files = sorted(
-                        [
-                            path for path in self.input_path.iterdir()
-                            if path.is_file() and path.suffix.lower() == ".pdf"
-                        ],
-                        key=lambda path: path.name.lower(),
-                    )
+            if self.operation in ("reduce_size", "pdfa"):
+                if self.operation == "reduce_size":
+                    self._reduce_root = self._output_root("reduced-pdfs")
+                    process, gerund = self._reduce_one, "Reducing"
                 else:
-                    pdf_files = [self.input_path]
+                    self._pdfa_root = self._output_root("pdfa-pdfs")
+                    process, gerund = self._pdfa_one, "Converting to PDF/A"
 
-                if not pdf_files:
-                    self.update_status("No PDF files found")
-                    return
-
-                self.results["total"] = len(pdf_files)
-                output_root = (
-                    self.input_path / "reduced-pdfs"
-                    if self.selection_mode == "folder"
-                    else self.input_path.parent / "reduced-pdfs"
-                )
-                output_root.mkdir(parents=True, exist_ok=True)
-
-                for index, pdf_path in enumerate(pdf_files, start=1):
-                    if self.cancelled:
-                        self._set_cancelled()
-                        return
-
-                    self.update_progress(index, len(pdf_files), pdf_path.name)
-                    self.update_status(f"Reducing: {pdf_path.name}")
-                    output_pdf_path = output_root / pdf_path.name
-
-                    if not self.reduce_size_enabled:
-                        try:
-                            shutil.copy2(pdf_path, output_pdf_path)
-                            self.results["success"] += 1
-                            self.results["outputs"].append(str(output_pdf_path))
-                        except Exception as exc:
-                            self._record_error(pdf_path.name, str(exc))
-                        continue
-
-                    status, error, _stats = reduce_pdf_size(
-                        input_pdf_path=pdf_path,
-                        output_pdf_path=output_pdf_path,
-                        reduce_size_enabled=True,
-                        compression_profile_key=self.compression_profile_key,
-                        should_cancel=lambda: self.cancelled,
-                    )
-                    if status == "cancelled":
-                        self._set_cancelled()
-                        return
-                    if status != "success":
-                        self._record_error(pdf_path.name, error or "Reduce size failed")
-                        continue
-
-                    self.results["success"] += 1
-                    self.results["outputs"].append(str(output_pdf_path))
-
-                self.update_status(
-                    f"✅ Reduced: {self.results['success']} | ❌ Failed: {self.results['failed']}"
-                )
-                return
-
-            if self.operation == "pdfa":
-                if self.selection_mode == "folder":
-                    pdf_files = sorted(
-                        [
-                            path for path in self.input_path.iterdir()
-                            if path.is_file() and path.suffix.lower() == ".pdf"
-                        ],
-                        key=lambda path: path.name.lower(),
-                    )
-                else:
-                    pdf_files = [self.input_path]
-
-                if not pdf_files:
-                    self.update_status("No PDF files found")
-                    return
-
-                self.results["total"] = len(pdf_files)
-                output_root = (
-                    self.input_path / "pdfa-pdfs"
-                    if self.selection_mode == "folder"
-                    else self.input_path.parent / "pdfa-pdfs"
-                )
-                output_root.mkdir(parents=True, exist_ok=True)
-
-                for index, pdf_path in enumerate(pdf_files, start=1):
-                    if self.cancelled:
-                        self._set_cancelled()
-                        return
-
-                    self.update_progress(index, len(pdf_files), pdf_path.name)
-                    self.update_status(f"Converting to PDF/A: {pdf_path.name}")
-                    output_pdf_path = output_root / pdf_path.name
-                    status, error, _stats = convert_pdf_to_pdfa(
-                        input_pdf_path=pdf_path,
-                        output_pdf_path=output_pdf_path,
-                        pdfa_profile_key=self.pdfa_profile_key,
-                        should_cancel=lambda: self.cancelled,
-                    )
-                    if status == "cancelled":
-                        self._set_cancelled()
-                        return
-                    if status != "success":
-                        self._record_error(pdf_path.name, error or "PDF/A conversion failed")
-                        continue
-
-                    self.results["success"] += 1
-                    self.results["outputs"].append(str(output_pdf_path))
-
-                self.update_status(
-                    f"✅ PDF/A Converted: {self.results['success']} | ❌ Failed: {self.results['failed']}"
+                run_file_batch(
+                    self._pdf_files(),
+                    result=self.results,
+                    process=process,
+                    reporter=self,
+                    gerund=gerund,
+                    empty_message="No PDF files found",
                 )
                 return
 
@@ -1169,7 +860,7 @@ class PdfConversionWorker(OperationWorker):
                 self.update_status("Operation requires a single file selection")
                 return
 
-            self.results["total"] = 1
+            self.results.total = 1
             source_pdf = self.input_path
 
             if self.operation == "split_pdf":
@@ -1206,8 +897,7 @@ class PdfConversionWorker(OperationWorker):
                     self.update_status(f"Error: {error or 'Split failed'}")
                     return
 
-                self.results["success"] = 1
-                self.results["outputs"].append(str(output_folder))
+                self.results.record_success(output_folder)
                 output_count = int(stats.get("output_count", 0))
                 self.update_status(f"✅ Created {output_count} output file(s)")
                 return
@@ -1239,10 +929,9 @@ class PdfConversionWorker(OperationWorker):
                     self.update_status(f"Error: {error or 'Extract pages failed'}")
                     return
 
-                self.results["success"] = 1
-                self.results["outputs"].append(str(extracted_output))
+                self.results.record_success(extracted_output)
                 if stats.get("remaining_output"):
-                    self.results["outputs"].append(str(stats["remaining_output"]))
+                    self.results.outputs.append(str(stats["remaining_output"]))
                 self.update_status(
                     f"✅ Extracted {stats.get('extracted_pages', 0)} page(s)"
                 )
@@ -1256,4 +945,5 @@ class PdfConversionWorker(OperationWorker):
             self.report_error("operation", str(exc))
 
     def get_results(self) -> dict:
-        return self.results
+        """Get operation results."""
+        return self.results.to_dict()

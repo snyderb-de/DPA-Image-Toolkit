@@ -60,5 +60,37 @@ class AppSettingsPathTests(unittest.TestCase):
                 self.assertEqual(app_settings.load_settings(), {"appearance_mode": "dark"})
 
 
+class UpdateCheckDefaultTests(unittest.TestCase):
+    """Checking for updates on startup is on unless the user turned it off.
+
+    Reads the payload builder directly with an explicit settings dict — a
+    module reload would swap web.app out from under the other test modules.
+    """
+
+    def payload(self, stored):
+        from web.app import _update_settings_payload
+
+        return _update_settings_payload(stored)
+
+    def test_on_by_default_when_nothing_is_stored(self):
+        self.assertTrue(self.payload({})["check_updates_on_start"])
+
+    def test_a_user_who_turned_it_off_stays_off(self):
+        self.assertFalse(
+            self.payload({"check_updates_on_start": False})["check_updates_on_start"]
+        )
+
+    def test_a_user_who_turned_it_on_stays_on(self):
+        self.assertTrue(
+            self.payload({"check_updates_on_start": True})["check_updates_on_start"]
+        )
+
+    def test_the_checkbox_ships_ticked(self):
+        """So it does not flash unchecked before settings load."""
+        root = Path(__file__).resolve().parents[2]
+        template = (root / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="opt-check-updates-on-start" checked', template)
+
+
 if __name__ == "__main__":
     unittest.main()

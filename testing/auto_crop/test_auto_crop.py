@@ -18,6 +18,9 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.auto_cropping.core import (
+    CROP_FAILED,
+    CROP_SKIPPED,
+    CROP_SUCCESS,
     crop_image,
     get_crop_stats,
     straighten_image,
@@ -63,7 +66,11 @@ def _estimate_skew_angle(image) -> float | None:
 
     angles = []
     for line in lines:
-        x1, y1, x2, y2 = line[0]
+        # Same shape handling as _deskew_image: (N, 1, 4) on OpenCV 4, (N, 4) on 5.
+        coords = np.asarray(line).reshape(-1)
+        if coords.size < 4:
+            continue
+        x1, y1, x2, y2 = (int(v) for v in coords[:4])
         if x2 == x1:
             continue
         angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
@@ -102,7 +109,7 @@ class AutoCropCoreTests(unittest.TestCase):
             output_dir = root / "cropped"
             _make_document_image(source_path)
 
-            output_path, error = crop_image(source_path, output_dir)
+            output_path, error, status = crop_image(source_path, output_dir)
 
             self.assertIsNone(error)
             self.assertIsNotNone(output_path)
@@ -111,6 +118,41 @@ class AutoCropCoreTests(unittest.TestCase):
             with Image.open(source_path) as source_img, Image.open(output_path) as cropped_img:
                 self.assertLess(cropped_img.size[0], source_img.size[0])
                 self.assertLess(cropped_img.size[1], source_img.size[1])
+
+    def test_crop_image_reports_status_not_just_prose(self):
+        """A caller must not have to read the message to classify the outcome."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "cropped"
+
+            cropped = root / "doc.jpg"
+            _make_document_image(cropped)
+            _, _, status = crop_image(cropped, output_dir)
+            self.assertEqual(status, CROP_SUCCESS)
+
+            blank = root / "blank.jpg"
+            Image.new("RGB", (400, 300), "white").save(blank)
+            _, _, status = crop_image(blank, output_dir)
+            self.assertEqual(status, CROP_SKIPPED)
+
+            unreadable = root / "broken.jpg"
+            unreadable.write_bytes(b"not an image")
+            _, _, status = crop_image(unreadable, output_dir)
+            self.assertEqual(status, CROP_FAILED)
+
+    def test_content_too_small_is_a_skip_not_a_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            speck = root / "speck.jpg"
+            array = np.full((300, 400, 3), 255, np.uint8)
+            array[150:154, 200:204] = 0
+            Image.fromarray(array).save(speck)
+
+            output_path, error, status = crop_image(speck, root / "cropped")
+
+            self.assertEqual(status, CROP_SKIPPED)
+            self.assertIsNone(output_path)
+            self.assertIn("too small", error)
 
     def test_crop_image_returns_blank_message_for_white_image(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -123,7 +165,7 @@ class AutoCropCoreTests(unittest.TestCase):
                 quality=92,
             )
 
-            output_path, error = crop_image(source_path, output_dir)
+            output_path, error, status = crop_image(source_path, output_dir)
 
             self.assertIsNone(output_path)
             self.assertIsNotNone(error)
@@ -162,7 +204,7 @@ class AutoCropCoreTests(unittest.TestCase):
             source_path = root / "source.jpg"
             output_dir = root / "cropped"
             _make_document_image(source_path)
-            output_path, error = crop_image(source_path, output_dir, straighten=True)
+            output_path, error, status = crop_image(source_path, output_dir, straighten=True)
             self.assertIsNone(error)
             self.assertIsNotNone(output_path)
             self.assertTrue(Path(output_path).exists())

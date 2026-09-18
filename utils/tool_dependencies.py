@@ -1,16 +1,10 @@
 """
-Tool-specific dependency checks for DPA Image Toolkit panels.
+Tool-specific dependency checks for DPA Image Toolkit tools.
 """
 
 from __future__ import annotations
 
 import importlib.util
-try:
-    from tkinter import messagebox as _messagebox
-    _HAS_TK = True
-except ImportError:
-    _messagebox = None
-    _HAS_TK = False
 
 
 TOOL_DEPENDENCY_CONFIGS = {
@@ -74,7 +68,7 @@ TOOL_DEPENDENCY_CONFIGS = {
             },
         ),
     },
-    "tiff_merge": {
+    "merge_tiffs": {
         "display_name": "Merge TIFF Files",
         "heading": "TIFF merge readiness for this machine",
         "support_lines": (
@@ -92,7 +86,7 @@ TOOL_DEPENDENCY_CONFIGS = {
             },
         ),
     },
-    "tiff_split": {
+    "split_tiffs": {
         "display_name": "Split Multi-Page TIFFs",
         "heading": "TIFF split readiness for this machine",
         "support_lines": (
@@ -132,11 +126,6 @@ TOOL_DEPENDENCY_CONFIGS = {
 
 
 def _get_tool_config(tool_key: str) -> dict:
-    aliases = {
-        "merge_tiffs": "tiff_merge",
-        "split_tiffs": "tiff_split",
-    }
-    tool_key = aliases.get(tool_key, tool_key)
     if tool_key not in TOOL_DEPENDENCY_CONFIGS:
         raise KeyError(f"Unknown tool dependency key: {tool_key}")
     return TOOL_DEPENDENCY_CONFIGS[tool_key]
@@ -203,15 +192,3 @@ def build_dependency_warning_message(tool_name: str, message: str) -> str:
         f"{message}\n\n"
         "Please contact support for dependency installation on this machine."
     )
-
-
-def show_dependency_warning(parent, tool_name: str, message: str) -> str:
-    warning_text = build_dependency_warning_message(tool_name, message)
-    if not _HAS_TK or _messagebox is None:
-        return warning_text
-    _messagebox.showwarning(
-        title=f"{tool_name} Dependencies",
-        message=warning_text,
-        parent=parent,
-    )
-    return warning_text

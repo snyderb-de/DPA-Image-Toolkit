@@ -675,7 +675,7 @@
     <section class="section" id="straighten-images">
       <div class="section-header">
         <p class="eyebrow">Tool 2 of 7</p>
-        <h2>Straighten Images <span class="tag">Beta (in Testing)</span></h2>
+        <h2>Straighten Images <span class="tag"></span></h2>
       </div>
       <div class="cards">
         <div class="card">
@@ -738,9 +738,10 @@
             <h3>Input</h3>
             <p>
               A folder of TIFF files following the naming pattern:<br>
-              <code>{name}_{group}_{sequence}.tif</code> or <code>.tiff</code>
+              <code>{name}_{group}_{sequence}.tif</code> or <code>{name}_{sequence}.tif</code>
             </p>
-            <p>Examples: <code>9200-T16-000_207_3.tif</code>, <code>9200-T16-000_207_003.tif</code>, <code>9200-T16-000_207_1000.tif</code></p>
+            <p>Examples: <code>9200-T16-000_207_3.tif</code>, <code>9200-T16-000_207_003.tif</code>, <code>9200-T16-000_207_1000.tif</code>, <code>9200-T16-000_003.tif</code></p>
+            <p>The sequence is an underscore plus a positive integer, of any width — <code>_1</code>, <code>_01</code> and <code>_0001</code> all mean page one. The group name is everything before it, so the middle group part is optional.</p>
           </div>
           <div class="card">
             <h3>Output</h3>
@@ -887,10 +888,12 @@
             <h3>Input</h3>
             <p>
               A folder of scan images named:<br>
-              <code>{name}_{####}.ext</code>
+              <code>{name}_{group}_{sequence}.ext</code> or <code>{name}_{sequence}.ext</code>
             </p>
             <p>
-              Example: <code>packet_0001.tif</code>, <code>packet_0002.tif</code><br>
+              Example: <code>packet_1.tif</code>, <code>packet_002.tif</code>, <code>packet_0003.tif</code><br>
+              Pages group by the same rule as Merge TIFFs, and a file with no
+              trailing sequence becomes its own single-page PDF.<br>
               Supported: TIFF, JPEG, PNG, BMP
             </p>
           </div>
@@ -1110,13 +1113,13 @@
           <div class="card">
             <h3>Source Checkout Packages</h3>
             <ul class="guide-list">
-              <li><code>Pillow &gt;= 10.0.0</code></li>
-              <li><code>opencv-python &gt;= 4.8.0</code></li>
-              <li><code>numpy &gt;= 1.24.0</code></li>
-              <li><code>pypdf &gt;= 5.0.0</code></li>
-              <li><code>pypdfium2 &gt;= 4.30.0</code></li>
-              <li><code>flask &gt;= 3.0.0</code></li>
-              <li><code>pywebview &gt;= 4.4.0</code></li>
+              <li><code>Pillow &gt;= 10.0.0, &lt; 13</code></li>
+              <li><code>opencv-python &gt;= 4.8.0, &lt; 6</code></li>
+              <li><code>numpy &gt;= 1.24.0, &lt; 3</code></li>
+              <li><code>pypdf &gt;= 5.0.0, &lt; 7</code></li>
+              <li><code>pypdfium2 &gt;= 4.30.0, &lt; 6</code></li>
+              <li><code>flask &gt;= 3.0.0, &lt; 4</code></li>
+              <li><code>pywebview &gt;= 4.4.0, &lt; 7</code></li>
             </ul>
             <p style="margin-top:10px">
               Install: <code>pip install -r requirements.txt</code>

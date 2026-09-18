@@ -1,0 +1,455 @@
+"""
+The toolkit's seven tools, described in one place.
+
+Each ToolSpec owns everything that varies between tools: its id, display name,
+how its dependencies are reported and gated, how an input selection is
+validated (prepare), and how a worker is built for it (start). Callers work
+through `prepare_tool` / `start_tool` and never need to know which tool they
+hold.
+
+Adding a tool means adding one ToolSpec.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Optional
+
+from modules.ocr_pdf.core import (
+    check_ocr_dependencies,
+    get_ocr_dependency_statuses,
+    group_ocr_input_files,
+    summarize_ocr_documents,
+)
+from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
+from modules.pdf_tools.core import (
+    DEFAULT_PDFA_PROFILE_KEY,
+    check_pdf_conversion_dependencies,
+    get_pdf_conversion_dependency_statuses,
+)
+from modules.tiff_combine.naming import validate_naming_convention
+from utils.job_result import write_error_report
+from utils.file_handler import (
+    create_error_folder,
+    validate_image_files,
+    validate_tif_files,
+)
+from utils.tool_dependencies import (
+    check_tool_dependencies,
+    get_tool_dependency_statuses,
+)
+from utils.worker import (
+    AddBorderWorker,
+    AutoCropWorker,
+    OcrPdfWorker,
+    PdfConversionWorker,
+    StraightenWorker,
+    TiffMergeWorker,
+    TiffSplitWorker,
+)
+
+
+class ToolError(Exception):
+    """A tool rejected the request. The message is shown to the user."""
+
+
+@dataclass(frozen=True)
+class Prepared:
+    """What a prepare step produced: state to keep, and a payload for the UI."""
+
+    data: dict
+    payload: dict
+
+
+@dataclass(frozen=True)
+class Started:
+    """A worker ready to run, and the error folder its job will write into."""
+
+    worker: object
+    error_folder: Optional[Path] = None
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    id: str
+    display_name: str
+    prepare: Callable[[dict], Prepared]
+    start: Callable[[dict, dict], Started]
+    statuses: Callable[[dict], list]
+    check: Callable[[dict], tuple]
+
+
+# ── Shared helpers ─────────────────────────────────────────────────────────
+
+def _require_folder(body: dict, key: str = "folder") -> Path:
+    raw = body.get(key)
+    if not raw or not Path(raw).is_dir():
+        raise ToolError("Invalid folder")
+    return Path(raw)
+
+
+def _prepared_folder(data: dict) -> Path:
+    # An empty string becomes Path("."), which is a real directory — without
+    # this guard an unprepared start would run against the working directory.
+    raw = str(data.get("folder") or "").strip()
+    if not raw:
+        raise ToolError("No folder prepared")
+    folder = Path(raw)
+    if not folder.is_dir():
+        raise ToolError("No folder prepared")
+    return folder
+
+
+def _prepare_image_folder(body: dict) -> Prepared:
+    """Shared by every tool that consumes a folder of images."""
+    folder = _require_folder(body)
+    valid, files, error = validate_image_files(folder)
+    if not valid:
+        raise ToolError(error or "No image files found")
+    return Prepared(
+        data={"folder": str(folder), "file_count": len(files)},
+        payload={"file_count": len(files)},
+    )
+
+
+def _make_output(folder: Path, name: str) -> Path:
+    output = folder / name
+    output.mkdir(parents=True, exist_ok=True)
+    return output
+
+
+def _make_error_folder(base: Path, subfolder: str | None = None) -> Path:
+    errors = create_error_folder(base)
+    if subfolder:
+        errors = errors / subfolder
+    errors.mkdir(parents=True, exist_ok=True)
+    return errors
+
+
+def _statuses_by_key(tool_key: str) -> Callable[[dict], list]:
+    return lambda _body: get_tool_dependency_statuses(tool_key)
+
+
+def _check_by_key(tool_key: str) -> Callable[[dict], tuple]:
+    def check(_body: dict) -> tuple:
+        ok, message, _details = check_tool_dependencies(tool_key)
+        return ok, message
+
+    return check
+
+
+# ── Auto Crop ──────────────────────────────────────────────────────────────
+
+def _start_auto_crop(body: dict, data: dict) -> Started:
+    folder = _prepared_folder(data)
+    errors = _make_error_folder(folder)
+    return Started(
+        worker=AutoCropWorker(
+            folder,
+            _make_output(folder, "cropped"),
+            errors,
+            straighten=bool(body.get("straighten", False)),
+        ),
+        error_folder=errors,
+    )
+
+
+# ── Straighten Images ──────────────────────────────────────────────────────
+
+def _start_straighten(_body: dict, data: dict) -> Started:
+    folder = _prepared_folder(data)
+    errors = _make_error_folder(folder, "straighten")
+    return Started(
+        worker=StraightenWorker(folder, _make_output(folder, "straightened"), errors),
+        error_folder=errors,
+    )
+
+
+# ── Add Border ─────────────────────────────────────────────────────────────
+
+def _start_add_border(_body: dict, data: dict) -> Started:
+    folder = _prepared_folder(data)
+    errors = _make_error_folder(folder, "add-border")
+    return Started(
+        worker=AddBorderWorker(folder, _make_output(folder, "bordered")),
+        error_folder=errors,
+    )
+
+
+# ── Merge TIFFs ────────────────────────────────────────────────────────────
+
+def _prepare_merge_tiffs(body: dict) -> Prepared:
+    folder = _require_folder(body)
+    valid, files, error = validate_tif_files(folder)
+    if not valid:
+        raise ToolError(error or "No TIFF files found")
+    groups, _is_valid, warnings = validate_naming_convention(folder)
+    return Prepared(
+        data={
+            "folder": str(folder),
+            "groups": {name: [str(p) for p in paths] for name, paths in groups.items()},
+            "warnings": warnings,
+        },
+        payload={
+            "group_count": len(groups),
+            "file_count": len(files),
+            "warnings": warnings,
+        },
+    )
+
+
+def _start_merge_tiffs(_body: dict, data: dict) -> Started:
+    folder = _prepared_folder(data)
+    groups_raw = data.get("groups", {})
+    if not groups_raw:
+        raise ToolError("No folder/groups prepared")
+    groups = {name: [Path(p) for p in paths] for name, paths in groups_raw.items()}
+    errors = _make_error_folder(folder)
+    return Started(
+        worker=TiffMergeWorker(folder, _make_output(folder, "merged"), errors, groups),
+        error_folder=errors,
+    )
+
+
+# ── Split TIFFs ────────────────────────────────────────────────────────────
+
+def _prepare_split_tiffs(body: dict) -> Prepared:
+    mode = body.get("mode", "folder")
+    if mode == "folder":
+        folder = _require_folder(body)
+        valid, tif_files, error = validate_tif_files(folder)
+        if not valid:
+            raise ToolError(error or "No TIFF files found")
+        file_paths = [str(p) for p in tif_files]
+    else:
+        folder = body.get("folder")
+        file_paths = [f for f in body.get("files", []) if Path(f).is_file()]
+        if not file_paths:
+            raise ToolError("No valid TIFF files")
+
+    return Prepared(
+        data={
+            "mode": mode,
+            "folder": str(folder) if folder else None,
+            "files": file_paths,
+            "file_count": len(file_paths),
+        },
+        payload={"file_count": len(file_paths)},
+    )
+
+
+def _start_split_tiffs(_body: dict, data: dict) -> Started:
+    file_paths = [Path(p) for p in data.get("files", [])]
+    if not file_paths:
+        raise ToolError("No files prepared")
+
+    folder = data.get("folder")
+    if data.get("mode", "folder") == "folder" and folder:
+        output_root = _make_output(Path(folder), "extracted-pages")
+        error_base = Path(folder)
+        use_root = True
+    else:
+        output_root = None
+        error_base = file_paths[0].parent
+        use_root = False
+
+    errors = _make_error_folder(error_base, "split-tiffs")
+    return Started(
+        worker=TiffSplitWorker(file_paths, output_root, use_root),
+        error_folder=errors,
+    )
+
+
+# ── OCR to PDF ─────────────────────────────────────────────────────────────
+
+def _prepare_ocr_pdf(body: dict) -> Prepared:
+    folder = _require_folder(body)
+    try:
+        documents = group_ocr_input_files(folder)
+    except Exception as exc:
+        raise ToolError(str(exc)) from exc
+    if not documents:
+        raise ToolError("No supported image files found")
+
+    summary = summarize_ocr_documents(documents)
+    return Prepared(
+        data={
+            "folder": str(folder),
+            "document_count": summary["document_count"],
+            "page_count": summary["page_count"],
+        },
+        payload={
+            "document_count": summary["document_count"],
+            "page_count": summary["page_count"],
+        },
+    )
+
+
+def _start_ocr_pdf(body: dict, data: dict) -> Started:
+    folder = _prepared_folder(data)
+    errors = _make_error_folder(folder, "ocr-pdf")
+    return Started(
+        worker=OcrPdfWorker(
+            input_folder=folder,
+            output_folder=_make_output(folder, "PDFs"),
+            error_folder=errors,
+            language="eng",
+            skip_existing=bool(body.get("skip_existing", True)),
+            save_pdfa=True,
+            skip_messy=bool(body.get("skip_messy", True)),
+            reduce_size_enabled=bool(body.get("reduce_size", True)),
+            compression_profile_key=str(
+                body.get("compression_profile", DEFAULT_PROFILE_KEY)
+            ),
+        ),
+        error_folder=errors,
+    )
+
+
+def _check_ocr_pdf(_body: dict) -> tuple:
+    ok, message, _info = check_ocr_dependencies(language="eng", require_pdfa=True)
+    return ok, message
+
+
+# ── PDF Conversion ─────────────────────────────────────────────────────────
+
+def _prepare_pdf_conversion(body: dict) -> Prepared:
+    raw_path = body.get("path")
+    if not raw_path:
+        raise ToolError("No path provided")
+
+    path = Path(raw_path)
+    mode = body.get("mode", "file")
+    if mode == "folder":
+        if not path.is_dir():
+            raise ToolError("Not a valid folder")
+        count = len(
+            [f for f in path.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"]
+        )
+        if count == 0:
+            raise ToolError("No PDF files in folder")
+        payload = {"file_count": count}
+    else:
+        if not path.is_file() or path.suffix.lower() != ".pdf":
+            raise ToolError("Not a valid PDF file")
+        payload = {"filename": path.name}
+
+    return Prepared(
+        data={
+            "path": str(path),
+            "mode": mode,
+            "operation": body.get("operation", "reduce_size"),
+        },
+        payload=payload,
+    )
+
+
+def _start_pdf_conversion(body: dict, data: dict) -> Started:
+    if not data.get("path"):
+        raise ToolError("No path prepared")
+
+    input_path = Path(data["path"])
+    error_base = input_path if input_path.is_dir() else input_path.parent
+    errors = _make_error_folder(error_base, "pdf-conversion")
+    return Started(
+        worker=PdfConversionWorker(
+            selection_mode=data["mode"],
+            input_path=input_path,
+            operation=data["operation"],
+            reduce_size_enabled=bool(body.get("reduce_size", True)),
+            compression_profile_key=str(
+                body.get("compression_profile", DEFAULT_PROFILE_KEY)
+            ),
+            split_output_type=str(body.get("split_output_type", "pdfs")),
+            extract_page_spec=str(body.get("extract_page_spec", "")),
+            remove_extracted_pages=bool(body.get("write_remaining_pages", False)),
+            extract_removal_mode="safe",
+            pdfa_profile_key=str(body.get("pdfa_profile", DEFAULT_PDFA_PROFILE_KEY)),
+        ),
+        error_folder=errors,
+    )
+
+
+def _statuses_pdf_conversion(body: dict) -> list:
+    return get_pdf_conversion_dependency_statuses(
+        operation=body.get("operation", "reduce_size")
+    )
+
+
+def _check_pdf_conversion(body: dict) -> tuple:
+    return check_pdf_conversion_dependencies(
+        body.get("operation", "reduce_size")
+    )
+
+
+# ── The registry ───────────────────────────────────────────────────────────
+
+TOOL_SPECS: dict[str, ToolSpec] = {
+    spec.id: spec
+    for spec in (
+        ToolSpec(
+            id="auto_crop",
+            display_name="Auto Crop",
+            prepare=_prepare_image_folder,
+            start=_start_auto_crop,
+            statuses=_statuses_by_key("auto_crop"),
+            check=_check_by_key("auto_crop"),
+        ),
+        ToolSpec(
+            id="straighten_images",
+            display_name="Straighten Images",
+            prepare=_prepare_image_folder,
+            start=_start_straighten,
+            statuses=_statuses_by_key("straighten_images"),
+            check=_check_by_key("straighten_images"),
+        ),
+        ToolSpec(
+            id="merge_tiffs",
+            display_name="Merge TIFF Files",
+            prepare=_prepare_merge_tiffs,
+            start=_start_merge_tiffs,
+            statuses=_statuses_by_key("merge_tiffs"),
+            check=_check_by_key("merge_tiffs"),
+        ),
+        ToolSpec(
+            id="split_tiffs",
+            display_name="Split Multi-Page TIFFs",
+            prepare=_prepare_split_tiffs,
+            start=_start_split_tiffs,
+            statuses=_statuses_by_key("split_tiffs"),
+            check=_check_by_key("split_tiffs"),
+        ),
+        ToolSpec(
+            id="add_border",
+            display_name="Add Border",
+            prepare=_prepare_image_folder,
+            start=_start_add_border,
+            statuses=_statuses_by_key("add_border"),
+            check=_check_by_key("add_border"),
+        ),
+        ToolSpec(
+            id="ocr_pdf",
+            display_name="OCR to PDF",
+            prepare=_prepare_ocr_pdf,
+            start=_start_ocr_pdf,
+            statuses=lambda _body: get_ocr_dependency_statuses(),
+            check=_check_ocr_pdf,
+        ),
+        ToolSpec(
+            id="pdf_conversion",
+            display_name="PDF Conversion",
+            prepare=_prepare_pdf_conversion,
+            start=_start_pdf_conversion,
+            statuses=_statuses_pdf_conversion,
+            check=_check_pdf_conversion,
+        ),
+    )
+}
+
+TOOL_IDS: tuple[str, ...] = tuple(TOOL_SPECS)
+
+
+def get_spec(tool_id: str) -> ToolSpec:
+    """Look up a tool. Raises KeyError for an unknown id."""
+    return TOOL_SPECS[tool_id]

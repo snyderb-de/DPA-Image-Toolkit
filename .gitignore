@@ -34,6 +34,20 @@ testing/add_border/output/
 testing/ocr_pdf/fixtures/
 testing/ocr_pdf/output/
 
+# ── Toolkit output folders, if a job is ever run from the repo root ───────────
+# The documented Quick Start launches from here, so a job pointed at the repo
+# would dump output alongside the source. Root-anchored on purpose: these names
+# are ordinary elsewhere, and testing/ fixtures are covered above.
+# See docs/adr/0001-single-web-ui-adapter.md and _prepared_folder() in
+# utils/tool_registry.py, which refuses an unprepared start.
+/cropped/
+/straightened/
+/bordered/
+/merged/
+/extracted-pages/
+/PDFs/
+/errored-files/
+
 # ── OS / editor artifacts ─────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

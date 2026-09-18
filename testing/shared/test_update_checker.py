@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -165,6 +166,52 @@ class VersionInfoGenerationTests(unittest.TestCase):
         self.assertIn("(1, 2, 3, 0)", rendered)
         self.assertIn("OriginalFilename", rendered)
         self.assertIn("image-toolkit.exe", rendered)
+
+
+class StagedUpdateTests(unittest.TestCase):
+    """The route used to rebuild the staged/target/sha triple by hand."""
+
+    READY = {
+        "ready_to_restart": True,
+        "staged_path": r"C:\Temp\image-toolkit.exe",
+        "sha256": "b" * 64,
+    }
+    TARGET = r"C:\Apps\image-toolkit.exe"
+
+    def test_a_ready_check_becomes_a_staged_update(self):
+        staged = update_checker.StagedUpdate.from_check_result(self.READY, self.TARGET)
+
+        self.assertIsNotNone(staged)
+        self.assertEqual(staged.staged_path, Path(self.READY["staged_path"]))
+        self.assertEqual(staged.target_path, Path(self.TARGET))
+        self.assertEqual(staged.sha256, "b" * 64)
+
+    def test_nothing_is_staged_when_the_update_is_not_ready(self):
+        for label, result, target in [
+            ("not ready", {**self.READY, "ready_to_restart": False}, self.TARGET),
+            ("no staged path", {**self.READY, "staged_path": None}, self.TARGET),
+            ("no hash", {**self.READY, "sha256": ""}, self.TARGET),
+            ("unknown target", self.READY, None),
+            ("empty result", {}, self.TARGET),
+        ]:
+            with self.subTest(case=label):
+                self.assertIsNone(
+                    update_checker.StagedUpdate.from_check_result(result, target)
+                )
+
+    def test_apply_passes_the_whole_triple_through(self):
+        staged = update_checker.StagedUpdate.from_check_result(self.READY, self.TARGET)
+        with patch.object(update_checker, "apply_staged_update") as applier:
+            staged.apply(process_id=4321)
+
+        applier.assert_called_once_with(
+            staged.staged_path, staged.target_path, staged.sha256, 4321
+        )
+
+    def test_a_staged_update_is_immutable(self):
+        staged = update_checker.StagedUpdate.from_check_result(self.READY, self.TARGET)
+        with self.assertRaises(Exception):
+            staged.sha256 = "c" * 64
 
 
 if __name__ == "__main__":

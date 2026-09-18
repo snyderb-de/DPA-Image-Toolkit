@@ -411,9 +411,11 @@ function onJobDone(toolId, results) {
   const skipped = r.skipped ?? 0;
 
   const level = (failed > 0 || state[toolId].hasErrors) ? 'warn' : 'ok';
-  const msg = cancelled
+  // The job composes its own summary (utils/job_result.py). Only fall back to
+  // re-deriving one if an older payload arrives without it.
+  const msg = r.summary || (cancelled
     ? `Cancelled — ${success} completed, ${skipped} skipped, ${failed} failed`
-    : `Done — ${success} completed, ${skipped} skipped, ${failed} failed`;
+    : `Done — ${success} completed, ${skipped} skipped, ${failed} failed`);
 
   setBanner(toolId, msg, level);
   setProgress(toolId, 100, msg);
@@ -568,7 +570,7 @@ async function saveUpdateSettings() {
   const checkEl = document.getElementById('opt-check-updates-on-start');
   const res = await api('/api/updates/settings', {
     update_source_path: pathEl ? pathEl.value : '',
-    check_updates_on_start: checkEl ? checkEl.checked : false,
+    check_updates_on_start: checkEl ? checkEl.checked : true,
   });
 
   if (res.ok) {

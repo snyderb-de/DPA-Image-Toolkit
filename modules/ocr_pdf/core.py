@@ -15,8 +15,11 @@ import re
 import shutil
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
+
+from modules import grouping
 
 import cv2
 import numpy as np
@@ -144,21 +147,17 @@ def extract_ocr_group_name(filename: str | Path) -> str:
     """
     Return the document group name for a scan filename.
 
-    Files ending with _#### are treated as paged scans and grouped by the text
-    before the trailing sequence. Other files keep their full stem.
+    Files ending with a page sequence are grouped by the text before it; other
+    files keep their full stem. See modules/grouping.py for the shared rule.
     """
-    stem = Path(filename).stem
-    return re.sub(r"_\d{4}$", "", stem)
+    return grouping.group_name(filename)
 
 
 def extract_ocr_sequence_number(filename: str | Path) -> Optional[int]:
     """
-    Return the trailing four-digit page sequence for a scan filename.
+    Return the trailing page sequence for a scan filename, of any width.
     """
-    match = re.search(r"_(\d{4})(?:\.[^.]+)?$", Path(filename).name, re.IGNORECASE)
-    if match:
-        return int(match.group(1))
-    return None
+    return grouping.sequence_number(Path(filename).name)
 
 
 def detect_tesseract_path(explicit_path: Optional[str | Path] = None) -> Optional[Path]:
@@ -449,8 +448,8 @@ def group_ocr_input_files(
     """
     Group one folder of scan images into OCR documents.
 
-    Files ending in _#### are merged into one multi-page document ordered by that
-    sequence. Files without a trailing sequence become single-page documents.
+    Files ending in a page sequence are merged into one multi-page document
+    ordered by that sequence. Files without one become single-page documents.
     """
     files = find_ocr_input_files(input_folder)
     if not files:
@@ -1185,24 +1184,46 @@ def _build_document_metadata(
     }
 
 
+@dataclass(frozen=True)
+class OcrOptions:
+    """How to OCR a document.
+
+    These eight settings travelled as eight separate parameters on every call,
+    which made ocr_document_to_pdf a thirteen-argument function and meant every
+    caller had to remember the full set. They vary together and belong together.
+    """
+
+    language: str = "eng"
+    skip_existing: bool = True
+    save_pdfa: bool = True
+    skip_messy: bool = True
+    metadata: Optional[dict] = None
+    tesseract_path: Optional[str | Path] = None
+    reduce_size_enabled: bool = True
+    compression_profile_key: str = DEFAULT_PROFILE_KEY
+
+
 def ocr_document_to_pdf(
     input_files: list[Path],
     output_pdf_path: str | Path,
     document_name: str,
-    language: str = "eng",
-    skip_existing: bool = True,
-    save_pdfa: bool = True,
-    skip_messy: bool = True,
-    metadata: Optional[dict] = None,
-    tesseract_path: Optional[str | Path] = None,
+    options: Optional[OcrOptions] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-    reduce_size_enabled: bool = True,
-    compression_profile_key: str = DEFAULT_PROFILE_KEY,
 ) -> dict:
     """
     OCR one ordered document file set into one searchable PDF.
     """
+    options = options or OcrOptions()
+    language = options.language
+    skip_existing = options.skip_existing
+    save_pdfa = options.save_pdfa
+    skip_messy = options.skip_messy
+    metadata = options.metadata
+    tesseract_path = options.tesseract_path
+    reduce_size_enabled = options.reduce_size_enabled
+    compression_profile_key = options.compression_profile_key
+
     output_pdf_path = Path(output_pdf_path)
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1351,94 +1372,3 @@ def ocr_document_to_pdf(
     }
 
 
-def ocr_folder_to_pdfs(
-    input_folder: str | Path,
-    output_folder: str | Path,
-    language: str = "eng",
-    skip_existing: bool = True,
-    save_pdfa: bool = True,
-    skip_messy: bool = True,
-    metadata: Optional[dict] = None,
-    tesseract_path: Optional[str | Path] = None,
-    progress_callback: Optional[Callable[[dict], None]] = None,
-    should_cancel: Optional[Callable[[], bool]] = None,
-    reduce_size_enabled: bool = True,
-    compression_profile_key: str = DEFAULT_PROFILE_KEY,
-) -> list[dict]:
-    """
-    OCR one folder into one or more searchable PDFs based on grouped filenames.
-    """
-    output_folder = Path(output_folder)
-    output_folder.mkdir(parents=True, exist_ok=True)
-
-    documents = group_ocr_input_files(input_folder)
-    results = []
-
-    for document in documents:
-        output_pdf_path = get_output_pdf_path(document["name"], output_folder)
-        result = ocr_document_to_pdf(
-            input_files=document["files"],
-            output_pdf_path=output_pdf_path,
-            document_name=document["name"],
-            language=language,
-            skip_existing=skip_existing,
-            save_pdfa=save_pdfa,
-            skip_messy=skip_messy,
-            metadata=metadata,
-            tesseract_path=tesseract_path,
-            progress_callback=progress_callback,
-            should_cancel=should_cancel,
-            reduce_size_enabled=reduce_size_enabled,
-            compression_profile_key=compression_profile_key,
-        )
-        results.append({
-            **document,
-            **result,
-        })
-
-    return results
-
-
-def ocr_folder_to_pdf(
-    input_folder: str | Path,
-    output_folder: str | Path,
-    language: str = "eng",
-    skip_existing: bool = True,
-    save_pdfa: bool = True,
-    skip_messy: bool = True,
-    metadata: Optional[dict] = None,
-    tesseract_path: Optional[str | Path] = None,
-    progress_callback: Optional[Callable[[dict], None]] = None,
-    should_cancel: Optional[Callable[[], bool]] = None,
-    reduce_size_enabled: bool = True,
-    compression_profile_key: str = DEFAULT_PROFILE_KEY,
-) -> dict:
-    """
-    Backward-compatible wrapper that OCRs one folder into one PDF.
-    """
-    input_folder = Path(input_folder)
-    input_files = find_ocr_input_files(input_folder)
-    if not input_files:
-        return {
-            "status": "failed",
-            "output_path": None,
-            "error": "No supported image files found.",
-            "details": None,
-        }
-
-    output_pdf_path = get_output_pdf_path(input_folder, output_folder)
-    return ocr_document_to_pdf(
-        input_files=input_files,
-        output_pdf_path=output_pdf_path,
-        document_name=input_folder.name,
-        language=language,
-        skip_existing=skip_existing,
-        save_pdfa=save_pdfa,
-        skip_messy=skip_messy,
-        metadata=metadata,
-        tesseract_path=tesseract_path,
-        progress_callback=progress_callback,
-        should_cancel=should_cancel,
-        reduce_size_enabled=reduce_size_enabled,
-        compression_profile_key=compression_profile_key,
-    )

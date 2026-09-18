@@ -1,41 +1,26 @@
 """
 OCR-to-PDF module for DPA Image Toolkit.
+
+The public surface is what a caller needs to run the tool: check the machine is
+ready, group a folder into documents, and OCR one document. Everything else —
+readiness scoring, page-PDF assembly, Tesseract discovery — is implementation
+and is reachable from `.core` for tests without being advertised here.
 """
 
 from .core import (
-    SUPPORTED_IMAGE_SUFFIXES,
-    assess_document_ocr_readiness,
-    assess_ocr_readiness,
-    build_input_pdf_from_images,
+    OcrOptions,
     check_ocr_dependencies,
-    detect_tesseract_path,
-    extract_ocr_group_name,
-    extract_ocr_sequence_number,
-    find_ocr_input_files,
-    get_output_pdf_path,
+    get_ocr_dependency_statuses,
     group_ocr_input_files,
-    list_tesseract_languages,
     ocr_document_to_pdf,
-    ocr_folder_to_pdf,
-    ocr_folder_to_pdfs,
     summarize_ocr_documents,
 )
 
 __all__ = [
-    "SUPPORTED_IMAGE_SUFFIXES",
-    "assess_document_ocr_readiness",
-    "assess_ocr_readiness",
-    "build_input_pdf_from_images",
+    "OcrOptions",
     "check_ocr_dependencies",
-    "detect_tesseract_path",
-    "extract_ocr_group_name",
-    "extract_ocr_sequence_number",
-    "find_ocr_input_files",
-    "get_output_pdf_path",
+    "get_ocr_dependency_statuses",
     "group_ocr_input_files",
-    "list_tesseract_languages",
     "ocr_document_to_pdf",
-    "ocr_folder_to_pdf",
-    "ocr_folder_to_pdfs",
     "summarize_ocr_documents",
 ]

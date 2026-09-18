@@ -70,9 +70,19 @@ class TiffMergeCoreTests(unittest.TestCase):
         self.assertEqual(extract_sequence_number("9200-T16-000_207_0003.tif"), 3)
         self.assertEqual(extract_sequence_number("9200-T16-000_207_100.tif"), 100)
         self.assertEqual(extract_sequence_number("9200-T16-000_207_1000.tif"), 1000)
+        # The workflow produces both filename_group_seq and filename_seq, so the
+        # two-part form is valid. It used to be rejected, which meant a folder
+        # named scan_01.tif ... scan_08.tif could not be merged at all.
+        self.assertTrue(validate_file_naming("9200-T16-000_003.tif"))
+        self.assertEqual(extract_group_name("9200-T16-000_003.tif"), "9200-T16-000")
+        self.assertEqual(extract_sequence_number("9200-T16-000_003.tif"), 3)
+
+        # A trailing zero is not a page number.
         self.assertFalse(validate_file_naming("9200-T16-000_207_0.tif"))
         self.assertFalse(validate_file_naming("9200-T16-000_207_000.tif"))
-        self.assertFalse(validate_file_naming("9200-T16-000_003.tif"))
+        # Nothing to sequence on at all.
+        self.assertFalse(validate_file_naming("ledger_vol1.tif"))
+        self.assertFalse(validate_file_naming("invoice_final.tif"))
 
     def test_merge_sequence_sort_is_numeric_for_unpadded_names(self):
         files = [

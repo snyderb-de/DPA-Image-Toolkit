@@ -24,6 +24,12 @@ from pathlib import Path
 DEFAULT_MIN_SIZE = (50, 50)
 DEFAULT_MAX_CONTOURS = 100
 DEFAULT_WHITE_THRESHOLD = 253  # Near-white threshold (254+ is white)
+
+# Outcomes crop_image can report. A caller must not have to read the error
+# message to tell a deliberate skip from a real failure.
+CROP_SUCCESS = "success"
+CROP_SKIPPED = "skipped"
+CROP_FAILED = "failed"
 DEFAULT_PADDING_PERCENT = 0.025
 DEFAULT_PADDING_MIN = 15
 DEFAULT_PADDING_MAX = 100
@@ -113,7 +119,12 @@ def _deskew_image(image):
         return image, 0.0
     angles = []
     for line in lines:
-        x1, y1, x2, y2 = line[0]
+        # OpenCV 4 returns (N, 1, 4) from HoughLinesP; OpenCV 5 returns (N, 4).
+        # Flatten so either shape yields the four endpoint coordinates.
+        coords = np.asarray(line).reshape(-1)
+        if coords.size < 4:
+            continue
+        x1, y1, x2, y2 = (int(v) for v in coords[:4])
         if x2 == x1:
             continue
         angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
@@ -204,9 +215,12 @@ def crop_image(
         straighten (bool): Straighten the image before crop analysis
 
     Returns:
-        tuple: (output_path, error_message)
-            - output_path (str|None): Path to cropped image or None if failed
-            - error_message (str|None): Error description or None if successful
+        tuple: (output_path, error_message, status)
+            - output_path (str|None): Path to cropped image, or None
+            - error_message (str|None): Description, or None on success
+            - status (str): CROP_SUCCESS, CROP_SKIPPED or CROP_FAILED.
+              A skip is deliberate — the page is blank, or its content is too
+              small to be worth cropping — and leaves the source untouched.
     """
     image_path = Path(image_path)
     output_folder = Path(output_folder)
@@ -215,7 +229,7 @@ def crop_image(
         # Read image
         image = cv2.imread(str(image_path))
         if image is None:
-            return None, f"Failed to read image: {image_path.name}"
+            return None, f"Failed to read image: {image_path.name}", CROP_FAILED
 
         # Extract DPI metadata using Pillow
         dpi_metadata = None
@@ -256,7 +270,7 @@ def crop_image(
         )
 
         if not contours:
-            return None, "Image appears blank or fully white — nothing to crop"
+            return None, "Image appears blank or fully white — nothing to crop", CROP_SKIPPED
 
         # Filter contours by minimum size
         large_contours = _get_crop_contours(
@@ -269,7 +283,7 @@ def crop_image(
             return None, (
                 f"Content found but too small to crop "
                 f"(minimum {min_size[0]}×{min_size[1]}px)"
-            )
+            ), CROP_SKIPPED
 
         # Build one crop box that retains all meaningful content on the page.
         x, y, w, h = _get_combined_bounding_box(large_contours)
@@ -305,10 +319,10 @@ def crop_image(
         else:
             cropped_pil.save(str(output_path))
 
-        return str(output_path), None
+        return str(output_path), None, CROP_SUCCESS
 
     except Exception as e:
-        return None, f"{image_path.name}: {str(e)}"
+        return None, f"{image_path.name}: {str(e)}", CROP_FAILED
 
 
 def get_crop_stats(image_path):

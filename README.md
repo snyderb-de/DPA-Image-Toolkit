@@ -18,18 +18,11 @@ pip install -r requirements.txt
 python launch_web.py
 ```
 
-Legacy CustomTkinter desktop launcher:
-
-```bash
-python dpa-image-toolkit.py
-```
-
 ## Platform Notes
 
 - Primary release target is a PyInstaller-built Windows EXE using `launch_web.py`.
 - The EXE starts a local Flask backend and opens the app in a PyWebView native window.
-- Source checkout runs on macOS and other platforms with a working Python/Tk install.
-- The older CustomTkinter UI remains in `dpa-image-toolkit.py`, but it is not the primary release target.
+- Source checkout runs on macOS and other platforms with a working Python/Tk install (Tk is used only for the native folder/file pickers).
 - All tools copy outputs into output folders; source inputs are never moved, overwritten, or deleted.
 
 ## Tools
@@ -238,10 +231,10 @@ testing/    per-tool generators, test runners, and local test scratch space
 ## Documentation
 
 - `README.md` — setup, workflow, naming rules, deployment
-- `TODO.md` — open issues and future enhancements
+- `TODO.md` — open work, prioritised P0–P3 and sized E0–E2
 - `deploy/README.md` — EXE release/deployment notes
 - `docs/` — GitHub Pages project dashboard (HTML/CSS/JS)
-- CustomTkinter offline docs/code reference (local fork): `/Users/baghead/code/CustomTkinter`
+- `docs/adr/` — architecture decision records
 
 ## Testing
 

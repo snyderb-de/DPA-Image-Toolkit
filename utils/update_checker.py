@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import tempfile
 from datetime import datetime, timezone
+from dataclasses import dataclass
+from typing import Optional
 from pathlib import Path
 
 from . import app_version
@@ -184,6 +186,33 @@ def stage_update_executable(source_path: Path, staging_dir: str | Path | None = 
         raise
 
     return staged_path, staged_hash
+
+
+@dataclass(frozen=True)
+class StagedUpdate:
+    """An update that is downloaded, verified and ready to swap in.
+
+    check_for_update reports the staged path and hash; the caller knows which
+    executable is being replaced. Carrying the three together means no caller
+    has to reassemble them, and apply() takes one argument instead of three.
+    """
+
+    staged_path: Path
+    target_path: Path
+    sha256: str
+
+    @classmethod
+    def from_check_result(cls, result: dict, target_path) -> Optional["StagedUpdate"]:
+        """Build one from a check_for_update result, or None if not ready."""
+        if not result.get("ready_to_restart") or target_path is None:
+            return None
+        staged, digest = result.get("staged_path"), result.get("sha256")
+        if not staged or not digest:
+            return None
+        return cls(Path(staged), Path(target_path), str(digest))
+
+    def apply(self, process_id: int | None = None) -> None:
+        apply_staged_update(self.staged_path, self.target_path, self.sha256, process_id)
 
 
 def apply_staged_update(staged_path: str | Path, target_path: str | Path, expected_sha256: str, process_id: int | None = None) -> None:
