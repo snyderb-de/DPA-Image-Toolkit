@@ -191,7 +191,9 @@ class WebReleaseTests(unittest.TestCase):
         stylesheet = (APP_ROOT / "web" / "static" / "app.css").read_text(encoding="utf-8")
         tokens = (APP_ROOT / "web" / "static" / "tokens.css").read_text(encoding="utf-8")
 
-        for name, text in (("index.html", template), ("manual.html", manual)):
+        dashboard = (APP_ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+        for name, text in (("index.html", template), ("manual.html", manual),
+                           ("docs/index.html", dashboard)):
             self.assertNotIn("Beta (in Testing)", text, name)
         self.assertNotIn("nav-item-beta", template)
         self.assertNotIn("panel-beta", template)
