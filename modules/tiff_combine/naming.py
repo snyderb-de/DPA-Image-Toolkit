@@ -9,11 +9,13 @@ Examples: document_batchA_1.tif, document_batchA_0001.tif, 9200-T16-000_207_1000
 
 import re
 from pathlib import Path
+
+from modules import grouping
 from collections import defaultdict
 
 
-SEQUENCE_SUFFIX_RE = re.compile(r'_(\d+)(?:\.[^.]+)?$', re.IGNORECASE)
-VALID_STEM_RE = re.compile(r'^.+_.+_(\d+)$', re.IGNORECASE)
+# Grouping lives in modules/grouping.py so every tool infers it the same way.
+SEQUENCE_SUFFIX_RE = grouping.SEQUENCE_SUFFIX_RE
 
 
 def _list_tif_files(folder_path):
@@ -32,8 +34,10 @@ def validate_file_naming(file_path):
     """
     Check if file follows naming convention.
 
-    Pattern: {name}_{group}_{sequence}.tif/.tiff where sequence is a positive integer.
-    Leading zeros are allowed, but not required.
+    Pattern: {filename}_{group}_{sequence}.tif/.tiff or
+    {filename}_{sequence}.tif/.tiff,
+    where sequence is a positive integer. Leading zeros are allowed but not
+    required, and any width works — _1, _01 and _0001 all mean page one.
 
     Args:
         file_path (Path|str): File path to validate
@@ -42,16 +46,12 @@ def validate_file_naming(file_path):
         bool: True if file follows convention
     """
     file_path = Path(file_path)
-    stem = file_path.stem
     if file_path.suffix.lower() not in {".tif", ".tiff"}:
         return False
 
-    # Require at least two underscore-delimited parts before the trailing page sequence.
-    match = VALID_STEM_RE.match(stem)
-    if not match:
-        return False
-
-    return int(match.group(1)) > 0
+    # Both shapes the scanning workflow produces are valid:
+    #   filename_group_seq.tif   and   filename_seq.tif
+    return grouping.has_sequence(file_path.name)
 
 
 def extract_group_name(filename):
@@ -67,13 +67,7 @@ def extract_group_name(filename):
     Returns:
         str: Group name, or full filename if pattern not found
     """
-    # Remove extension if present
-    name_without_ext = filename.rsplit('.', 1)[0] if '.' in filename else filename
-
-    # Remove trailing _sequence to get group name.
-    group_name = re.sub(r'_\d+$', '', name_without_ext)
-
-    return group_name
+    return grouping.group_name(filename)
 
 
 def extract_sequence_number(filename):
@@ -86,12 +80,7 @@ def extract_sequence_number(filename):
     Returns:
         int: Positive sequence number, or None if not found
     """
-    filename = Path(filename).name if not isinstance(filename, str) else Path(filename).name
-    match = SEQUENCE_SUFFIX_RE.search(filename)
-    if match:
-        sequence = int(match.group(1))
-        return sequence if sequence > 0 else None
-    return None
+    return grouping.sequence_number(Path(filename).name)
 
 
 def sort_group_files(files, group_name=None):

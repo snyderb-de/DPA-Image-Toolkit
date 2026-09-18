@@ -18,6 +18,8 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
+from modules import grouping
+
 import cv2
 import numpy as np
 from PIL import Image
@@ -144,21 +146,17 @@ def extract_ocr_group_name(filename: str | Path) -> str:
     """
     Return the document group name for a scan filename.
 
-    Files ending with _#### are treated as paged scans and grouped by the text
-    before the trailing sequence. Other files keep their full stem.
+    Files ending with a page sequence are grouped by the text before it; other
+    files keep their full stem. See modules/grouping.py for the shared rule.
     """
-    stem = Path(filename).stem
-    return re.sub(r"_\d{4}$", "", stem)
+    return grouping.group_name(filename)
 
 
 def extract_ocr_sequence_number(filename: str | Path) -> Optional[int]:
     """
-    Return the trailing four-digit page sequence for a scan filename.
+    Return the trailing page sequence for a scan filename, of any width.
     """
-    match = re.search(r"_(\d{4})(?:\.[^.]+)?$", Path(filename).name, re.IGNORECASE)
-    if match:
-        return int(match.group(1))
-    return None
+    return grouping.sequence_number(Path(filename).name)
 
 
 def detect_tesseract_path(explicit_path: Optional[str | Path] = None) -> Optional[Path]:
@@ -449,8 +447,8 @@ def group_ocr_input_files(
     """
     Group one folder of scan images into OCR documents.
 
-    Files ending in _#### are merged into one multi-page document ordered by that
-    sequence. Files without a trailing sequence become single-page documents.
+    Files ending in a page sequence are merged into one multi-page document
+    ordered by that sequence. Files without one become single-page documents.
     """
     files = find_ocr_input_files(input_folder)
     if not files:
