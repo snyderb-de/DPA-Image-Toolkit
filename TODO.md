@@ -99,6 +99,9 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
 
+- [x] **One grouping rule, app-wide** — `modules/grouping.py`. TIFF merge and OCR each inferred document grouping separately and had drifted: OCR demanded exactly four digits, so the `filename_seq` form the workflow produces was never grouped; merge *validated* against a two-underscore pattern and rejected that form outright. Sequences are now any width and order numerically.
+- [x] **Fixed the split round trip** — `tiff_split` writes `{stem}_{page:03d}.tif`. OCR grouped none of it (three digits, not four), and merge rejected any page whose source stem had no underscore — so a split TIFF could not be merged back or OCR'd as one document.
+
 - [x] **Run the test suite on pull requests** — `ci.yml` runs the suite on every PR and on master, on windows-2025 to match the release environment. It found two Windows-only test defects on its first run.
 - [x] **Allow an EXE build without a tag** — `release.yml` accepts `workflow_dispatch`, so a branch can be built and smoke-tested before merge. Dispatch builds attach the EXE as an artifact and cannot publish a release.
 

@@ -111,6 +111,43 @@ class GroupFilesTests(unittest.TestCase):
         self.assertEqual(len(groups["scan"]), 8)
 
 
+class SplitOutputRoundTripTests(unittest.TestCase):
+    """Split writes names the other tools have to be able to read back.
+
+    tiff_split names its pages {stem}_{page:03d}.tif. Three digits, and no
+    guarantee the source stem contains an underscore — so under the old rules
+    OCR grouped none of it (it wanted exactly four digits) and merge rejected
+    any page whose source had no underscore of its own.
+    """
+
+    SOURCES = ["ledger_vol1.tif", "scan.tif", "9200-T16-000.tif", "archive_box2.tif"]
+
+    @staticmethod
+    def split_names(source: str, pages: int = 3) -> list[str]:
+        stem = Path(source).stem
+        return [f"{stem}_{i:03d}.tif" for i in range(1, pages + 1)]
+
+    def test_merge_accepts_every_page_split_produces(self):
+        for source in self.SOURCES:
+            for page in self.split_names(source):
+                with self.subTest(page=page):
+                    self.assertTrue(validate_file_naming(page))
+
+    def test_ocr_sequences_every_page_split_produces(self):
+        for source in self.SOURCES:
+            for index, page in enumerate(self.split_names(source), start=1):
+                with self.subTest(page=page):
+                    self.assertEqual(extract_ocr_sequence_number(page), index)
+
+    def test_split_pages_regroup_under_the_source_name(self):
+        for source in self.SOURCES:
+            with self.subTest(source=source):
+                pages = self.split_names(source)
+                groups = grouping.group_files(pages)
+                self.assertEqual(list(groups), [Path(source).stem])
+                self.assertEqual(groups[Path(source).stem], pages)
+
+
 class BothToolsAgreeTests(unittest.TestCase):
     """OCR and TIFF merge inferred grouping separately, and disagreed."""
 
