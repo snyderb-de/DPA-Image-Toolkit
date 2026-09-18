@@ -337,7 +337,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">29 items</span>
+        <span class="pbadge">28 items</span>
       </div>
       <div class="pb">
         <p class="t-note" style="margin:0 0 10px">
@@ -357,13 +357,6 @@
           </div>
           <div class="todo-group">P1 &mdash; Defect or friction felt now</div>
           <div class="todo">
-            <span class="pe"><span class="pri p1">P1</span><span class="eff">E0</span></span>
-            <div>
-              <div class="t-title">Run the test suite on pull requests</div>
-              <div class="t-note"><code>release.yml</code> triggers only on <code>push: tags: v*</code>, so the suite runs only at release time. That is why the OpenCV 5 break sat undetected until it blocked a tag.</div>
-            </div>
-          </div>
-          <div class="todo">
             <span class="pe"><span class="pri p1">P1</span><span class="eff">E1</span></span>
             <div>
               <div class="t-title">Validate on Windows 10 / Windows 11</div>
@@ -373,8 +366,8 @@
           <div class="todo">
             <span class="pe"><span class="pri p1">P1</span><span class="eff">E1</span></span>
             <div>
-              <div class="t-title">Finish moving the batch loop behind the module interface</div>
-              <div class="t-note">Merge, OCR and PDF conversion still own their iteration. <code>ocr_folder_to_pdfs</code> is dead in production, and auto-crop still classifies skip-vs-fail by substring-matching the error text.</div>
+              <div class="t-title">Move the TIFF merge loop behind a testable seam</div>
+              <div class="t-note"><code>TiffMergeWorker</code> is the last worker owning its own iteration — a ThreadPoolExecutor over groups with a two-stage force-cancel, and no direct test coverage.</div>
             </div>
           </div>
           <div class="todo-group">P2 &mdash; Planned improvement</div>
@@ -818,10 +811,15 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">25 items</span>
+        <span class="pbadge">30 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-030</span><span class="dtext">OcrPdfWorker's loop covered — the longest loop in the codebase, previously untested; skips cleanly where Tesseract is absent</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-029</span><span class="dtext"><code>PdfConversionWorker.get_results</code> fixed — it returned a raw <code>JobResult</code>, so the pdf_conversion completion path would have failed at runtime; now guarded across all seven workers</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-028</span><span class="dtext">PDF reduce and PDF/A moved onto the shared batch loop — two copies of the same enumerate-and-loop block, previously untested</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-027</span><span class="dtext"><code>crop_image</code> reports a status — auto-crop no longer classifies skip-vs-fail by substring-matching the error text</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-026</span><span class="dtext">CI on pull requests — <code>ci.yml</code> runs the suite on every PR on windows-2025; found two Windows-only test defects on its first run</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-025</span><span class="dtext">Web UI writes an error report — only the desktop UI ever did, so the error folder could hold nothing explaining what failed</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-024</span><span class="dtext">Per-file batch loop shared — <code>utils/batch.py</code>; four copied loops collapsed into one, now testable without threads</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-023</span><span class="dtext">Job results typed — <code>utils/job_result.py</code>; seven workers built four different dict shapes and composed summaries the browser re-derived differently</span></div>

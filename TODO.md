@@ -33,9 +33,8 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 
 ## P1 — Defect or friction felt now
 
-- [ ] **E0 — Run the test suite on pull requests** — `release.yml` triggers only on `push: tags: v*` and `pages.yml` only on `docs/**`, so the suite runs *only* at release time. That is why the OpenCV 5 break sat undetected until it blocked a tag. A `pull_request` trigger closes the loop.
 - [ ] **E1 — Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
-- [ ] **E1 — Finish moving the batch loop behind the module interface** — auto-crop, straighten, add-border and TIFF-split run on the shared loop in `utils/batch.py`. Merge, OCR and PDF conversion still own their iteration. Two leaks remain: `ocr_folder_to_pdfs` is dead in production because `OcrPdfWorker` re-implements its loop, and auto-crop still classifies skip-vs-fail by substring-matching the error text (`"too small"`, `"blank"`, `"white"`) because the module core reports outcome through prose rather than a status.
+- [ ] **E1 — Move the TIFF merge loop behind a testable seam** — `TiffMergeWorker` is the last worker owning its own iteration. Its loop is a `ThreadPoolExecutor` over groups with dynamic submission and a two-stage force-cancel (`utils/worker.py`), and it has no direct test coverage. It does not fit the per-file loop in `utils/batch.py`; it needs either a group-level equivalent or tests that reach it directly.
 
 ---
 
@@ -46,7 +45,8 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 - [ ] **E0 — Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
 - [ ] **E0 — Add screenshots to the dashboard** — the project page has no images of the shipped web UI.
 - [ ] **E1 — Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] **E1 — Shrink the OCR interface** — `modules/ocr_pdf/` exposes 17 public functions and `ocr_document_to_pdf` takes 13 parameters. An options object plus one folder-level entry point; the discovery helpers become internal. Wants the batch-loop item above finished first.
+- [ ] **E1 — Shrink the OCR interface** — `modules/ocr_pdf/` exposes 17 public functions and `ocr_document_to_pdf` takes 13 parameters. An options object plus one folder-level entry point; the discovery helpers become internal.
+  Fold in the `ocr_folder_to_pdfs` question here rather than treating it as loop work: it is still called only by tests, but it is *shallower* than the loop in `OcrPdfWorker`, which adds the dependency gate, job-level progress, the PDF/A fallback warning and `details{}` interpretation. Production cannot adopt it as-is, so it is either deleted or grown into the real entry point — and that is an interface decision, not a loop one.
 - [ ] **E1 — TIFF Merge: per-page DPI preservation**
 - [ ] **E1 — TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
 - [ ] **E1 — OCR: tune the messy-scan heuristic** against real production samples.
@@ -98,6 +98,14 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ## Recently completed
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
+
+- [x] **Run the test suite on pull requests** — `ci.yml` runs the suite on every PR and on master, on windows-2025 to match the release environment. It found two Windows-only test defects on its first run.
+- [x] **Allow an EXE build without a tag** — `release.yml` accepts `workflow_dispatch`, so a branch can be built and smoke-tested before merge. Dispatch builds attach the EXE as an artifact and cannot publish a release.
+
+- [x] **Give `crop_image` a status** — auto-crop classified skip-vs-fail by substring-matching the error text (`"too small"`, `"blank"`, `"white"`). The core now returns `CROP_SUCCESS`/`CROP_SKIPPED`/`CROP_FAILED`.
+- [x] **Run PDF reduce and PDF/A on the shared batch loop** — both carried a copy of the same enumerate-and-loop block inside a 220-line if/elif, with no coverage at all.
+- [x] **Fix `PdfConversionWorker.get_results`** — it returned a raw `JobResult`, which is not JSON serialisable, so `/api/pdf_conversion/state` and the SSE done event would have failed at runtime. Guarded now by a contract test across all seven workers.
+- [x] **Cover `OcrPdfWorker`'s loop** — the longest loop in the codebase, previously untested. Skips cleanly where Tesseract is absent.
 
 - [x] **Fix deskewing against OpenCV 5** — `HoughLinesP` changed from `(N, 1, 4)` to `(N, 4)`, so `x1, y1, x2, y2 = line[0]` unpacked a scalar. Blocked the next tagged build.
 - [x] **Cap dependency majors** — every requirement was lower-bound only. Three had already crossed a major unnoticed: Pillow to 12, pypdf to 6, pypdfium2 to 5.

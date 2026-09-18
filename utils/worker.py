@@ -114,23 +114,22 @@ class AutoCropWorker(OperationWorker):
 
         self.results = JobResult(verb="Cropped")
 
-    # A crop that reports "too small", "blank" or "white" is a deliberate skip,
-    # not a failure. The module core signals it through the message text, so the
-    # classification has to live here until that interface returns a status.
-    SKIP_MARKERS = ("too small", "blank", "white")
-
     def _crop_one(self, image_file: Path) -> ItemOutcome:
-        from modules.auto_cropping.core import crop_image
+        from modules.auto_cropping.core import (
+            CROP_SKIPPED,
+            CROP_SUCCESS,
+            crop_image,
+        )
 
-        _output_path, error_msg = crop_image(
+        output_path, error_msg, status = crop_image(
             image_file,
             self.output_folder,
             preserve_dpi=True,
             straighten=self.straighten,
         )
-        if not error_msg:
-            return ItemOutcome.ok()
-        if any(marker in error_msg for marker in self.SKIP_MARKERS):
+        if status == CROP_SUCCESS:
+            return ItemOutcome.ok(output_path)
+        if status == CROP_SKIPPED:
             # Inputs are never moved; the source stays available for review.
             self.results.errors.append(JobError(image_file.name, error_msg))
             return ItemOutcome.skip(error_msg)
@@ -841,6 +840,61 @@ class PdfConversionWorker(OperationWorker):
         self.results.record_failure(filename, error)
         self.report_error(filename, error)
 
+    def _pdf_files(self) -> List[Path]:
+        """Every PDF the selection covers, in stable order."""
+        if self.selection_mode != "folder":
+            return [self.input_path]
+        return sorted(
+            (path for path in self.input_path.iterdir()
+             if path.is_file() and path.suffix.lower() == ".pdf"),
+            key=lambda path: path.name.lower(),
+        )
+
+    def _output_root(self, name: str) -> Path:
+        base = self.input_path if self.selection_mode == "folder" else self.input_path.parent
+        root = base / name
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    @staticmethod
+    def _outcome(status: str, error: Optional[str], output: Path, fallback: str) -> ItemOutcome:
+        """Map the (status, error, stats) shape every pdf_tools op returns."""
+        if status == "cancelled":
+            return ItemOutcome.abort()
+        if status != "success":
+            return ItemOutcome.fail(error or fallback)
+        return ItemOutcome.ok(output)
+
+    def _reduce_one(self, pdf_path: Path) -> ItemOutcome:
+        from modules.pdf_tools.core import reduce_pdf_size
+        import shutil
+
+        output_pdf_path = self._reduce_root / pdf_path.name
+        if not self.reduce_size_enabled:
+            shutil.copy2(pdf_path, output_pdf_path)
+            return ItemOutcome.ok(output_pdf_path)
+
+        status, error, _stats = reduce_pdf_size(
+            input_pdf_path=pdf_path,
+            output_pdf_path=output_pdf_path,
+            reduce_size_enabled=True,
+            compression_profile_key=self.compression_profile_key,
+            should_cancel=lambda: self.cancelled,
+        )
+        return self._outcome(status, error, output_pdf_path, "Reduce size failed")
+
+    def _pdfa_one(self, pdf_path: Path) -> ItemOutcome:
+        from modules.pdf_tools.core import convert_pdf_to_pdfa
+
+        output_pdf_path = self._pdfa_root / pdf_path.name
+        status, error, _stats = convert_pdf_to_pdfa(
+            input_pdf_path=pdf_path,
+            output_pdf_path=output_pdf_path,
+            pdfa_profile_key=self.pdfa_profile_key,
+            should_cancel=lambda: self.cancelled,
+        )
+        return self._outcome(status, error, output_pdf_path, "PDF/A conversion failed")
+
     def run(self):
         """Execute selected PDF conversion operation."""
         from modules.pdf_tools.core import (
@@ -861,117 +915,21 @@ class PdfConversionWorker(OperationWorker):
         }.get(self.operation, "Converted")
 
         try:
-            if self.operation == "reduce_size":
-                if self.selection_mode == "folder":
-                    pdf_files = sorted(
-                        [
-                            path for path in self.input_path.iterdir()
-                            if path.is_file() and path.suffix.lower() == ".pdf"
-                        ],
-                        key=lambda path: path.name.lower(),
-                    )
+            if self.operation in ("reduce_size", "pdfa"):
+                if self.operation == "reduce_size":
+                    self._reduce_root = self._output_root("reduced-pdfs")
+                    process, gerund = self._reduce_one, "Reducing"
                 else:
-                    pdf_files = [self.input_path]
+                    self._pdfa_root = self._output_root("pdfa-pdfs")
+                    process, gerund = self._pdfa_one, "Converting to PDF/A"
 
-                if not pdf_files:
-                    self.update_status("No PDF files found")
-                    return
-
-                self.results.total = len(pdf_files)
-                output_root = (
-                    self.input_path / "reduced-pdfs"
-                    if self.selection_mode == "folder"
-                    else self.input_path.parent / "reduced-pdfs"
-                )
-                output_root.mkdir(parents=True, exist_ok=True)
-
-                for index, pdf_path in enumerate(pdf_files, start=1):
-                    if self.cancelled:
-                        self._set_cancelled()
-                        return
-
-                    self.update_progress(index, len(pdf_files), pdf_path.name)
-                    self.update_status(f"Reducing: {pdf_path.name}")
-                    output_pdf_path = output_root / pdf_path.name
-
-                    if not self.reduce_size_enabled:
-                        try:
-                            shutil.copy2(pdf_path, output_pdf_path)
-                            self.results.record_success(output_pdf_path)
-                        except Exception as exc:
-                            self._record_error(pdf_path.name, str(exc))
-                        continue
-
-                    status, error, _stats = reduce_pdf_size(
-                        input_pdf_path=pdf_path,
-                        output_pdf_path=output_pdf_path,
-                        reduce_size_enabled=True,
-                        compression_profile_key=self.compression_profile_key,
-                        should_cancel=lambda: self.cancelled,
-                    )
-                    if status == "cancelled":
-                        self._set_cancelled()
-                        return
-                    if status != "success":
-                        self._record_error(pdf_path.name, error or "Reduce size failed")
-                        continue
-
-                    self.results.record_success(output_pdf_path)
-
-                self.update_status(
-                    self.results.summary()
-                )
-                return
-
-            if self.operation == "pdfa":
-                if self.selection_mode == "folder":
-                    pdf_files = sorted(
-                        [
-                            path for path in self.input_path.iterdir()
-                            if path.is_file() and path.suffix.lower() == ".pdf"
-                        ],
-                        key=lambda path: path.name.lower(),
-                    )
-                else:
-                    pdf_files = [self.input_path]
-
-                if not pdf_files:
-                    self.update_status("No PDF files found")
-                    return
-
-                self.results.total = len(pdf_files)
-                output_root = (
-                    self.input_path / "pdfa-pdfs"
-                    if self.selection_mode == "folder"
-                    else self.input_path.parent / "pdfa-pdfs"
-                )
-                output_root.mkdir(parents=True, exist_ok=True)
-
-                for index, pdf_path in enumerate(pdf_files, start=1):
-                    if self.cancelled:
-                        self._set_cancelled()
-                        return
-
-                    self.update_progress(index, len(pdf_files), pdf_path.name)
-                    self.update_status(f"Converting to PDF/A: {pdf_path.name}")
-                    output_pdf_path = output_root / pdf_path.name
-                    status, error, _stats = convert_pdf_to_pdfa(
-                        input_pdf_path=pdf_path,
-                        output_pdf_path=output_pdf_path,
-                        pdfa_profile_key=self.pdfa_profile_key,
-                        should_cancel=lambda: self.cancelled,
-                    )
-                    if status == "cancelled":
-                        self._set_cancelled()
-                        return
-                    if status != "success":
-                        self._record_error(pdf_path.name, error or "PDF/A conversion failed")
-                        continue
-
-                    self.results.record_success(output_pdf_path)
-
-                self.update_status(
-                    self.results.summary()
+                run_file_batch(
+                    self._pdf_files(),
+                    result=self.results,
+                    process=process,
+                    reporter=self,
+                    gerund=gerund,
+                    empty_message="No PDF files found",
                 )
                 return
 
@@ -1065,4 +1023,5 @@ class PdfConversionWorker(OperationWorker):
             self.report_error("operation", str(exc))
 
     def get_results(self) -> dict:
-        return self.results
+        """Get operation results."""
+        return self.results.to_dict()
