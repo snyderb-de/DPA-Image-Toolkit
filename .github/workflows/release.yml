@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  # Build an EXE from any branch without tagging, so a risky change can be
+  # smoke-tested on Windows before it is merged. Dispatch builds attach the
+  # EXE as a workflow artifact and are never published as a release.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp into the EXE, e.g. v1.1.7. Must look like a version — a branch name will fail."
+        required: false
+        default: "v0.0.0"
 
 permissions:
   contents: write
@@ -12,7 +21,9 @@ jobs:
   build-windows:
     runs-on: windows-2025
     env:
-      DPA_IMAGE_TOOLKIT_VERSION: ${{ github.ref_name }}
+      # On a tag push this is the tag. On dispatch the ref is a branch name,
+      # which write_version_info.py cannot parse, so take the input instead.
+      DPA_IMAGE_TOOLKIT_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v5
@@ -39,7 +50,16 @@ jobs:
       - name: Prepare release asset
         run: Copy-Item dist/image-toolkit.exe "image-toolkit.exe"
 
+      - name: Upload EXE as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-toolkit-${{ env.DPA_IMAGE_TOOLKIT_VERSION }}
+          path: image-toolkit.exe
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload to release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
           name: DPA Image Toolkit
