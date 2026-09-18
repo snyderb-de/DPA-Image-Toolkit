@@ -570,7 +570,7 @@ async function saveUpdateSettings() {
   const checkEl = document.getElementById('opt-check-updates-on-start');
   const res = await api('/api/updates/settings', {
     update_source_path: pathEl ? pathEl.value : '',
-    check_updates_on_start: checkEl ? checkEl.checked : false,
+    check_updates_on_start: checkEl ? checkEl.checked : true,
   });
 
   if (res.ok) {

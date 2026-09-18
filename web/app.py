@@ -116,7 +116,9 @@ def _update_settings_payload(settings: dict | None = None) -> dict:
     s = settings if settings is not None else _load_settings()
     return {
         "update_source_path": _update_source_from_settings(s),
-        "check_updates_on_start": bool(s.get(CHECK_UPDATES_ON_START_KEY, False)),
+        # On by default. A stored false is still respected, so anyone who
+        # turned it off stays off.
+        "check_updates_on_start": bool(s.get(CHECK_UPDATES_ON_START_KEY, True)),
         "current_version": app_version.get_current_version(),
         "app_name": app_version.APP_NAME,
         "exe_filename": app_version.EXE_FILENAME,
