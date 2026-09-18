@@ -446,6 +446,21 @@ class OcrPdfWorker(OperationWorker):
         if force:
             self.force_cancel_requested = True
 
+    def _ocr_options(self):
+        """The OCR settings for this run, as one value."""
+        from modules.ocr_pdf.core import OcrOptions
+
+        return OcrOptions(
+            language=self.language,
+            skip_existing=self.skip_existing,
+            save_pdfa=self.save_pdfa,
+            skip_messy=self.skip_messy,
+            metadata=self.metadata,
+            tesseract_path=self.tesseract_path,
+            reduce_size_enabled=self.reduce_size_enabled,
+            compression_profile_key=self.compression_profile_key,
+        )
+
     def _emit_ocr_progress(
         self,
         *,
@@ -634,14 +649,7 @@ class OcrPdfWorker(OperationWorker):
                     input_files=document["files"],
                     output_pdf_path=output_pdf_path,
                     document_name=document_name,
-                    language=self.language,
-                    skip_existing=self.skip_existing,
-                    save_pdfa=self.save_pdfa,
-                    skip_messy=self.skip_messy,
-                    reduce_size_enabled=self.reduce_size_enabled,
-                    compression_profile_key=self.compression_profile_key,
-                    metadata=self.metadata,
-                    tesseract_path=self.tesseract_path,
+                    options=self._ocr_options(),
                     progress_callback=_on_document_progress,
                     should_cancel=lambda: self.force_cancel_requested,
                 )

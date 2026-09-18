@@ -16,6 +16,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.ocr_pdf.core import (
+    OcrOptions,
     assess_document_ocr_readiness,
     assess_ocr_readiness,
     build_input_pdf_from_images,
@@ -26,7 +27,6 @@ from modules.ocr_pdf.core import (
     get_output_pdf_path,
     group_ocr_input_files,
     ocr_document_to_pdf,
-    ocr_folder_to_pdfs,
 )
 from testing.ocr_pdf.generate_fixtures import generate_ocr_pdf_fixtures
 
@@ -177,7 +177,7 @@ class OcrPdfCoreTests(unittest.TestCase):
                 input_files=[input_file],
                 output_pdf_path=existing_pdf,
                 document_name="roll_001",
-                skip_existing=True,
+                options=OcrOptions(skip_existing=True),
             )
 
             self.assertEqual(result["status"], "skipped")
@@ -214,9 +214,11 @@ class OcrPdfCoreTests(unittest.TestCase):
                     input_files=[input_file],
                     output_pdf_path=output / "roll_001.pdf",
                     document_name="roll_001",
-                    save_pdfa=False,
-                    skip_messy=True,
-                    metadata={"title": "Roll 001"},
+                    options=OcrOptions(
+                        save_pdfa=False,
+                        skip_messy=True,
+                        metadata={"title": "Roll 001"},
+                    ),
                 )
 
         self.assertEqual(result["status"], "success")
@@ -229,35 +231,53 @@ class OcrPdfCoreTests(unittest.TestCase):
             {0},
         )
 
-    def test_ocr_folder_to_pdfs_returns_one_result_per_group(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "batch"
-            output = root / "PDFs"
-            root.mkdir()
-            output.mkdir()
 
-            _make_image(root / "packet_0001.tif", text=True)
-            _make_image(root / "packet_0002.tif", text=True)
-            _make_image(root / "single_page.tif", text=True)
+class OcrInterfaceTests(unittest.TestCase):
+    """The module used to export seventeen names for five that were used."""
 
-            with patch(
-                "modules.ocr_pdf.core.ocr_document_to_pdf",
-                side_effect=lambda input_files, output_pdf_path, document_name, **kwargs: {
-                    "status": "success",
-                    "output_path": Path(output_pdf_path),
-                    "error": None,
-                    "details": {"page_count": len(input_files)},
-                    "used_pdfa": False,
-                },
-            ):
-                results = ocr_folder_to_pdfs(
-                    input_folder=root,
-                    output_folder=output,
-                    skip_existing=False,
-                )
+    PUBLIC = {
+        "OcrOptions", "check_ocr_dependencies", "get_ocr_dependency_statuses",
+        "group_ocr_input_files", "ocr_document_to_pdf", "summarize_ocr_documents",
+    }
 
-        self.assertEqual([result["name"] for result in results], ["packet", "single_page"])
-        self.assertEqual([result["output_path"].name for result in results], ["packet.pdf", "single_page.pdf"])
+    def test_the_public_surface_is_what_callers_need(self):
+        import modules.ocr_pdf as ocr_pdf
+
+        self.assertEqual(set(ocr_pdf.__all__), self.PUBLIC)
+
+    def test_plumbing_is_no_longer_advertised(self):
+        """Still importable from .core for tests; just not public API."""
+        import modules.ocr_pdf as ocr_pdf
+
+        for name in ("build_input_pdf_from_images", "merge_page_pdfs",
+                     "assess_ocr_readiness", "find_ocr_input_files",
+                     "get_output_pdf_path", "detect_tesseract_path"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, ocr_pdf.__all__)
+
+    def test_options_default_to_the_shipped_behaviour(self):
+        options = OcrOptions()
+        self.assertEqual(options.language, "eng")
+        self.assertTrue(options.skip_existing)
+        self.assertTrue(options.save_pdfa)
+        self.assertTrue(options.skip_messy)
+        self.assertTrue(options.reduce_size_enabled)
+        self.assertIsNone(options.metadata)
+
+    def test_options_are_immutable(self):
+        with self.assertRaises(Exception):
+            OcrOptions().language = "deu"
+
+    def test_ocr_document_to_pdf_takes_six_parameters(self):
+        import inspect
+        from modules.ocr_pdf.core import ocr_document_to_pdf
+
+        params = list(inspect.signature(ocr_document_to_pdf).parameters)
+        self.assertEqual(
+            params,
+            ["input_files", "output_pdf_path", "document_name",
+             "options", "progress_callback", "should_cancel"],
+        )
 
 
 if __name__ == "__main__":

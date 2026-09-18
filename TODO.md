@@ -41,8 +41,6 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 
 - [ ] **E0 — Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
 - [ ] **E1 — Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] **E1 — Shrink the OCR interface** — `modules/ocr_pdf/` exposes 17 public functions and `ocr_document_to_pdf` takes 13 parameters. An options object plus one folder-level entry point; the discovery helpers become internal.
-  Fold in the `ocr_folder_to_pdfs` question here rather than treating it as loop work: it is still called only by tests, but it is *shallower* than the loop in `OcrPdfWorker`, which adds the dependency gate, job-level progress, the PDF/A fallback warning and `details{}` interpretation. Production cannot adopt it as-is, so it is either deleted or grown into the real entry point — and that is an interface decision, not a loop one.
 - [ ] **E1 — TIFF Merge: per-page DPI preservation**
 - [ ] **E1 — TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
 - [ ] **E1 — OCR: tune the messy-scan heuristic** against real production samples.
@@ -98,6 +96,8 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ## Recently completed
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
+
+- [x] **Shrank the OCR interface** — `modules/ocr_pdf` exported 17 names for the 5 production used. `OcrOptions` collapses eight settings into one value, so `ocr_document_to_pdf` takes 6 parameters instead of 13. `ocr_folder_to_pdf` had no callers at all and `ocr_folder_to_pdfs` only tests, so both are gone — the shipped loop is `OcrPdfWorker`'s, and it now has its own coverage.
 
 - [x] **Dropped the Straighten beta label** — the badge and its amber sidebar highlight are gone from the app, the built-in manual and the token set.
 - [x] **Fixed the PDF Conversion icon** — it was `U+1F5CE`, the only astral-plane glyph among the eight sidebar icons, and IBM Plex Sans has no coverage, so it rendered as a tofu rectangle everywhere. Now `U+25A4`, and a test keeps every nav icon inside the BMP.
