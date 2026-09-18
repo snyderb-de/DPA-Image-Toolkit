@@ -184,14 +184,37 @@ class WebReleaseTests(unittest.TestCase):
         self.assertIn("function setPdfInputMode", script)
         self.assertIn("write_remaining_pages", script)
 
-    def test_straighten_tool_is_marked_beta_in_sidebar_and_header(self):
+    def test_straighten_tool_carries_no_beta_marking(self):
+        """The beta label and its amber highlight were removed from the UI."""
         template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        manual = (APP_ROOT / "web" / "templates" / "manual.html").read_text(encoding="utf-8")
         stylesheet = (APP_ROOT / "web" / "static" / "app.css").read_text(encoding="utf-8")
+        tokens = (APP_ROOT / "web" / "static" / "tokens.css").read_text(encoding="utf-8")
 
-        self.assertIn('class="nav-item nav-item-beta" data-tool="straighten_images"', template)
-        self.assertIn("Beta (in Testing)", template)
-        self.assertIn(".nav-item-beta", stylesheet)
-        self.assertIn("var(--beta-line)", stylesheet)
+        for name, text in (("index.html", template), ("manual.html", manual)):
+            self.assertNotIn("Beta (in Testing)", text, name)
+        self.assertNotIn("nav-item-beta", template)
+        self.assertNotIn("panel-beta", template)
+        self.assertNotIn(".nav-item-beta", stylesheet)
+        self.assertNotIn("var(--beta", stylesheet)
+        self.assertNotIn("--beta", tokens, "dead beta tokens left behind")
+
+    def test_every_sidebar_icon_renders_in_the_app_font(self):
+        """One icon was U+1F5CE, an emoji-block glyph IBM Plex Sans lacks, so
+        PDF Conversion showed as a tofu rectangle. Icons must stay in the BMP,
+        where the UI font actually has coverage."""
+        import re as _re
+
+        template = (APP_ROOT / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+        icons = _re.findall(r'<span class="nav-icon">([^<]+)</span>', template)
+        self.assertGreaterEqual(len(icons), 7)
+        for icon in icons:
+            for char in icon.strip():
+                with self.subTest(icon=icon):
+                    self.assertLessEqual(
+                        ord(char), 0xFFFF,
+                        f"U+{ord(char):04X} is outside the BMP and will not render",
+                    )
 
     def test_release_packaging_uses_onefile_exe(self):
         spec = (APP_ROOT / "packaging" / "dpa-toolkit.spec").read_text(encoding="utf-8")

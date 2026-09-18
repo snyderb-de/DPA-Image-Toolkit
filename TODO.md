@@ -96,6 +96,9 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
 
+- [x] **Dropped the Straighten beta label** — the badge and its amber sidebar highlight are gone from the app, the built-in manual and the token set.
+- [x] **Fixed the PDF Conversion icon** — it was `U+1F5CE`, the only astral-plane glyph among the eight sidebar icons, and IBM Plex Sans has no coverage, so it rendered as a tofu rectangle everywhere. Now `U+25A4`, and a test keeps every nav icon inside the BMP.
+
 - [x] **TIFF merge scheduler behind a testable seam** — `utils/batch.py` gains `run_group_batch`, the group-level counterpart to `run_file_batch`: bounded concurrency, submit-as-you-complete, and a cancel that stops queueing without abandoning running groups. `TiffMergeWorker` was the last worker owning its own loop and the last with no direct coverage.
 - [x] **Merge core creates its own output folder** — four of five module cores did; `tiff_combine` relied on its caller and failed with a confusing "No such file or directory" when one did not.
 - [x] **Staged-update handle** — `utils/update_checker.StagedUpdate` carries staged path, target and hash together, so `web/app.py` no longer reassembles the triple and `apply()` takes one argument.
