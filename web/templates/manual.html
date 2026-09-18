@@ -21,7 +21,6 @@
     <a class="back-link" href="/">Back to Toolkit</a>
 
     <nav class="manual-nav" aria-label="User manual sections">
-      <a href="#release-contract">Release Contract</a>
       <a href="#auto-crop">Auto Crop</a>
       <a href="#straighten">Straighten Images</a>
       <a href="#merge-tiffs">Merge TIFFs</a>
@@ -53,24 +52,6 @@
       </p>
     </header>
 
-    <section class="manual-section" id="release-contract">
-      <h2>Release Contract</h2>
-      <div class="manual-grid">
-        <article>
-          <h3>Inputs Stay Put</h3>
-          <p>Every tool follows the same safety rule: copy outputs, never move inputs.</p>
-        </article>
-        <article>
-          <h3>EXE Path</h3>
-          <p>The supported deployment is the PyInstaller Windows one-file EXE.</p>
-        </article>
-        <article>
-          <h3>Error Review</h3>
-          <p>When a job logs failures, use <strong>View Errors</strong> to open the run's error folder.</p>
-        </article>
-      </div>
-    </section>
-
     <section class="manual-section" id="auto-crop">
       <h2>Auto Crop</h2>
       <p>Detects meaningful content in an image folder and writes cropped copies into <code>cropped/</code>.</p>
@@ -97,11 +78,11 @@
         Merge TIFFs groups page files by filename. The required pattern is:
       </p>
       <pre><code>{% raw %}{name}_{group}_{sequence}.tif
-{name}_{group}_{sequence}.tiff{% endraw %}</code></pre>
+{name}_{sequence}.tif{% endraw %}</code></pre>
       <ul>
-        <li>The final sequence must be an underscore plus a positive integer: <code>_1</code>, <code>_01</code>, <code>_001</code>, <code>_0001</code>, <code>_1000</code>.</li>
-        <li>The merge group name is everything before the trailing sequence.</li>
-        <li>Example: <code>9200-T16-000_207_003.tif</code> belongs to group <code>9200-T16-000_207</code>.</li>
+        <li>The final sequence must be an underscore plus a positive integer: <code>_1</code>, <code>_01</code>, <code>_001</code>, <code>_0001</code>, <code>_1000</code>. Any number of digits works.</li>
+        <li>The merge group name is everything before the trailing sequence, so the middle group part is optional.</li>
+        <li>Example: <code>9200-T16-000_207_003.tif</code> belongs to group <code>9200-T16-000_207</code>, and <code>9200-T16-000_003.tif</code> belongs to group <code>9200-T16-000</code>.</li>
         <li>Files in a group are sorted by numeric value, so <code>_10</code> comes after <code>_9</code> regardless of padding.</li>
         <li>A one-file group is valid. Invalidly named TIFFs are skipped with a warning.</li>
       </ul>
@@ -114,6 +95,7 @@
         <li>File mode output: sibling <code>&lt;name&gt;_pages/</code> folders.</li>
         <li>Folder mode output: <code>extracted-pages/</code>.</li>
         <li>Single-page TIFFs are skipped.</li>
+        <li>Pages are named <code>&lt;name&gt;_001.tif</code>, <code>&lt;name&gt;_002.tif</code>, and so on, so split output can be merged back or sent straight to OCR to PDF as one document.</li>
       </ul>
     </section>
 
@@ -132,7 +114,8 @@
       <ul>
         <li>Input: folder of page image files.</li>
         <li>Output: <code>PDFs/&lt;group_name&gt;.pdf</code>.</li>
-        <li>Files ending in <code>_0001</code>, <code>_0002</code>, and so on are grouped into one document.</li>
+        <li>Pages are grouped by the same filename rule as Merge TIFFs: a trailing underscore plus a number. <code>scan_1</code>, <code>scan_01</code> and <code>scan_0001</code> all mean page one.</li>
+        <li>A file with no trailing sequence becomes its own single-page PDF.</li>
         <li>Quality-flagged pages can stay in the PDF without OCR text when the quality check is enabled.</li>
       </ul>
     </section>
