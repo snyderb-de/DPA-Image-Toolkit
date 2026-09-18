@@ -8,7 +8,7 @@ The next release was blocked by an OpenCV 5 incompatibility in deskewing — the
 
 ## How this list is ordered
 
-Every item carries a priority and an effort estimate. Items are grouped by priority, and sorted by effort within each group — cheapest first, so the quick wins in a band are visible.
+Every item carries a priority, an effort estimate and a win score. Items are grouped by priority and, within P2, ordered by win per unit of effort.
 
 | Priority | Meaning |
 |---|---|
@@ -23,36 +23,47 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 | **E1** | About half a day |
 | **E2** | Multi-day or larger |
 
+| Win | Staff time saved |
+|---|---|
+| **W3** | Removes real manual work from every job |
+| **W2** | Noticeable, not felt daily |
+| **W1** | Barely felt day to day |
+
+Within P2, items are ordered by win per unit of effort — best payoff for the
+least work first, so the cheap high-win items float to the top. P0 and P1 are
+ordered by priority alone; P3 keeps dependency order, since the research steps
+feed each other.
+
 ---
 
 ## P0 — Blocks the next release
 
-- [ ] **E1 — Smoke-test the released Windows EXE** — download `image-toolkit.exe` into a clean user profile, run all seven tools, confirm no local Python install or `_internal/` folder is needed. More important than it was: the architecture work changed what `launch_web.py` pulls in and deleted a package `packaging/dpa-toolkit.spec` still references, and none of it has been exercised on Windows.
+- [ ] **W3 · E1** — **Smoke-test the released Windows EXE** — download `image-toolkit.exe` into a clean user profile, run all seven tools, confirm no local Python install or `_internal/` folder is needed. More important than it was: the architecture work changed what `launch_web.py` pulls in and deleted a package `packaging/dpa-toolkit.spec` still references, and none of it has been exercised on Windows.
 
 ---
 
 ## P1 — Defect or friction felt now
 
-- [ ] **E1 — Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
+- [ ] **W3 · E1** — **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
 
 ---
 
 ## P2 — Planned improvement
 
-- [ ] **E0 — Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
-- [ ] **E1 — Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] **E1 — TIFF Merge: per-page DPI preservation**
-- [ ] **E1 — TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
-- [ ] **E1 — OCR: tune the messy-scan heuristic** against real production samples.
-- [ ] **E1 — OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped.
-- [ ] **E1 — Configurable white threshold via a UI slider**
-- [ ] **E1 — Drag-and-drop folder support**
-- [ ] **E1 — Refresh the project dashboard** — now that the repo cleanup has settled.
-- [ ] **E2 — Auto Crop: batch preview mode** before committing crops.
-- [ ] **E2 — TIFF Merge: memory-safe streaming** for very large batches (200+ pages).
-- [ ] **E2 — Page reordering and extraction from existing multi-page TIFFs**
-- [ ] **E2 — Undo support** — move output back, restore originals.
-- [ ] **E2 — Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled.
+- [ ] **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
+- [ ] **W3 · E1** — **OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped. Today there is no way through except reprocessing outside the toolkit.
+- [ ] **W3 · E1** — **Drag-and-drop folder support** — every job starts with a folder pick today.
+- [ ] **W2 · E0** — **Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
+- [ ] **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
+- [ ] **W3 · E2** — **TIFF Merge: memory-safe streaming** for very large batches (200+ pages), which currently have to be split up by hand.
+- [ ] **W3 · E2** — **Undo support** — move output back, restore originals. A wrong run means manual cleanup today.
+- [ ] **W2 · E1** — **Configurable white threshold via a UI slider** — tune per batch instead of re-running with defaults that do not suit the material.
+- [ ] **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
+- [ ] **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
+- [ ] **W1 · E1** — **TIFF Merge: per-page DPI preservation** — a correctness detail, invisible most days.
+- [ ] **W1 · E1** — **TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
+- [ ] **W1 · E1** — **Refresh the project dashboard** — now that the repo cleanup has settled.
+- [ ] **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
 
@@ -62,25 +73,25 @@ Every item carries a priority and an effort estimate. Items are grouped by prior
 
 Handwriting recognition for handwriting-heavy material, separate from the current printed-text OCR workflow.
 
-- [ ] **E1 — Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
-- [ ] **E1 — Gather a benchmark set** of real English handwritten samples before choosing an engine.
-- [ ] **E2 — Test `TrOCR`** for English handwriting recognition
+- [ ] **W1 · E1** — Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
+- [ ] **W1 · E1** — Gather a benchmark set** of real English handwritten samples before choosing an engine.
+- [ ] **W1 · E2** — Test `TrOCR`** for English handwriting recognition
   - *What:* transformer-based OCR models from Microsoft, including handwritten checkpoints
   - *Pros:* modern model family; strongest open-source-looking starting point for English handwriting; no dependency on Tesseract OCR quality
   - *Cons:* heavier ML/runtime footprint; not naturally aligned with simple PDF/A archival workflows; likely requires a custom page-to-text pipeline
-- [ ] **E2 — Test `PaddleOCR`** for English handwriting recognition
+- [ ] **W1 · E2** — Test `PaddleOCR`** for English handwriting recognition
   - *What:* general OCR toolkit with support for printed text and handwriting scenarios
   - *Pros:* broader OCR stack; active project; may handle mixed page conditions better than Tesseract
   - *Cons:* heavier install and model management; not a drop-in archival PDF/A replacement; would need evaluation on microfilm-derived scans
-- [ ] **E2 — Test `Kraken`** for historical or manuscript-like handwriting
+- [ ] **W1 · E2** — Test `Kraken`** for historical or manuscript-like handwriting
   - *What:* OCR/HTR toolkit with strong historical-text and handwritten-text reputation
   - *Pros:* better fit for specialized handwriting and historical-text workflows; strong research/community use in HTR contexts
   - *Cons:* steeper workflow; less turnkey for desktop staff use; often expects more document prep or model selection effort
-- [ ] **E2 — Test `Calamari OCR`** for line-based handwriting recognition
+- [ ] **W1 · E2** — Test `Calamari OCR`** for line-based handwriting recognition
   - *What:* OCR/HTR engine commonly used in historical-text pipelines
   - *Pros:* respected in handwritten and historical OCR circles; good candidate if line-level workflows become acceptable
   - *Cons:* less page-oriented; may require segmentation or model work first; weaker fit for a simple folder-to-PDF desktop tool
-- [ ] **E2 — Compare each HCR candidate** on:
+- [ ] **W1 · E2** — Compare each HCR candidate** on:
   - plain cursive handwriting
   - mixed print + handwriting pages
   - noisy microfilm scans
@@ -89,7 +100,7 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Dashboard polish
 
-- [ ] **E0 — Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
+- [ ] **W1 · E0** — Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
 
 ---
 
