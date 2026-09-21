@@ -58,8 +58,7 @@ Nothing open.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
 - [ ] `P2-W2-E2-011` **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] `P2-W1-E1-013` **W1 · E1** — **TIFF Merge: per-page DPI preservation** — a correctness detail, invisible most days.
-- [ ] `P2-W1-E1-014` **W1 · E1** — **TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
+- [ ] `P2-W1-E1-014` **W1 · E1** — **TIFF Merge: advanced compression options** — measured before building, and the case is weak. On a realistic 1700×2200 scan against the current deflate (3.69 MB): LZW is 3.80 MB (**larger**), PackBits 7.89 MB (**more than double**), and JPEG 0.80 MB but **lossy**. None of the three is available without `imagecodecs`, a 13 MB binary wheel, or by dropping back to Pillow and losing the streaming fix. Worth doing only if a specific consumer needs LZW for compatibility, or if lossy access copies are wanted alongside lossless masters — both product calls.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
@@ -104,6 +103,8 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ## Recently completed
 
 ### Tools
+
+- [x] **`P2-W1-E1-013` TIFF Merge: per-page DPI preservation** — `dpi_per_file=True` never did this. Each page's DPI was read, collected, and then discarded: every page was written with the first page's value. It now means what it says, and `False` still writes one DPI for the whole document. Only possible once merge streamed, because `tifffile` takes a resolution per page.
 
 - [x] **`P2-W2-E1-010` Configurable white threshold** — `crop_image` always took a `white_threshold`, but nothing ever passed one, so faint paper counted as content on every page or none. A **Background sensitivity** slider now carries it from the panel to the page. It is a ceiling: `_get_effective_white_threshold` adapts per page and returns `max(200, min(requested, adaptive))`, so the range is 200–253 and the label says so rather than implying an absolute.
 

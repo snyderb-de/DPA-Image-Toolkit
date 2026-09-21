@@ -95,6 +95,7 @@ def merge_tiff_group(
         # not complete at all. Writing one page at a time keeps it flat.
         target_mode = None
         first_dpi = None
+        page_dpi = {}
         readable_files = []
 
         for file_path in group_files:
@@ -110,8 +111,10 @@ def merge_tiff_group(
                         target_mode = "RGB"
                     elif target_mode != "RGB":
                         target_mode = "L"
+                    dpi = preserve_dpi(img, file_path)
+                    page_dpi[file_path] = dpi
                     if first_dpi is None:
-                        first_dpi = preserve_dpi(img, file_path)
+                        first_dpi = dpi
                 readable_files.append(file_path)
             except Exception as e:
                 error_list.append(
@@ -155,11 +158,16 @@ def merge_tiff_group(
                         )
                         continue
 
+                    # dpi_per_file used to be collected and then discarded —
+                    # every page was written with the first page's value. It now
+                    # means what it says, and False still writes one DPI for the
+                    # whole document.
+                    resolution = page_dpi.get(file_path, first_dpi) if dpi_per_file else first_dpi
                     writer.write(
                         page,
                         photometric=photometric,
                         compression="deflate",
-                        resolution=first_dpi,
+                        resolution=resolution or first_dpi,
                     )
                     written += 1
         except Exception as e:

@@ -159,6 +159,69 @@ class StreamingMergeTests(unittest.TestCase):
             self.assertTrue(any(e.get("cancelled") for e in errors))
 
 
+class PerPageDpiTests(unittest.TestCase):
+    """dpi_per_file used to be collected and discarded.
+
+    Every page was written with the first page's DPI whatever the flag said.
+    Streaming made honouring it possible, because tifffile takes a resolution
+    per page.
+    """
+
+    def build_mixed_dpi(self, root: Path) -> list[tuple[int, int]]:
+        wanted = [(300, 300), (600, 600), (150, 150)]
+        for index, dpi in enumerate(wanted, start=1):
+            data = np.random.default_rng(index).integers(
+                0, 255, (PAGE_H, PAGE_W, 3), dtype=np.uint8
+            )
+            Image.fromarray(data).save(root / f"doc_{index:04d}.tif", dpi=dpi)
+        return wanted
+
+    def read_dpi(self, path) -> list[tuple[int, int]]:
+        with Image.open(path) as merged:
+            out = []
+            for index in range(getattr(merged, "n_frames", 1)):
+                merged.seek(index)
+                out.append(tuple(int(v) for v in merged.info.get("dpi", (0, 0))))
+            return out
+
+    def test_each_page_keeps_its_own_dpi(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            wanted = self.build_mixed_dpi(root)
+
+            ok, out, _errors = merge_tiff_group(
+                "doc", root, root / "merged", dpi_per_file=True
+            )
+
+            self.assertTrue(ok)
+            self.assertEqual(self.read_dpi(out), wanted)
+
+    def test_turning_it_off_writes_one_dpi_throughout(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.build_mixed_dpi(root)
+
+            ok, out, _errors = merge_tiff_group(
+                "doc", root, root / "merged", dpi_per_file=False
+            )
+
+            self.assertTrue(ok)
+            self.assertEqual(self.read_dpi(out), [(300, 300)] * 3)
+
+    def test_a_uniform_group_is_unaffected_either_way(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            build_group(root, 3)
+
+            for flag in (True, False):
+                with self.subTest(dpi_per_file=flag):
+                    ok, out, _errors = merge_tiff_group(
+                        "doc", root, root / f"merged_{flag}", dpi_per_file=flag
+                    )
+                    self.assertTrue(ok)
+                    self.assertEqual(self.read_dpi(out), [(300, 300)] * 3)
+
+
 class MemoryStaysFlatTests(unittest.TestCase):
     """Peak memory must not grow with the page count.
 
