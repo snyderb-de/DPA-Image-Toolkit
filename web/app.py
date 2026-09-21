@@ -48,6 +48,7 @@ from modules.pdf_tools.core import (
     get_pdfa_profile_label,
     get_pdfa_profile_labels,
 )
+from utils import recent_folders, undo
 from utils.job_runner import JobRunner
 from utils.tool_registry import TOOL_IDS, ToolError, get_spec
 
@@ -328,6 +329,12 @@ def tool_prepare(tool_id):
         return jsonify({"ok": False, "error": str(exc)})
 
     runner.replace_data(tool_id, prepared.data)
+    # Folder tools send "folder"; PDF conversion sends "path", which may be a
+    # single file — record its parent so the list stays a list of folders.
+    chosen = prepared.data.get("folder") or prepared.data.get("path")
+    if chosen:
+        candidate = Path(chosen)
+        recent_folders.record(tool_id, candidate if candidate.is_dir() else candidate.parent)
     return jsonify({"ok": True, **prepared.payload})
 
 
@@ -357,8 +364,63 @@ def tool_start(tool_id):
 
     if started.error_folder is not None:
         runner.update_data(tool_id, error_folder=str(started.error_folder))
+    # Remembered so an undo knows the only folder it may delete within.
+    runner.update_data(
+        tool_id,
+        output_folder=str(started.output_folder) if started.output_folder else None,
+    )
     runner.start(tool_id, started.worker, report_name=spec.display_name)
     return jsonify({"ok": True})
+
+
+@app.route("/api/<tool_id>/undo", methods=["POST"])
+def tool_undo(tool_id):
+    """Remove what the finished job wrote. Sources are never touched."""
+    if not runner.knows(tool_id):
+        return jsonify({"ok": False, "error": "Unknown tool"}), 404
+
+    state = runner.state(tool_id)
+    if state["state"] == "running":
+        return jsonify({"ok": False, "error": "The job is still running."})
+
+    results = state["results"] or {}
+    outputs = results.get("outputs") or []
+    data = runner.get_data(tool_id)
+    output_folder = data.get("output_folder")
+
+    if not output_folder:
+        return jsonify({
+            "ok": False,
+            "error": "This job did not record a single output folder, so it cannot be undone.",
+        })
+    if not outputs:
+        return jsonify({"ok": False, "error": "This job wrote nothing to undo."})
+
+    report = undo.undo_outputs(
+        outputs,
+        output_root=output_folder,
+        input_folder=data.get("folder") or data.get("path"),
+    )
+    payload = report.to_dict()
+    payload["ok"] = report.ok
+    if not report.ok:
+        payload["error"] = f"{len(report.refused)} item(s) were refused."
+    return jsonify(payload)
+
+
+@app.route("/api/<tool_id>/recent", methods=["GET"])
+def tool_recent(tool_id):
+    if not runner.knows(tool_id):
+        return jsonify({"error": "Unknown tool"}), 404
+    return jsonify({"folders": recent_folders.list_recent(tool_id)})
+
+
+@app.route("/api/<tool_id>/recent/forget", methods=["POST"])
+def tool_recent_forget(tool_id):
+    if not runner.knows(tool_id):
+        return jsonify({"error": "Unknown tool"}), 404
+    body = request.get_json(force=True) or {}
+    return jsonify({"folders": recent_folders.forget(tool_id, body.get("folder", ""))})
 
 
 @app.route("/api/<tool_id>/state")

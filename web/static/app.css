@@ -356,18 +356,25 @@ select:focus {
 
 /* ── Status banner ────────────────────────────────────────────────────────── */
 .status-banner {
+  /* Pins to the top of the scroll area so a running job's status stays in
+     view as the panel scrolls. The tint colours are translucent, so they are
+     layered over an opaque base — otherwise content would read through the
+     banner once it starts overlapping. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 0.84rem;
-  background: var(--accent-dim);
+  background: linear-gradient(var(--accent-dim), var(--accent-dim)), var(--bg);
   color: var(--muted);
   border: 1px solid transparent;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
-.status-banner.ok      { background: var(--ok-dim);   color: var(--ok);   border-color: rgba(34,211,160,0.2); }
-.status-banner.warn    { background: var(--warn-dim);  color: var(--warn); border-color: rgba(245,166,35,0.2); }
-.status-banner.error   { background: var(--err-dim);   color: var(--err);  border-color: rgba(240,93,93,0.2); }
+.status-banner.ok    { background: linear-gradient(var(--ok-dim),   var(--ok-dim)),   var(--bg); color: var(--ok);   border-color: rgba(34,211,160,0.2); }
+.status-banner.warn  { background: linear-gradient(var(--warn-dim), var(--warn-dim)), var(--bg); color: var(--warn); border-color: rgba(245,166,35,0.2); }
+.status-banner.error { background: linear-gradient(var(--err-dim),  var(--err-dim)),  var(--bg); color: var(--err);  border-color: rgba(240,93,93,0.2); }
 
 /* ── Options ──────────────────────────────────────────────────────────────── */
 .options-grid {
@@ -771,3 +778,65 @@ code {
   .sidebar { width: 180px; }
   .tool-panel { padding: 18px 16px; }
 }
+
+/* ── Paste-a-path and recent folders ─────────────────────────────────────── */
+
+.path-entry { display: flex; gap: 8px; margin-top: 8px; }
+
+.path-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.path-input::placeholder { color: var(--faint); }
+.path-input:focus { outline: none; border-color: var(--accent); }
+
+.btn-sm { padding: 6px 12px; font-size: 0.76rem; }
+
+.recent-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.recent-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  align-self: center;
+  margin-right: 2px;
+}
+
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel2);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.recent-chip:hover { border-color: var(--accent); }
+
+.recent-chip .chip-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 22ch;
+}
+
+.recent-chip .chip-forget {
+  color: var(--faint);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.recent-chip .chip-forget:hover { color: var(--danger, #dc2626); }
