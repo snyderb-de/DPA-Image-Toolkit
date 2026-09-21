@@ -320,6 +320,24 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-label">What to do</div>
+        <div class="mode-toggle" style="margin-bottom:12px">
+          <button class="mode-btn active" id="split-op-split" onclick="setSplitOperation('split')">Split into single pages</button>
+          <button class="mode-btn" id="split-op-select" onclick="setSplitOperation('select')">Extract / reorder pages</button>
+        </div>
+        <div id="split-select-options" hidden>
+          <div class="path-entry">
+            <input type="text" class="path-input" id="split-page-spec"
+                   placeholder="Pages to keep, in order — e.g. 1-3 or 3,1,2">
+          </div>
+          <div class="slider-help">
+            Pages are written in the order you type them, so <code>3,1,2</code> reorders and
+            <code>2-4</code> extracts a range. <code>4-2</code> counts down. Each selected TIFF
+            produces one <code>&lt;name&gt;_selected.tif</code>; the source is never changed.
+          </div>
+        </div>
+      </div>
 
       <div class="card progress-section hidden" id="prog-split_tiffs">
         <div class="progress-row">

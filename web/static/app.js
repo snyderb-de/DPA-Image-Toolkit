@@ -264,6 +264,14 @@ async function pickPdf() {
 
 // ── Split mode ────────────────────────────────────────────────────────────
 
+function setSplitOperation(op) {
+  state.split_tiffs.operation = op;
+  document.getElementById('split-op-split').classList.toggle('active', op === 'split');
+  document.getElementById('split-op-select').classList.toggle('active', op === 'select');
+  const opts = document.getElementById('split-select-options');
+  if (opts) opts.hidden = op !== 'select';
+}
+
 function setSplitMode(mode) {
   state.split_tiffs.mode = mode;
   state.split_tiffs.files = [];
@@ -338,6 +346,11 @@ async function startTool(toolId) {
       skip_messy:    document.getElementById('opt-quality-check').checked,
       reduce_size:   document.getElementById('opt-reduce-pdf').checked,
       compression_profile: document.getElementById('sel-ocr-compression').value,
+    };
+  } else if (toolId === 'split_tiffs') {
+    body = {
+      operation: state.split_tiffs.operation || 'split',
+      page_spec: (document.getElementById('split-page-spec') || {}).value || '',
     };
   } else if (toolId === 'merge_tiffs') {
     body = { compression: document.getElementById('sel-merge-compression').value };

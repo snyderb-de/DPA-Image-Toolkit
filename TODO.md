@@ -56,7 +56,6 @@ Nothing open.
 
 - [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
-- [ ] `P2-W2-E2-011` **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
@@ -102,6 +101,8 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ## Recently completed
 
 ### Tools
+
+- [x] **`P2-W2-E2-011` TIFF Split: page extraction and reordering** — pulling three pages out of a forty-page roll, or putting two back in the right order, meant leaving the toolkit. The Split panel now offers **Extract / reorder pages** alongside the existing split, taking a page spec that keeps the order it was typed in: `2-4` extracts a range, `3,1,2` reorders, `4-2` counts down, and a page may repeat. Extraction and reordering are the same operation once order is preserved, which is why this is one control and not two. It does not reuse the PDF page parser — that one sorts and de-duplicates, so it cannot express an order. Pages stream out one at a time like the merge, the spec is validated once against the first file so a typo is one message rather than one per file, and the source is never modified.
 
 - [x] **`P2-W1-E1-014` TIFF Merge: compression options** — Deflate, LZW, PackBits, JPEG and none, chosen per job. Deflate stays the default because it is the smallest lossless option; LZW and PackBits are offered for readers that cannot open deflate TIFFs, not to save space, and the labels say so. JPEG is labelled as altering the image. Needs `imagecodecs`, a 13 MB wheel, which is also hinted in the PyInstaller spec because tifffile resolves codecs lazily and the analysis cannot see them.
 
