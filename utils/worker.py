@@ -312,12 +312,21 @@ class TiffSplitWorker(OperationWorker):
         input_files: List[Path],
         output_root: Optional[Path] = None,
         use_root_output: bool = False,
+        operation: str = "split",
+        page_spec: str = "",
+        compression: str = MERGE_DEFAULT_COMPRESSION,
     ):
         super().__init__(name="TiffSplitWorker")
         self.input_files = [Path(file_path) for file_path in input_files]
         self.output_root = Path(output_root) if output_root else None
         self.use_root_output = use_root_output
-        self.results = JobResult(verb="Split", total=len(self.input_files))
+        # "split" writes one file per page; "select" writes one document holding
+        # the chosen pages in the chosen order. Same loop, different per-file work.
+        self.operation = operation
+        self.page_spec = page_spec
+        self.compression = compression
+        verb = "Split" if operation == "split" else "Extracted"
+        self.results = JobResult(verb=verb, total=len(self.input_files))
         self.force_cancel_requested = False
 
     def cancel(self, force: bool = False):
@@ -330,6 +339,28 @@ class TiffSplitWorker(OperationWorker):
         self.cancelled = True
         if force:
             self.force_cancel_requested = True
+
+    def _select_pages_one(self, file_path: Path) -> ItemOutcome:
+        """Write the chosen pages of one source into a single document."""
+        from modules.tiff_combine.pages import select_pages
+
+        if self.use_root_output and self.output_root:
+            destination = self.output_root / f"{file_path.stem}_selected.tif"
+        else:
+            destination = file_path.parent / f"{file_path.stem}_selected.tif"
+
+        ok, output, error, stats = select_pages(
+            file_path,
+            destination,
+            self.page_spec,
+            compression=self.compression,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+        if stats.get("cancelled"):
+            return ItemOutcome.abort()
+        if not ok:
+            return ItemOutcome.fail(error or "Could not extract pages")
+        return ItemOutcome.ok(output)
 
     def _split_one(self, file_path: Path) -> ItemOutcome:
         from modules.tiff_split.core import split_tiff_file
@@ -354,12 +385,13 @@ class TiffSplitWorker(OperationWorker):
     def run(self):
         """Execute TIFF split operation."""
         try:
+            selecting = self.operation == "select"
             run_file_batch(
                 self.input_files,
                 result=self.results,
-                process=self._split_one,
+                process=self._select_pages_one if selecting else self._split_one,
                 reporter=self,
-                gerund="Splitting",
+                gerund="Extracting from" if selecting else "Splitting",
                 empty_message="No TIFF files selected",
             )
         except Exception as e:

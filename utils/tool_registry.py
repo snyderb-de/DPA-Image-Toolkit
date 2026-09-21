@@ -271,7 +271,7 @@ def _prepare_split_tiffs(body: dict) -> Prepared:
     )
 
 
-def _start_split_tiffs(_body: dict, data: dict) -> Started:
+def _start_split_tiffs(body: dict, data: dict) -> Started:
     file_paths = [Path(p) for p in data.get("files", [])]
     if not file_paths:
         raise ToolError("No files prepared")
@@ -286,9 +286,33 @@ def _start_split_tiffs(_body: dict, data: dict) -> Started:
         error_base = file_paths[0].parent
         use_root = False
 
+    operation = str(body.get("operation") or "split").strip().lower()
+    if operation not in ("split", "select"):
+        raise ToolError(f"Unknown operation: {operation}")
+
+    page_spec = str(body.get("page_spec") or "").strip()
+    if operation == "select":
+        if not page_spec:
+            raise ToolError("Enter which pages to keep, for example 1-3 or 3,1,2.")
+        # Fail here rather than per file, so a typo is one clear message
+        # instead of one error for every TIFF in the selection.
+        from modules.tiff_combine.pages import count_pages, parse_page_order
+
+        try:
+            parse_page_order(page_spec, count_pages(file_paths[0]))
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            raise ToolError(f"Could not read {file_paths[0].name}: {exc}") from exc
+
     errors = _make_error_folder(error_base, "split-tiffs")
     return Started(
-        worker=TiffSplitWorker(file_paths, output_root, use_root),
+        worker=TiffSplitWorker(
+            file_paths, output_root, use_root,
+            operation=operation,
+            page_spec=page_spec,
+            compression=str(body.get("compression") or MERGE_DEFAULT_COMPRESSION),
+        ),
         error_folder=errors,
         # File mode scatters <name>_pages/ folders beside each source, so there
         # is no single root an undo could be bounded to.
