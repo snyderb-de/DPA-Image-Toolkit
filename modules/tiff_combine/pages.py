@@ -109,14 +109,17 @@ def select_pages(
     codec = resolve_compression(compression)
     written = 0
 
+    # The writer holds the file open, and Windows refuses to delete an open
+    # file, so cancelling leaves the writer block before removing the partial
+    # output rather than unlinking from inside it.
+    was_cancelled = False
+
     try:
         with Image.open(source) as image, tifffile.TiffWriter(output_path) as writer:
             for index in order:
                 if cancelled():
-                    output_path.unlink(missing_ok=True)
-                    return False, None, "Operation cancelled by user.", {
-                        "cancelled": True, "total_pages": total,
-                    }
+                    was_cancelled = True
+                    break
 
                 image.seek(index)
                 frame = image.convert("RGB" if image.mode in ("RGB", "RGBA") else "L")
@@ -132,6 +135,12 @@ def select_pages(
         output_path.unlink(missing_ok=True)
         return False, None, f"Failed to write {output_path.name}: {exc}", {
             "total_pages": total,
+        }
+
+    if was_cancelled:
+        output_path.unlink(missing_ok=True)
+        return False, None, "Operation cancelled by user.", {
+            "cancelled": True, "total_pages": total,
         }
 
     return True, str(output_path), None, {

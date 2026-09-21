@@ -158,6 +158,43 @@ class StreamingMergeTests(unittest.TestCase):
             self.assertIsNone(out)
             self.assertTrue(any(e.get("cancelled") for e in errors))
 
+    def test_cancelling_leaves_no_partial_document(self):
+        """The writer has already created the file by the time cancel is seen."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            build_group(root, 6)
+
+            merge_tiff_group("doc", root, root / "merged", should_cancel=lambda: True)
+
+            self.assertFalse(
+                (root / "merged" / "doc.tif").exists(),
+                "a partially written document was left behind",
+            )
+
+    def test_cancelling_part_way_through_leaves_nothing(self):
+        """Cancel once bytes are on disk, not before.
+
+        Counting calls would cancel during the header pass, before the writer
+        has opened anything, so this waits for the output to be non-empty —
+        which is exactly the state that used to be left behind.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            build_group(root, 6)
+            partial = root / "merged" / "doc.tif"
+
+            def cancel_once_written():
+                return partial.exists() and partial.stat().st_size > 0
+
+            ok, out, errors = merge_tiff_group(
+                "doc", root, root / "merged", should_cancel=cancel_once_written
+            )
+
+            self.assertFalse(ok)
+            self.assertIsNone(out)
+            self.assertTrue(any(e.get("cancelled") for e in errors))
+            self.assertFalse(partial.exists(), "a partial document survived cancellation")
+
 
 class PerPageDpiTests(unittest.TestCase):
     """dpi_per_file used to be collected and discarded.

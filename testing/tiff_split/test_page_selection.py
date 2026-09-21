@@ -212,6 +212,26 @@ class SelectPagesTests(unittest.TestCase):
         self.assertTrue(stats.get("cancelled"))
         self.assertFalse((self.root / "out.tif").exists())
 
+    def test_cancelling_part_way_through_leaves_nothing(self):
+        """Cancel once pages are written: the writer still holds the file open.
+
+        Deleting from inside the writer block succeeds on macOS and fails on
+        Windows with WinError 32, which surfaced as a write failure rather
+        than a cancellation.
+        """
+        partial = self.root / "out.tif"
+
+        def cancel_once_written():
+            return partial.exists() and partial.stat().st_size > 0
+
+        ok, out, error, stats = self.select("1-5", should_cancel=cancel_once_written)
+
+        self.assertFalse(ok)
+        self.assertIsNone(out)
+        self.assertIn("cancelled", error.lower())
+        self.assertTrue(stats.get("cancelled"))
+        self.assertFalse((self.root / "out.tif").exists())
+
     def test_the_compression_choice_reaches_the_file(self):
         small = self.select("1-5", name="small.tif", compression="deflate")[1]
         large = self.select("1-5", name="large.tif", compression="none")[1]

@@ -141,15 +141,16 @@ def merge_tiff_group(
         codec = resolve_compression(compression)
 
         written = 0
+        # Cancelling leaves the writer block before removing the partial
+        # document: the writer holds the file open, and Windows refuses to
+        # delete an open file.
+        was_cancelled = False
         try:
             with tifffile.TiffWriter(output_path) as writer:
                 for file_path in readable_files:
                     if _cancelled():
-                        return False, None, error_list + [{
-                            "file": group_name,
-                            "error": "Operation cancelled by user.",
-                            "cancelled": True,
-                        }]
+                        was_cancelled = True
+                        break
                     try:
                         with Image.open(file_path) as img:
                             if img.mode != target_mode:
@@ -177,6 +178,14 @@ def merge_tiff_group(
             return False, None, error_list + [
                 {"file": output_filename, "error": f"Failed to save TIFF: {str(e)}"}
             ]
+
+        if was_cancelled:
+            output_path.unlink(missing_ok=True)
+            return False, None, error_list + [{
+                "file": group_name,
+                "error": "Operation cancelled by user.",
+                "cancelled": True,
+            }]
 
         if not written:
             # Every page failed to convert; do not leave an empty TIFF behind.
