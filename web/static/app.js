@@ -329,6 +329,7 @@ async function startTool(toolId) {
   if (toolId === 'auto_crop') {
     body = {
       straighten: document.getElementById('opt-auto-straighten').checked,
+      white_threshold: Number(document.getElementById('opt-white-threshold').value),
     };
   } else if (toolId === 'ocr_pdf') {
     body = {
@@ -626,6 +627,11 @@ function setCount(toolId, text) {
   } else {
     el.style.display = 'none';
   }
+}
+
+function describeThreshold(value) {
+  const out = document.getElementById('white-threshold-value');
+  if (out) out.textContent = value;
 }
 
 function setBanner(toolId, text, level) {

@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, List
 
+from modules.auto_cropping.core import DEFAULT_WHITE_THRESHOLD
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
 from utils.batch import (
@@ -100,6 +101,7 @@ class AutoCropWorker(OperationWorker):
         output_folder: Path,
         error_folder: Path,
         straighten: bool = False,
+        white_threshold: int = DEFAULT_WHITE_THRESHOLD,
     ):
         """
         Initialize auto-crop worker.
@@ -115,6 +117,9 @@ class AutoCropWorker(OperationWorker):
         self.output_folder = Path(output_folder)
         self.error_folder = Path(error_folder)
         self.straighten = straighten
+        # Ceiling on what counts as background. crop_image may choose a lower
+        # value for a given page; it never goes above this.
+        self.white_threshold = int(white_threshold)
 
         self.results = JobResult(verb="Cropped")
 
@@ -128,6 +133,7 @@ class AutoCropWorker(OperationWorker):
         output_path, error_msg, status = crop_image(
             image_file,
             self.output_folder,
+            white_threshold=self.white_threshold,
             preserve_dpi=True,
             straighten=self.straighten,
         )

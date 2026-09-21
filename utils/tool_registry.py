@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
+from modules.auto_cropping.core import DEFAULT_WHITE_THRESHOLD
 from modules.ocr_pdf.core import (
     check_ocr_dependencies,
     get_ocr_dependency_statuses,
@@ -146,6 +147,21 @@ def _check_by_key(tool_key: str) -> Callable[[dict], tuple]:
 
 # ── Auto Crop ──────────────────────────────────────────────────────────────
 
+# Below 200 the core floors it, above the default it is ignored, so anything
+# outside this range is a no-op the user would read as a broken control.
+WHITE_THRESHOLD_MIN = 200
+WHITE_THRESHOLD_MAX = DEFAULT_WHITE_THRESHOLD
+
+
+def _white_threshold(body: dict) -> int:
+    raw = body.get("white_threshold", DEFAULT_WHITE_THRESHOLD)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_WHITE_THRESHOLD
+    return max(WHITE_THRESHOLD_MIN, min(WHITE_THRESHOLD_MAX, value))
+
+
 def _start_auto_crop(body: dict, data: dict) -> Started:
     folder = _prepared_folder(data)
     errors = _make_error_folder(folder)
@@ -154,6 +170,7 @@ def _start_auto_crop(body: dict, data: dict) -> Started:
         worker=AutoCropWorker(
             folder, output, errors,
             straighten=bool(body.get("straighten", False)),
+            white_threshold=_white_threshold(body),
         ),
         error_folder=errors,
         output_folder=output,

@@ -113,6 +113,18 @@
             <input type="checkbox" id="opt-auto-straighten"> Straighten before crop
           </label>
         </div>
+        <div class="slider-row">
+          <label class="slider-label" for="opt-white-threshold">Background sensitivity</label>
+          <input type="range" id="opt-white-threshold" class="slider"
+                 min="200" max="253" value="253" step="1"
+                 oninput="describeThreshold(this.value)">
+          <span class="slider-value" id="white-threshold-value">253</span>
+        </div>
+        <div class="slider-help">
+          Highest brightness still treated as content. Lower it to ignore faint paper and
+          crop tighter. Auto Crop may pick a lower value for a page on its own — this is
+          the ceiling, never a floor.
+        </div>
       </div>
 
 

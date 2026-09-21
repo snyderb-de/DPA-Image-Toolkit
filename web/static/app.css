@@ -840,3 +840,26 @@ code {
 }
 
 .recent-chip .chip-forget:hover { color: var(--danger, #dc2626); }
+
+/* ── Threshold slider ────────────────────────────────────────────────────── */
+
+.slider-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+
+.slider-label { font-size: 0.8rem; color: var(--ink); white-space: nowrap; }
+
+.slider { flex: 1; min-width: 120px; accent-color: var(--accent); }
+
+.slider-value {
+  min-width: 3ch;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.slider-help {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
