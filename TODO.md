@@ -2,7 +2,7 @@
 
 **Status:** v1.1.9 is the current GitHub release. Primary deploy target is the PyInstaller Windows one-file EXE built from `launch_web.py`.
 
-The next release was blocked by an OpenCV 5 incompatibility in deskewing — the release workflow runs the suite before building, so the break stopped a tagged build rather than shipping. That is fixed and dependency majors are now capped. The EXE itself has not been rebuilt or smoke-tested since the architecture work, which is the P0 below.
+v1.1.10 shipped the architecture work: one web UI, one tool registry, typed job results, and one filename grouping rule shared by every tool. It also fixed the OpenCV 5 incompatibility that had been blocking releases, and capped dependency majors so a major cannot arrive uninvited again. The released EXE has been smoke-tested on Windows.
 
 ---
 
@@ -42,7 +42,7 @@ feed each other.
 
 ## P0 — Blocks the next release
 
-- [ ] `P0-W3-E1-001` **W3 · E1** — **Smoke-test the released Windows EXE** — download `image-toolkit.exe` into a clean user profile, run all seven tools, confirm no local Python install or `_internal/` folder is needed. More important than it was: the architecture work changed what `launch_web.py` pulls in and deleted a package `packaging/dpa-toolkit.spec` still references, and none of it has been exercised on Windows.
+Nothing open.
 
 ---
 
@@ -108,6 +108,10 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ---
 
 ## Recently completed
+
+### Release
+
+- [x] **`P0-W3-E1-001` Smoke-tested the released Windows EXE** — v1.1.10 launches from a clean profile, all seven tools open, straightening works, the PDF Conversion icon renders, and no `_internal/` folder is needed beside the executable.
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
 

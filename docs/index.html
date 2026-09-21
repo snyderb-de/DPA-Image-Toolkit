@@ -355,7 +355,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">24 open</span>
+        <span class="pbadge">22 open</span>
       </div>
       <div class="pb">
         <p class="t-note" style="margin:0 0 12px">
@@ -366,7 +366,7 @@
         <div class="tbands">
           <div class="tband">
             <span class="pri p0">P0</span>
-            <span class="tband-n">1</span>
+            <span class="tband-n">0</span>
             <span class="tband-label">Blocks the next release</span>
           </div>
           <div class="tband">
@@ -376,7 +376,7 @@
           </div>
           <div class="tband">
             <span class="pri p2">P2</span>
-            <span class="tband-n">14</span>
+            <span class="tband-n">13</span>
             <span class="tband-label">Planned improvement</span>
           </div>
           <div class="tband">
@@ -387,11 +387,6 @@
         </div>
         <p class="t-note" style="margin:14px 0 8px"><strong>Up next</strong></p>
         <div class="tnexts">
-          <div class="tnext">
-            <span class="pri p0">P0</span><span class="win">W3</span><span class="eff">E1</span>
-            <span class="tnext-title">Smoke-test the released Windows EXE</span>
-            <span class="tid-code">P0-W3-E1-001</span>
-          </div>
           <div class="tnext">
             <span class="pri p1">P1</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">Validate on Windows 10 / Windows 11</span>
@@ -406,6 +401,11 @@
             <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">OCR: manual override for quality-flagged pages</span>
             <span class="tid-code">P2-W3-E1-004</span>
+          </div>
+          <div class="tnext">
+            <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
+            <span class="tnext-title">Drag-and-drop folder support</span>
+            <span class="tid-code">P2-W3-E1-005</span>
           </div>
         </div>
       </div>
@@ -544,10 +544,11 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">38 items</span>
+        <span class="pbadge">39 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-039</span><span class="dtext">v1.1.10 released and smoke-tested on Windows — launches from a clean profile, all seven tools open, no <code>_internal/</code> folder needed</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-038</span><span class="dtext">Dashboard refreshed — TODO detail collapsed to band counts read from <code>TODO.md</code>, the all-shipped Roadmap removed, Open Decisions pruned to the one still open</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-037</span><span class="dtext">OCR interface shrunk — 17 exports for 5 used; <code>OcrOptions</code> takes <code>ocr_document_to_pdf</code> from 13 parameters to 6, and two dead folder entry points removed</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-036</span><span class="dtext">Inert customtkinter exclude dropped from the PyInstaller spec</span></div>
