@@ -55,12 +55,8 @@ Nothing open.
 ## P2 — Planned improvement
 
 - [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
-- [ ] `P2-W3-E1-004` **W3 · E1** — **OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped. Today there is no way through except reprocessing outside the toolkit.
-- [ ] `P2-W3-E1-005` **W3 · E1** — **Drag-and-drop folder support** — every job starts with a folder pick today.
-- [ ] `P2-W2-E0-006` **W2 · E0** — **Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
-- [ ] `P2-W3-E2-008` **W3 · E2** — **TIFF Merge: memory-safe streaming** for very large batches (200+ pages), which currently have to be split up by hand.
-- [ ] `P2-W3-E2-009` **W3 · E2** — **Undo support** — move output back, restore originals. A wrong run means manual cleanup today.
+- [ ] `P2-W2-E1-024` **W2 · E1** — **Research SmartScreen-clean code signing** — decision 006 settled the policy (sign at the share); this is the open question of what it would take for Windows to stop warning at all. See `docs/adr/0002-code-signing-at-the-share.md`.
 - [ ] `P2-W2-E1-010` **W2 · E1** — **Configurable white threshold via a UI slider** — tune per batch instead of re-running with defaults that do not suit the material.
 - [ ] `P2-W2-E2-011` **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
@@ -108,6 +104,16 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ---
 
 ## Recently completed
+
+### Tools
+
+- [x] **`P2-W3-E2-009` Undo support** — a finished job can remove what it wrote. The item said "move output back, restore originals", but no tool has ever moved a source, so there is nothing to restore: undo deletes the run's output and nothing else. It only considers paths the job recorded, refuses anything outside that job's output folder, refuses the source folder outright, and reports whatever it declined. Every tool now records what it wrote, which it previously only did for OCR and PDF conversion.
+
+- [x] **`P2-W3-E2-008` TIFF Merge: memory-safe streaming** — pages were all decoded and held before writing, so peak memory grew with the page count: 1,283 MB for 60 pages, and 200-page batches had to be split by hand. Pages now stream to disk one at a time via `tifffile`; peak is flat at ~97 MB, and a 200-page merge completes in 8 seconds at 98 MB. Output is pixel-identical. See `docs/adr/0004-tifffile-for-streaming-merge.md`.
+
+- [x] **`P2-W3-E1-005` Faster folder selection** — every job started with a trip through the native picker. Each folder tool now keeps its last five folders as one-click chips, and takes a pasted path. Drag-and-drop was investigated and rejected: pywebview 6.2.1 exposes no file-drop event, and a browser drop yields no filesystem path, so it cannot give the backend what it needs without uploading every file. Gating staff to folder selection was preferred anyway.
+
+- [x] **`P2-W3-E1-004` OCR: manual override for quality-flagged pages** — a finished job now records which documents the gate withheld OCR text from, and an **OCR Flagged Pages** button re-runs just those with the gate off. Previously the only way through was re-running the whole folder, which gave up the gate for every page that deserved it.
 
 ### Release
 
