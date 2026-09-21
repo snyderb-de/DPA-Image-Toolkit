@@ -38,7 +38,8 @@ class ItemOutcome:
     reason: Optional[str] = None
 
     @classmethod
-    def ok(cls, output: Optional[Path] = None) -> "ItemOutcome":
+    def ok(cls, output=None) -> "ItemOutcome":
+        """`output` is what the item wrote: one path, several, or none."""
         return cls(SUCCESS, output=output)
 
     @classmethod
@@ -142,10 +143,11 @@ class GroupOutcome:
 
     status: str
     errors: tuple = ()
+    output: Optional[Path] = None
 
     @classmethod
-    def ok(cls) -> "GroupOutcome":
-        return cls(SUCCESS)
+    def ok(cls, output: Optional[Path] = None) -> "GroupOutcome":
+        return cls(SUCCESS, output=output)
 
     @classmethod
     def fail(cls, errors: Iterable) -> "GroupOutcome":
@@ -231,7 +233,7 @@ def run_group_batch(
                     continue
 
                 if outcome.status == SUCCESS:
-                    result.record_success()
+                    result.record_success(outcome.output)
                     reporter.update_status(f"Merged: {name}")
                 else:
                     # failed counts groups; errors carry the per-file detail

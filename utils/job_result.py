@@ -64,10 +64,20 @@ class JobResult:
 
     # ── Recording ─────────────────────────────────────────────────────────
 
-    def record_success(self, output: Optional[Path | str] = None) -> None:
+    def record_success(self, output=None) -> None:
+        """Count one success, and remember what it wrote.
+
+        `output` may be a single path or several — TIFF split produces a page
+        file per frame, all from one input. The success count still moves by
+        one; only the output list grows.
+        """
         self.success += 1
-        if output is not None:
+        if output is None:
+            return
+        if isinstance(output, (str, Path)):
             self.outputs.append(str(output))
+        else:
+            self.outputs.extend(str(item) for item in output)
 
     def record_failure(self, file: str, error: str) -> None:
         self.failed += 1
