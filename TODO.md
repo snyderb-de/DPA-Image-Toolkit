@@ -58,7 +58,6 @@ Nothing open.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
 - [ ] `P2-W2-E2-011` **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] `P2-W1-E1-014` **W1 · E1** — **TIFF Merge: advanced compression options** — measured before building, and the case is weak. On a realistic 1700×2200 scan against the current deflate (3.69 MB): LZW is 3.80 MB (**larger**), PackBits 7.89 MB (**more than double**), and JPEG 0.80 MB but **lossy**. None of the three is available without `imagecodecs`, a 13 MB binary wheel, or by dropping back to Pillow and losing the streaming fix. Worth doing only if a specific consumer needs LZW for compatibility, or if lossy access copies are wanted alongside lossless masters — both product calls.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
@@ -103,6 +102,8 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ## Recently completed
 
 ### Tools
+
+- [x] **`P2-W1-E1-014` TIFF Merge: compression options** — Deflate, LZW, PackBits, JPEG and none, chosen per job. Deflate stays the default because it is the smallest lossless option; LZW and PackBits are offered for readers that cannot open deflate TIFFs, not to save space, and the labels say so. JPEG is labelled as altering the image. Needs `imagecodecs`, a 13 MB wheel, which is also hinted in the PyInstaller spec because tifffile resolves codecs lazily and the analysis cannot see them.
 
 - [x] **`P2-W1-E1-013` TIFF Merge: per-page DPI preservation** — `dpi_per_file=True` never did this. Each page's DPI was read, collected, and then discarded: every page was written with the first page's value. It now means what it says, and `False` still writes one DPI for the whole document. Only possible once merge streamed, because `tifffile` takes a resolution per page.
 

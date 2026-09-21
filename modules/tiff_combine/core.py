@@ -16,6 +16,7 @@ import numpy as np
 import tifffile
 from PIL import Image
 from typing import Callable, Tuple, List, Dict, Optional
+from .compression import DEFAULT_COMPRESSION, is_lossless, resolve as resolve_compression
 from .naming import extract_group_name, sort_group_files
 
 
@@ -37,6 +38,7 @@ def merge_tiff_group(
     output_folder: Path,
     dpi_per_file: bool = True,
     should_cancel: Optional[Callable[[], bool]] = None,
+    compression: str = DEFAULT_COMPRESSION,
 ) -> Tuple[bool, Optional[str], List[Dict]]:
     """
     Merge a group of TIFF files into single multi-page TIFF.
@@ -136,6 +138,7 @@ def merge_tiff_group(
         output_filename = f"{group_name}.tif"
         output_path = output_folder / output_filename
         photometric = "rgb" if target_mode == "RGB" else "minisblack"
+        codec = resolve_compression(compression)
 
         written = 0
         try:
@@ -166,7 +169,7 @@ def merge_tiff_group(
                     writer.write(
                         page,
                         photometric=photometric,
-                        compression="deflate",
+                        compression=codec,
                         resolution=resolution or first_dpi,
                     )
                     written += 1

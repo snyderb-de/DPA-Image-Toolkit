@@ -29,6 +29,7 @@ from modules.pdf_tools.core import (
     check_pdf_conversion_dependencies,
     get_pdf_conversion_dependency_statuses,
 )
+from modules.tiff_combine.compression import DEFAULT_COMPRESSION as MERGE_DEFAULT_COMPRESSION
 from modules.tiff_combine.naming import validate_naming_convention
 from utils.job_result import write_error_report
 from utils.file_handler import (
@@ -225,7 +226,7 @@ def _prepare_merge_tiffs(body: dict) -> Prepared:
     )
 
 
-def _start_merge_tiffs(_body: dict, data: dict) -> Started:
+def _start_merge_tiffs(body: dict, data: dict) -> Started:
     folder = _prepared_folder(data)
     groups_raw = data.get("groups", {})
     if not groups_raw:
@@ -234,7 +235,10 @@ def _start_merge_tiffs(_body: dict, data: dict) -> Started:
     errors = _make_error_folder(folder)
     output = _make_output(folder, "merged")
     return Started(
-        worker=TiffMergeWorker(folder, output, errors, groups),
+        worker=TiffMergeWorker(
+            folder, output, errors, groups,
+            compression=str(body.get("compression") or MERGE_DEFAULT_COMPRESSION),
+        ),
         error_folder=errors,
         output_folder=output,
     )

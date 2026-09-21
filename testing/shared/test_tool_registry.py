@@ -170,5 +170,61 @@ class ToolStartTests(unittest.TestCase):
         self.assertEqual(str(caught.exception), "No path prepared")
 
 
+class StartReadsTheRequestTests(unittest.TestCase):
+    """Start functions parse the request body, and only a route exercises that.
+
+    A merge start referenced `body` while its parameter was named `_body`,
+    which every worker-level test missed because they construct workers
+    directly. These call the registry the way the route does.
+    """
+
+    def test_merge_reads_the_compression_choice(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "doc_0001.tif").write_bytes(b"")
+            started = get_spec("merge_tiffs").start(
+                {"compression": "lzw"},
+                {"folder": str(root), "groups": {"doc": [str(root / "doc_0001.tif")]}},
+            )
+            self.assertEqual(started.worker.compression, "lzw")
+
+    def test_merge_falls_back_when_nothing_is_asked_for(self):
+        from modules.tiff_combine.compression import DEFAULT_COMPRESSION
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "doc_0001.tif").write_bytes(b"")
+            started = get_spec("merge_tiffs").start(
+                {}, {"folder": str(root), "groups": {"doc": [str(root / "doc_0001.tif")]}}
+            )
+            self.assertEqual(started.worker.compression, DEFAULT_COMPRESSION)
+
+    def test_auto_crop_reads_the_threshold(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            started = get_spec("auto_crop").start(
+                {"white_threshold": 215}, {"folder": str(root)}
+            )
+            self.assertEqual(started.worker.white_threshold, 215)
+
+    def test_every_start_accepts_an_empty_body(self):
+        """A start must not depend on a key the browser might not send."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "doc_0001.tif").write_bytes(b"")
+            data = {
+                "auto_crop": {"folder": str(root)},
+                "straighten_images": {"folder": str(root)},
+                "add_border": {"folder": str(root)},
+                "ocr_pdf": {"folder": str(root)},
+                "merge_tiffs": {"folder": str(root),
+                                "groups": {"doc": [str(root / "doc_0001.tif")]}},
+            }
+            for tool_id, prepared in data.items():
+                with self.subTest(tool=tool_id):
+                    started = get_spec(tool_id).start({}, prepared)
+                    self.assertIsNotNone(started.worker)
+
+
 if __name__ == "__main__":
     unittest.main()

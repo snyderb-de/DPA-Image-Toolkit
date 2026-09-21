@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, Optional, List
 
 from modules.auto_cropping.core import DEFAULT_WHITE_THRESHOLD
+from modules.tiff_combine.compression import DEFAULT_COMPRESSION as MERGE_DEFAULT_COMPRESSION
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
 from utils.batch import (
@@ -225,6 +226,7 @@ class TiffMergeWorker(OperationWorker):
         output_folder: Path,
         error_folder: Path,
         groups: dict,
+        compression: str = MERGE_DEFAULT_COMPRESSION,
     ):
         """
         Initialize TIFF merge worker.
@@ -241,6 +243,7 @@ class TiffMergeWorker(OperationWorker):
         self.output_folder = Path(output_folder)
         self.error_folder = Path(error_folder)
         self.groups = groups
+        self.compression = compression
 
         self.results = JobResult(verb="Merged")
         self.force_cancel_requested = False
@@ -255,6 +258,7 @@ class TiffMergeWorker(OperationWorker):
             self.output_folder,
             dpi_per_file=True,
             should_cancel=lambda: self.force_cancel_requested,
+            compression=self.compression,
         )
         errors = errors or []
 

@@ -863,3 +863,20 @@ code {
   color: var(--muted);
   line-height: 1.45;
 }
+
+/* ── Select row ──────────────────────────────────────────────────────────── */
+
+.select-row { display: flex; align-items: center; gap: 12px; }
+
+.select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.select:focus { outline: none; border-color: var(--accent); }

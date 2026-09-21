@@ -23,6 +23,13 @@ a = Analysis(
         "PIL.Image",
         "PIL.ImageOps",
         "PIL.ImageFilter",
+        # tifffile resolves codecs lazily through imagecodecs, so PyInstaller's
+        # analysis does not see them. Without these the EXE builds but LZW,
+        # PackBits and JPEG merges fail at runtime.
+        "imagecodecs",
+        "imagecodecs._imcd",
+        "imagecodecs._shared",
+        "tifffile",
     ],
     hookspath=[],
     hooksconfig={},

@@ -249,6 +249,19 @@
         <div class="recent-row" id="recent-merge_tiffs" hidden></div>
       </div>
 
+      <div class="card">
+        <div class="card-label">Options</div>
+        <div class="select-row">
+          <label class="slider-label" for="sel-merge-compression">Compression</label>
+          <select id="sel-merge-compression" class="select"></select>
+        </div>
+        <div class="slider-help">
+          Deflate is the smallest lossless option and the default. LZW and PackBits are
+          lossless but produce larger files; choose them only for readers that cannot open
+          deflate TIFFs. JPEG is far smaller but alters the image, so it is not suitable
+          for archival masters.
+        </div>
+      </div>
 
       <div class="card progress-section hidden" id="prog-merge_tiffs">
         <div class="progress-row">

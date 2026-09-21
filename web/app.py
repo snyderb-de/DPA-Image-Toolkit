@@ -265,6 +265,17 @@ def open_update_location():
     return jsonify({"ok": True, "path": str(folder)})
 
 
+@app.route("/api/merge-compression")
+def merge_compression():
+    from modules.tiff_combine import compression as merge_compression_profiles
+
+    return jsonify({
+        "keys": merge_compression_profiles.get_keys(),
+        "labels": merge_compression_profiles.get_labels(),
+        "default": merge_compression_profiles.DEFAULT_COMPRESSION,
+    })
+
+
 @app.route("/api/compression-profiles")
 def compression_profiles():
     return jsonify({

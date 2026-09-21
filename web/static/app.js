@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadUpdateSettings();
   TOOLS.forEach(id => log(id, 'Ready — select an input to begin.', 'info'));
   ['auto_crop','straighten_images','merge_tiffs','add_border','ocr_pdf'].forEach(loadRecent);
+  loadMergeCompression();
 
   setPdfInputMode(state.pdf_conversion.inputMode);
 });
@@ -338,6 +339,8 @@ async function startTool(toolId) {
       reduce_size:   document.getElementById('opt-reduce-pdf').checked,
       compression_profile: document.getElementById('sel-ocr-compression').value,
     };
+  } else if (toolId === 'merge_tiffs') {
+    body = { compression: document.getElementById('sel-merge-compression').value };
   } else if (toolId === 'pdf_conversion') {
     const op = s.operation;
     body = {
@@ -853,6 +856,22 @@ async function api(url, body) {
 }
 
 // ── Compression profiles ──────────────────────────────────────────────────
+
+async function loadMergeCompression() {
+  try {
+    const data = await (await fetch('/api/merge-compression')).json();
+    const el = document.getElementById('sel-merge-compression');
+    if (!el) return;
+    el.innerHTML = '';
+    data.keys.forEach((key, i) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = data.labels[i];
+      if (key === data.default) opt.selected = true;
+      el.appendChild(opt);
+    });
+  } catch (e) { /* the select keeps whatever the page shipped with */ }
+}
 
 async function loadCompressionProfiles() {
   try {
