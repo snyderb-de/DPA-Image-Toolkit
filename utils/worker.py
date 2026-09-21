@@ -189,7 +189,7 @@ class StraightenWorker(OperationWorker):
             "angle": stats.get("angle", 0.0),
             "output": output_path,
         })
-        return ItemOutcome.ok()
+        return ItemOutcome.ok(output_path)
 
     def run(self):
         """Execute standalone straighten operation."""
@@ -243,7 +243,7 @@ class TiffMergeWorker(OperationWorker):
         """Merge one TIFF group."""
         from modules.tiff_combine.core import merge_tiff_group
 
-        success, _output_path, errors = merge_tiff_group(
+        success, output_path, errors = merge_tiff_group(
             group_name,
             self.input_folder,
             self.output_folder,
@@ -258,7 +258,7 @@ class TiffMergeWorker(OperationWorker):
             return GroupOutcome.abort()
 
         if success:
-            return GroupOutcome.ok()
+            return GroupOutcome.ok(output_path)
         return GroupOutcome.fail(
             (error.get("file", group_name), error.get("error", "Unknown error"))
             for error in errors
@@ -325,7 +325,7 @@ class TiffSplitWorker(OperationWorker):
         from modules.tiff_split.core import split_tiff_file
 
         output_folder = self.output_root if (self.use_root_output and self.output_root) else None
-        success, _output_paths, error_msg, stats = split_tiff_file(
+        success, output_paths, error_msg, stats = split_tiff_file(
             file_path,
             output_folder=output_folder,
             skip_single_page=True,
@@ -339,7 +339,7 @@ class TiffSplitWorker(OperationWorker):
 
         if stats.get("skipped"):
             return ItemOutcome.skip(stats.get("reason") or "Single-page TIFF")
-        return ItemOutcome.ok()
+        return ItemOutcome.ok(output_paths)
 
     def run(self):
         """Execute TIFF split operation."""
@@ -377,12 +377,12 @@ class AddBorderWorker(OperationWorker):
     def _border_one(self, image_file: Path) -> ItemOutcome:
         from modules.image_border.core import add_border_to_image
 
-        _output_path, error_msg, _stats = add_border_to_image(
+        output_path, error_msg, _stats = add_border_to_image(
             image_file,
             self.output_folder,
             preserve_dpi=True,
         )
-        return ItemOutcome.fail(error_msg) if error_msg else ItemOutcome.ok()
+        return ItemOutcome.fail(error_msg) if error_msg else ItemOutcome.ok(output_path)
 
     def run(self):
         """Execute add-border operation."""
@@ -419,6 +419,7 @@ class OcrPdfWorker(OperationWorker):
         compression_profile_key: str = DEFAULT_PROFILE_KEY,
         metadata: Optional[dict] = None,
         tesseract_path: Optional[Path] = None,
+        only_documents=None,
     ):
         super().__init__(name="OcrPdfWorker")
         self.input_folder = Path(input_folder)
@@ -432,8 +433,11 @@ class OcrPdfWorker(OperationWorker):
         self.compression_profile_key = str(compression_profile_key or DEFAULT_PROFILE_KEY)
         self.metadata = metadata or {}
         self.tesseract_path = Path(tesseract_path) if tesseract_path else None
+        # When set, only these documents are processed. Used to re-run the
+        # documents a previous job flagged, without redoing the whole folder.
+        self.only_documents = set(only_documents) if only_documents else None
         self.force_cancel_requested = False
-        self.results = JobResult(verb="OCR'd", extra={"total_pages": 0})
+        self.results = JobResult(verb="OCR'd", extra={"total_pages": 0, "flagged_documents": []})
 
     def cancel(self, force: bool = False):
         """
@@ -531,6 +535,11 @@ class OcrPdfWorker(OperationWorker):
 
             self.update_status("Scanning folder for OCR page images...")
             documents = group_ocr_input_files(self.input_folder)
+            if self.only_documents is not None:
+                documents = [d for d in documents if d["name"] in self.only_documents]
+                self.update_status(
+                    f"Re-running {len(documents)} flagged document(s) with the quality gate off"
+                )
 
             if not documents:
                 self.update_status("No supported image files found")
@@ -660,7 +669,8 @@ class OcrPdfWorker(OperationWorker):
                     for warning in details.get("warnings", []):
                         self.results.note(warning)
                         self.update_status(warning)
-                    for flagged_page in details.get("flagged_pages", []):
+                    flagged = details.get("flagged_pages", [])
+                    for flagged_page in flagged:
                         reason_text = ", ".join(flagged_page.get("reasons", [])) or "flagged by quality precheck"
                         page_number = flagged_page.get("page_number")
                         page_label = flagged_page.get("file") or "page"
@@ -672,6 +682,25 @@ class OcrPdfWorker(OperationWorker):
                             self.update_status(
                                 f"Skipped OCR text on {page_label} ({reason_text})"
                             )
+                    # Pages are assessed whether or not the gate is on, so
+                    # details lists them either way. Only record them when the
+                    # gate actually withheld OCR text — otherwise a retry would
+                    # offer to redo pages that already have a text layer.
+                    if flagged and self.skip_messy:
+                        # Keep the document, not just the log line, so the run
+                        # can be repeated for these pages with the gate off.
+                        self.results.extra.setdefault("flagged_documents", []).append({
+                            "document": document_name,
+                            "output": output_pdf_path.name,
+                            "pages": [
+                                {
+                                    "file": page.get("file", "page"),
+                                    "page_number": page.get("page_number"),
+                                    "reasons": list(page.get("reasons", [])),
+                                }
+                                for page in flagged
+                            ],
+                        })
                     if self.save_pdfa and not result.get("used_pdfa") and not pdfa_warning_added:
                         warning = (
                             "PDF/A was unavailable or incompatible with selected options — "

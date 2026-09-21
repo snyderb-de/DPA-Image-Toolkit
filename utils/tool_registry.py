@@ -64,10 +64,15 @@ class Prepared:
 
 @dataclass(frozen=True)
 class Started:
-    """A worker ready to run, and the error folder its job will write into."""
+    """A worker ready to run, and the folders its job will write into.
+
+    `output_folder` is the boundary an undo is allowed to delete within. A tool
+    that leaves it unset cannot be undone, which is the safe default.
+    """
 
     worker: object
     error_folder: Optional[Path] = None
+    output_folder: Optional[Path] = None
 
 
 @dataclass(frozen=True)
@@ -144,14 +149,14 @@ def _check_by_key(tool_key: str) -> Callable[[dict], tuple]:
 def _start_auto_crop(body: dict, data: dict) -> Started:
     folder = _prepared_folder(data)
     errors = _make_error_folder(folder)
+    output = _make_output(folder, "cropped")
     return Started(
         worker=AutoCropWorker(
-            folder,
-            _make_output(folder, "cropped"),
-            errors,
+            folder, output, errors,
             straighten=bool(body.get("straighten", False)),
         ),
         error_folder=errors,
+        output_folder=output,
     )
 
 
@@ -160,9 +165,11 @@ def _start_auto_crop(body: dict, data: dict) -> Started:
 def _start_straighten(_body: dict, data: dict) -> Started:
     folder = _prepared_folder(data)
     errors = _make_error_folder(folder, "straighten")
+    output = _make_output(folder, "straightened")
     return Started(
-        worker=StraightenWorker(folder, _make_output(folder, "straightened"), errors),
+        worker=StraightenWorker(folder, output, errors),
         error_folder=errors,
+        output_folder=output,
     )
 
 
@@ -171,9 +178,11 @@ def _start_straighten(_body: dict, data: dict) -> Started:
 def _start_add_border(_body: dict, data: dict) -> Started:
     folder = _prepared_folder(data)
     errors = _make_error_folder(folder, "add-border")
+    output = _make_output(folder, "bordered")
     return Started(
-        worker=AddBorderWorker(folder, _make_output(folder, "bordered")),
+        worker=AddBorderWorker(folder, output),
         error_folder=errors,
+        output_folder=output,
     )
 
 
@@ -206,9 +215,11 @@ def _start_merge_tiffs(_body: dict, data: dict) -> Started:
         raise ToolError("No folder/groups prepared")
     groups = {name: [Path(p) for p in paths] for name, paths in groups_raw.items()}
     errors = _make_error_folder(folder)
+    output = _make_output(folder, "merged")
     return Started(
-        worker=TiffMergeWorker(folder, _make_output(folder, "merged"), errors, groups),
+        worker=TiffMergeWorker(folder, output, errors, groups),
         error_folder=errors,
+        output_folder=output,
     )
 
 
@@ -258,6 +269,9 @@ def _start_split_tiffs(_body: dict, data: dict) -> Started:
     return Started(
         worker=TiffSplitWorker(file_paths, output_root, use_root),
         error_folder=errors,
+        # File mode scatters <name>_pages/ folders beside each source, so there
+        # is no single root an undo could be bounded to.
+        output_folder=output_root if use_root else None,
     )
 
 
@@ -288,22 +302,28 @@ def _prepare_ocr_pdf(body: dict) -> Prepared:
 
 def _start_ocr_pdf(body: dict, data: dict) -> Started:
     folder = _prepared_folder(data)
+    retry = bool(body.get("only_documents"))
     errors = _make_error_folder(folder, "ocr-pdf")
+    output = _make_output(folder, "PDFs")
     return Started(
         worker=OcrPdfWorker(
             input_folder=folder,
-            output_folder=_make_output(folder, "PDFs"),
+            output_folder=output,
             error_folder=errors,
             language="eng",
             skip_existing=bool(body.get("skip_existing", True)),
             save_pdfa=True,
-            skip_messy=bool(body.get("skip_messy", True)),
+            # A retry names the documents to redo and turns the gate off for
+            # them; nothing else in the folder is touched.
+            skip_messy=bool(body.get("skip_messy", True)) and not retry,
+            only_documents=body.get("only_documents") or None,
             reduce_size_enabled=bool(body.get("reduce_size", True)),
             compression_profile_key=str(
                 body.get("compression_profile", DEFAULT_PROFILE_KEY)
             ),
         ),
         error_folder=errors,
+        output_folder=output,
     )
 
 

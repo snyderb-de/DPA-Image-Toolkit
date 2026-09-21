@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPdfaProfiles();
   loadUpdateSettings();
   TOOLS.forEach(id => log(id, 'Ready — select an input to begin.', 'info'));
+  ['auto_crop','straighten_images','merge_tiffs','add_border','ocr_pdf'].forEach(loadRecent);
 
   setPdfInputMode(state.pdf_conversion.inputMode);
 });
@@ -91,6 +92,64 @@ function setNavState(toolId, st) {
 
 // ── Folder / file pickers ─────────────────────────────────────────────────
 
+// Folder selection arrives three ways — the native picker, a pasted path, and
+// a recent chip. All three end here so they cannot drift apart.
+async function applyFolder(toolId, folderPath) {
+  const s = state[toolId];
+  const prepRes = await api(`/api/${toolId}/prepare`, { folder: folderPath });
+  if (!prepRes.ok) { setBanner(toolId, prepRes.error || 'Invalid folder', 'error'); return false; }
+
+  s.path = folderPath;
+  setPathDisplay(toolId, folderPath);
+  describePrepared(toolId, prepRes, folderPath);
+  enableStart(toolId);
+  loadRecent(toolId);
+  return true;
+}
+
+async function usePastedPath(toolId) {
+  const input = document.getElementById(`path-input-${toolId}`);
+  const value = input ? input.value.trim() : '';
+  if (!value) return;
+  if (await applyFolder(toolId, value) && input) input.value = '';
+}
+
+async function useRecent(toolId, folderPath) {
+  await applyFolder(toolId, folderPath);
+}
+
+async function forgetRecent(event, toolId, folderPath) {
+  event.stopPropagation();
+  const res = await api(`/api/${toolId}/recent/forget`, { folder: folderPath });
+  renderRecent(toolId, res.folders || []);
+}
+
+async function loadRecent(toolId) {
+  try {
+    const res = await fetch(`/api/${toolId}/recent`);
+    const data = await res.json();
+    renderRecent(toolId, data.folders || []);
+  } catch (e) { /* a missing list is not worth surfacing */ }
+}
+
+function renderRecent(toolId, folders) {
+  const row = document.getElementById(`recent-${toolId}`);
+  if (!row) return;
+  row.hidden = folders.length === 0;
+  if (!folders.length) { row.innerHTML = ''; return; }
+
+  const chips = folders.map(path => {
+    const label = path.split(/[\\/]/).filter(Boolean).pop() || path;
+    const safe = path.replace(/'/g, "\\'");
+    return `<span class="recent-chip" title="${path}" onclick="useRecent('${toolId}','${safe}')">
+              <span class="chip-path">${label}</span>
+              <span class="chip-forget" title="Forget this folder"
+                    onclick="forgetRecent(event,'${toolId}','${safe}')">&times;</span>
+            </span>`;
+  }).join('');
+  row.innerHTML = `<span class="recent-label">Recent</span>${chips}`;
+}
+
 async function pickFolder(toolId) {
   const s = state[toolId];
   const res = await api('/api/pick-folder', { title: 'Select Folder', initial_dir: s.path || null });
@@ -101,6 +160,14 @@ async function pickFolder(toolId) {
 
   s.path = res.path;
   setPathDisplay(toolId, res.path);
+  describePrepared(toolId, prepRes, res.path);
+  loadRecent(toolId);
+  enableStart(toolId);
+}
+
+function describePrepared(toolId, prepRes, folderPath) {
+  const s = state[toolId];
+  const name = folderPath.split(/[\\/]/).filter(Boolean).pop() || folderPath;
 
   if (toolId === 'merge_tiffs') {
     const groups = prepRes.group_count;
@@ -122,14 +189,13 @@ async function pickFolder(toolId) {
     setBanner(toolId, `Found ${prepRes.file_count} file(s) — click Start to begin.`, 'ok');
   }
 
-  log(toolId, `Folder: ${res.path}`, 'info');
+  log(toolId, `Folder: ${folderPath}`, 'info');
   log(toolId, toolId === 'merge_tiffs'
     ? `Found ${prepRes.group_count} merge group(s).`
     : toolId === 'ocr_pdf'
       ? `Found ${prepRes.document_count} document(s), ${prepRes.page_count} total pages.`
       : `Found ${prepRes.file_count} file(s).`, 'success');
 
-  enableStart(toolId);
 }
 
 async function pickSplit() {
@@ -330,6 +396,9 @@ async function resetTool(toolId) {
   setBtn(toolId, 'err', true);
   setNavState(toolId, 'idle');
   log(toolId, 'Ready — select an input to begin.', 'info');
+  if (toolId === 'ocr_pdf') showFlaggedRetry([]);
+  showUndo(toolId, 0);
+  loadRecent(toolId);
   if (toolId === 'split_tiffs') {
     state.split_tiffs.files = [];
   }
@@ -425,6 +494,86 @@ function onJobDone(toolId, results) {
 
   setBtn(toolId, 'start', false, '▶ Start');
   setBtn(toolId, 'cancel', true);
+
+  if (toolId === 'ocr_pdf') showFlaggedRetry(r.flagged_documents || []);
+  showUndo(toolId, (r.outputs || []).length);
+}
+
+// Undo removes what the run wrote. Sources are never touched, so there is
+// nothing to restore — which is why the button says Undo Outputs.
+function showUndo(toolId, outputCount) {
+  const btn = document.getElementById(`btn-undo-${toolId}`);
+  if (!btn) return;
+  btn.hidden = !outputCount;
+  if (outputCount) btn.textContent = `⌫ Undo ${outputCount} Output${outputCount === 1 ? '' : 's'}`;
+}
+
+async function undoJob(toolId) {
+  const btn = document.getElementById(`btn-undo-${toolId}`);
+  const count = btn ? btn.textContent.replace(/\D+/g, '') : '';
+  if (!confirm(
+      `Delete the ${count} file(s) this job created?\n\n` +
+      `Your original scans are not touched — only the output this run wrote.`)) {
+    return;
+  }
+
+  const res = await api(`/api/${toolId}/undo`, {});
+  if (!res.ok) {
+    setBanner(toolId, res.error || 'Undo failed', 'error');
+    (res.refused || []).forEach(r => log(toolId, `Refused: ${r.path} — ${r.reason}`, 'error'));
+    return;
+  }
+
+  if (btn) btn.hidden = true;
+  const removed = res.removed_count || 0;
+  setBanner(toolId, `Undone — removed ${removed} file(s) this job created.`, 'warn');
+  log(toolId, `Undo removed ${removed} file(s).`, 'warning');
+  (res.missing || []).forEach(p => log(toolId, `Already gone: ${p}`, 'info'));
+  (res.folders_removed || []).forEach(p => log(toolId, `Removed empty folder: ${p}`, 'info'));
+}
+
+// The quality gate leaves flagged pages in the PDF without a text layer. This
+// re-runs only those documents with the gate off, rather than the whole folder.
+let flaggedDocuments = [];
+
+function showFlaggedRetry(flagged) {
+  flaggedDocuments = flagged;
+  const btn = document.getElementById('btn-retry-flagged-ocr_pdf');
+  if (!btn) return;
+  const pages = flagged.reduce((n, d) => n + (d.pages ? d.pages.length : 0), 0);
+  btn.hidden = flagged.length === 0;
+  if (flagged.length) {
+    btn.textContent = `↻ OCR ${pages} Flagged Page${pages === 1 ? '' : 's'}`;
+    log('ocr_pdf',
+      `${pages} page(s) were kept without OCR text. Use "OCR Flagged Pages" to force them.`,
+      'warning');
+  }
+}
+
+async function retryFlagged() {
+  if (!flaggedDocuments.length) return;
+  const names = flaggedDocuments.map(d => d.document);
+  const btn = document.getElementById('btn-retry-flagged-ocr_pdf');
+  if (btn) btn.hidden = true;
+
+  log('ocr_pdf', `Re-running ${names.length} document(s) with the quality gate off.`, 'info');
+  const res = await api('/api/ocr_pdf/start', {
+    only_documents: names,
+    skip_existing: false,
+    reduce_size: document.getElementById('opt-reduce-pdf').checked,
+    compression_profile: document.getElementById('sel-ocr-compression').value,
+  });
+  if (!res.ok) { setBanner('ocr_pdf', res.error || 'Failed to start', 'error'); return; }
+
+  state.ocr_pdf.jobState = 'running';
+  state.ocr_pdf.hasErrors = false;
+  setNavState('ocr_pdf', 'running');
+  setBanner('ocr_pdf', 'Re-running flagged pages…', 'info');
+  setProgress('ocr_pdf', 0, 'Starting…');
+  showProgress('ocr_pdf', true);
+  setBtn('ocr_pdf', 'start', true, '⏳ Running…');
+  setBtn('ocr_pdf', 'cancel', false);
+  openStream('ocr_pdf');
 }
 
 // ── Progress helpers ──────────────────────────────────────────────────────
