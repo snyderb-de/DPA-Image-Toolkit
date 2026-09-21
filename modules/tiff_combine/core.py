@@ -12,6 +12,8 @@ Features:
 """
 
 from pathlib import Path
+import numpy as np
+import tifffile
 from PIL import Image
 from typing import Callable, Tuple, List, Dict, Optional
 from .naming import extract_group_name, sort_group_files
@@ -83,6 +85,18 @@ def merge_tiff_group(
         dpi_list = []
         target_mode = None
 
+        # Two cheap passes then one streaming write. Opening a TIFF reads its
+        # header only — PIL decodes lazily — so the first pass costs nothing but
+        # a file handle, and no page is ever decoded until it is written.
+        #
+        # Pages used to be decoded and held in a list, then handed to
+        # Image.save(append_images=...) all at once, so peak memory grew with
+        # the page count: a 60-page group needed 1.3 GB, and 200+ pages could
+        # not complete at all. Writing one page at a time keeps it flat.
+        target_mode = None
+        first_dpi = None
+        readable_files = []
+
         for file_path in group_files:
             if _cancelled():
                 return False, None, error_list + [{
@@ -91,91 +105,73 @@ def merge_tiff_group(
                     "cancelled": True,
                 }]
             try:
-                img = Image.open(file_path)
-
-                # Determine target mode (RGB if any file is RGB, else L for grayscale)
-                if img.mode == "RGB" or img.mode == "RGBA":
-                    target_mode = "RGB"
-                elif target_mode != "RGB":
-                    target_mode = "L"
-
-                # Extract DPI
-                dpi = preserve_dpi(img, file_path)
-                dpi_list.append(dpi)
-
-                images.append((img, file_path, dpi))
-
+                with Image.open(file_path) as img:
+                    if img.mode in ("RGB", "RGBA"):
+                        target_mode = "RGB"
+                    elif target_mode != "RGB":
+                        target_mode = "L"
+                    if first_dpi is None:
+                        first_dpi = preserve_dpi(img, file_path)
+                readable_files.append(file_path)
             except Exception as e:
                 error_list.append(
                     {"file": file_path.name, "error": f"Failed to open: {str(e)}"}
                 )
                 continue
 
-        if not images:
+        if not readable_files:
             return False, None, error_list or [
                 {"file": group_name, "error": "No valid images to merge"}
             ]
 
-        # Set default mode if not set
         if target_mode is None:
             target_mode = "RGB"
-
-        # Convert all images to target mode
-        converted_images = []
-        for img, file_path, dpi in images:
-            if _cancelled():
-                return False, None, error_list + [{
-                    "file": group_name,
-                    "error": "Operation cancelled by user.",
-                    "cancelled": True,
-                }]
-            try:
-                if img.mode != target_mode:
-                    img = convert_image_mode(img, target_mode)
-                converted_images.append((img, dpi))
-            except Exception as e:
-                error_list.append(
-                    {"file": file_path.name, "error": f"Failed to convert: {str(e)}"}
-                )
-                continue
-
-        if not converted_images:
-            return False, None, error_list or [
-                {"file": group_name, "error": "No images after mode conversion"}
-            ]
+        if first_dpi is None:
+            first_dpi = (300, 300)
 
         # Save inside merged/ without changing the base group name.
         output_filename = f"{group_name}.tif"
         output_path = output_folder / output_filename
+        photometric = "rgb" if target_mode == "RGB" else "minisblack"
 
-        # Create multi-page TIFF
-        first_img, first_dpi = converted_images[0]
-
-        # Prepare save_all list with remaining images
-        if len(converted_images) > 1:
-            remaining_images = [img for img, _ in converted_images[1:]]
-        else:
-            remaining_images = []
-
-        # Save multi-page TIFF with DPI
+        written = 0
         try:
-            if _cancelled():
-                return False, None, error_list + [{
-                    "file": group_name,
-                    "error": "Operation cancelled by user.",
-                    "cancelled": True,
-                }]
-            # Use DPI from first file
-            first_img.save(
-                output_path,
-                save_all=True,
-                append_images=remaining_images,
-                dpi=first_dpi,
-                compression="tiff_deflate",
-            )
+            with tifffile.TiffWriter(output_path) as writer:
+                for file_path in readable_files:
+                    if _cancelled():
+                        return False, None, error_list + [{
+                            "file": group_name,
+                            "error": "Operation cancelled by user.",
+                            "cancelled": True,
+                        }]
+                    try:
+                        with Image.open(file_path) as img:
+                            if img.mode != target_mode:
+                                img = convert_image_mode(img, target_mode)
+                            page = np.asarray(img)
+                    except Exception as e:
+                        error_list.append(
+                            {"file": file_path.name, "error": f"Failed to convert: {str(e)}"}
+                        )
+                        continue
+
+                    writer.write(
+                        page,
+                        photometric=photometric,
+                        compression="deflate",
+                        resolution=first_dpi,
+                    )
+                    written += 1
         except Exception as e:
             return False, None, error_list + [
                 {"file": output_filename, "error": f"Failed to save TIFF: {str(e)}"}
+            ]
+
+        if not written:
+            # Every page failed to convert; do not leave an empty TIFF behind.
+            output_path.unlink(missing_ok=True)
+            return False, None, error_list or [
+                {"file": group_name, "error": "No images after mode conversion"}
             ]
 
         return True, str(output_path), error_list
