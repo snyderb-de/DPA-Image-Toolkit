@@ -24,11 +24,22 @@ a = Analysis(
         "PIL.ImageOps",
         "PIL.ImageFilter",
         # tifffile resolves codecs lazily through imagecodecs, so PyInstaller's
-        # analysis does not see them. Without these the EXE builds but LZW,
-        # PackBits and JPEG merges fail at runtime.
+        # analysis does not see them. Without these the EXE builds and every
+        # test passes, and the merge fails only when a user picks the codec.
+        # One module per codec the UI offers: LZW and PackBits are both _imcd,
+        # JPEG is _jpeg8. Deflate needs nothing here — tifffile falls back to
+        # stdlib zlib — but it is listed so the default does not quietly
+        # depend on that fallback.
+        # testing/packaging/test_frozen_codecs.py holds this list to the
+        # compression profiles, so a new profile cannot ship without its module.
         "imagecodecs",
-        "imagecodecs._imcd",
+        "imagecodecs.imagecodecs",
         "imagecodecs._shared",
+        "imagecodecs._shared_cython",
+        "imagecodecs._imcd",
+        "imagecodecs._jpeg8",
+        "imagecodecs._deflate",
+        "imagecodecs._zlib",
         "tifffile",
     ],
     hookspath=[],
