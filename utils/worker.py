@@ -711,15 +711,6 @@ class PdfConversionWorker(OperationWorker):
             key=lambda path: path.name.lower(),
         )
 
-    @staticmethod
-    def _outcome(status: str, error: Optional[str], output, fallback: str) -> Outcome:
-        """Map the (status, error, stats) shape every pdf_tools op returns."""
-        if status == "cancelled":
-            return Outcome.abort()
-        if status != "success":
-            return Outcome.fail(error or fallback)
-        return Outcome.ok(output)
-
     def _reduce_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import reduce_pdf_size
         import shutil
@@ -729,26 +720,23 @@ class PdfConversionWorker(OperationWorker):
             shutil.copy2(pdf_path, output_pdf_path)
             return Outcome.ok(output_pdf_path)
 
-        status, error, _stats = reduce_pdf_size(
+        return reduce_pdf_size(
             input_pdf_path=pdf_path,
             output_pdf_path=output_pdf_path,
             reduce_size_enabled=True,
             compression_profile_key=self.compression_profile_key,
             should_cancel=lambda: self.cancelled,
         )
-        return self._outcome(status, error, output_pdf_path, "Reduce size failed")
 
     def _pdfa_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import convert_pdf_to_pdfa
 
-        output_pdf_path = self.output_root / pdf_path.name
-        status, error, _stats = convert_pdf_to_pdfa(
+        return convert_pdf_to_pdfa(
             input_pdf_path=pdf_path,
-            output_pdf_path=output_pdf_path,
+            output_pdf_path=self.output_root / pdf_path.name,
             pdfa_profile_key=self.pdfa_profile_key,
             should_cancel=lambda: self.cancelled,
         )
-        return self._outcome(status, error, output_pdf_path, "PDF/A conversion failed")
 
     def _split_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import (
@@ -757,7 +745,7 @@ class PdfConversionWorker(OperationWorker):
         )
 
         if self.split_output_type == "pdfs":
-            status, error, stats = split_pdf_to_single_page_pdfs(
+            outcome = split_pdf_to_single_page_pdfs(
                 input_pdf_path=pdf_path,
                 output_folder=self.output_root,
                 should_cancel=lambda: self.cancelled,
@@ -768,7 +756,7 @@ class PdfConversionWorker(OperationWorker):
                 "png": "PNG",
                 "tiff": "TIFF",
             }.get(self.split_output_type, "JPEG")
-            status, error, stats = split_pdf_to_images(
+            outcome = split_pdf_to_images(
                 input_pdf_path=pdf_path,
                 output_folder=self.output_root,
                 image_format=image_format,
@@ -777,16 +765,20 @@ class PdfConversionWorker(OperationWorker):
                 should_cancel=lambda: self.cancelled,
             )
 
-        if status == "success":
-            self.update_status(f"✅ Created {int(stats.get('output_count', 0))} output file(s)")
-        return self._outcome(status, error, self.output_root, "Split failed")
+        if not outcome.succeeded:
+            return outcome
+
+        count = int(outcome.details.get("output_count", 0))
+        self.update_status(f"✅ Created {count} output file(s)")
+        # The undo boundary is the folder, not the individual pages.
+        return Outcome.ok(self.output_root, **outcome.details)
 
     def _extract_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import extract_pdf_pages
 
         extracted = pdf_path.parent / f"{pdf_path.stem}_extracted.pdf"
         remaining = pdf_path.parent / f"{pdf_path.stem}_remaining.pdf"
-        status, error, stats = extract_pdf_pages(
+        outcome = extract_pdf_pages(
             input_pdf_path=pdf_path,
             extracted_output_path=extracted,
             page_spec=self.extract_page_spec,
@@ -795,16 +787,18 @@ class PdfConversionWorker(OperationWorker):
             remaining_output_path=remaining,
             should_cancel=lambda: self.cancelled,
         )
-        if status != "success":
-            return self._outcome(status, error, extracted, "Extract pages failed")
+        if not outcome.succeeded:
+            return outcome
 
-        self.update_status(f"✅ Extracted {stats.get('extracted_pages', 0)} page(s)")
+        self.update_status(
+            f"✅ Extracted {outcome.details.get('extracted_pages', 0)} page(s)"
+        )
         # One success, but it can write two files: the pages taken out, and
         # what was left when the caller asked for the remainder too.
         outputs = [extracted]
-        if stats.get("remaining_output"):
-            outputs.append(Path(stats["remaining_output"]))
-        return Outcome.ok(outputs)
+        if outcome.details.get("remaining_output"):
+            outputs.append(Path(outcome.details["remaining_output"]))
+        return Outcome.ok(outputs, **outcome.details)
 
     def run(self):
         """Execute selected PDF conversion operation."""

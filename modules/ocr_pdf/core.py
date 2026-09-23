@@ -917,17 +917,17 @@ def merge_page_pdfs(
         if pdf_metadata:
             writer.add_metadata(pdf_metadata)
 
-        status, error, _stats = optimize_pdf_writer(
+        optimised = optimize_pdf_writer(
             writer,
             reduce_size_enabled=reduce_size_enabled,
             compression_profile_key=compression_profile_key,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
         )
-        if status == "cancelled":
+        if optimised.was_cancelled:
             return False, "Operation cancelled by user."
-        if status != "success":
-            return False, error or "PDF optimization failed."
+        if not optimised.succeeded:
+            return False, optimised.error or "PDF optimization failed."
 
         with open(output_pdf_path, "wb") as target:
             writer.write(target)

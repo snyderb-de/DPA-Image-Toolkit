@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from utils.dependencies import Dependency, DependencySet, module_available
+from utils.outcome import Outcome
 
 from .compression_profiles import (
     DEFAULT_PROFILE_KEY,
@@ -117,7 +118,7 @@ def convert_pdf_to_pdfa(
     force_ocr: bool = False,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> tuple[str, Optional[str], dict]:
+) -> Outcome:
     """
     Convert one PDF into PDF/A using OCRmyPDF.
     """
@@ -126,12 +127,12 @@ def convert_pdf_to_pdfa(
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not input_pdf_path.is_file():
-        return "failed", f"Input PDF not found: {input_pdf_path}", {}
+        return Outcome.fail(f"Input PDF not found: {input_pdf_path}")
 
     try:
         import ocrmypdf
     except Exception as exc:
-        return "failed", f"OCRmyPDF import failed: {exc}", {}
+        return Outcome.fail(f"OCRmyPDF import failed: {exc}")
 
     profile = get_pdfa_profile_config(pdfa_profile_key)
     language_codes = [
@@ -151,7 +152,7 @@ def convert_pdf_to_pdfa(
     }
 
     if should_cancel and should_cancel():
-        return "cancelled", "Operation cancelled by user.", {}
+        return Outcome.abort()
 
     try:
         result = ocrmypdf.ocr(
@@ -160,16 +161,16 @@ def convert_pdf_to_pdfa(
             **kwargs,
         )
     except Exception as exc:
-        return "failed", f"OCRmyPDF failed: {exc}", {}
+        return Outcome.fail(f"OCRmyPDF failed: {exc}")
 
     if should_cancel and should_cancel():
-        return "cancelled", "Operation cancelled by user.", {}
+        return Outcome.abort()
 
     result_code = int(result) if result is not None else 0
     if result_code != 0:
-        return "failed", f"OCRmyPDF returned exit code {result_code}", {}
+        return Outcome.fail(f"OCRmyPDF returned exit code {result_code}")
     if not output_pdf_path.exists():
-        return "failed", "OCRmyPDF finished but no PDF/A output was created.", {}
+        return Outcome.fail("OCRmyPDF finished but no PDF/A output was created.")
 
     if progress_callback:
         progress_callback(
@@ -180,11 +181,11 @@ def convert_pdf_to_pdfa(
             }
         )
 
-    return "success", None, {
-        "profile": profile["key"],
-        "output_type": profile["output_type"],
-        "output_path": str(output_pdf_path),
-    }
+    return Outcome.ok(
+        str(output_pdf_path),
+        profile=profile["key"],
+        output_type=profile["output_type"],
+    )
 
 
 def _safe_add_metadata(writer, reader_metadata):
@@ -245,30 +246,30 @@ def optimize_pdf_writer(
     compression_profile_key: str = DEFAULT_PROFILE_KEY,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> tuple[str, Optional[str], dict]:
+) -> Outcome:
     """
     Apply PDF compression settings to a PdfWriter in-place.
     """
     total_pages = len(writer.pages)
     if not reduce_size_enabled:
-        return "success", None, {
-            "profile": compression_profile_key,
-            "pages": total_pages,
-            "images_recompressed": 0,
-            "reduction_enabled": False,
-        }
+        return Outcome.ok(
+            profile=compression_profile_key,
+            pages=total_pages,
+            images_recompressed=0,
+            reduction_enabled=False,
+        )
 
     profile = get_profile_config(compression_profile_key)
     recompressed_images = 0
 
     for page_index, page in enumerate(writer.pages, start=1):
         if should_cancel and should_cancel():
-            return "cancelled", "Operation cancelled by user.", {
-                "profile": profile["key"],
-                "pages": total_pages,
-                "images_recompressed": recompressed_images,
-                "reduction_enabled": True,
-            }
+            return Outcome.abort(
+                profile=profile["key"],
+                pages=total_pages,
+                images_recompressed=recompressed_images,
+                reduction_enabled=True,
+            )
 
         if profile.get("compress_content_streams"):
             try:
@@ -306,12 +307,12 @@ def optimize_pdf_writer(
                 remove_unreferenced=True,
             )
 
-    return "success", None, {
-        "profile": profile["key"],
-        "pages": total_pages,
-        "images_recompressed": recompressed_images,
-        "reduction_enabled": True,
-    }
+    return Outcome.ok(
+        profile=profile["key"],
+        pages=total_pages,
+        images_recompressed=recompressed_images,
+        reduction_enabled=True,
+    )
 
 
 def reduce_pdf_size(
@@ -322,7 +323,7 @@ def reduce_pdf_size(
     compression_profile_key: str = DEFAULT_PROFILE_KEY,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> tuple[str, Optional[str], dict]:
+) -> Outcome:
     """
     Reduce one PDF's size using shared compression profiles.
     """
@@ -333,26 +334,27 @@ def reduce_pdf_size(
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not input_pdf_path.is_file():
-        return "failed", f"Input PDF not found: {input_pdf_path}", {}
+        return Outcome.fail(f"Input PDF not found: {input_pdf_path}")
 
     writer = PdfWriter(clone_from=str(input_pdf_path))
-    status, error, stats = optimize_pdf_writer(
+    optimised = optimize_pdf_writer(
         writer,
         reduce_size_enabled=reduce_size_enabled,
         compression_profile_key=compression_profile_key,
         progress_callback=progress_callback,
         should_cancel=should_cancel,
     )
-    if status != "success":
-        return status, error, stats
+    if not optimised.succeeded:
+        return optimised
 
+    details = optimised.details
     try:
         with output_pdf_path.open("wb") as target:
             writer.write(target)
     except Exception as exc:
-        return "failed", f"Failed to write reduced PDF: {exc}", stats
+        return Outcome.fail(f"Failed to write reduced PDF: {exc}", **details)
 
-    return "success", None, stats
+    return Outcome.ok(str(output_pdf_path), **details)
 
 
 def parse_page_selection(page_spec: str, total_pages: int) -> list[int]:
@@ -406,7 +408,7 @@ def extract_pdf_pages(
     remaining_output_path: Optional[str | Path] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> tuple[str, Optional[str], dict]:
+) -> Outcome:
     """
     Extract selected pages into a new PDF and optionally write a separate
     remaining-pages PDF. The source PDF is never overwritten.
@@ -418,18 +420,18 @@ def extract_pdf_pages(
     extracted_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not input_pdf_path.is_file():
-        return "failed", f"Input PDF not found: {input_pdf_path}", {}
+        return Outcome.fail(f"Input PDF not found: {input_pdf_path}")
 
     try:
         reader = PdfReader(str(input_pdf_path))
     except Exception as exc:
-        return "failed", f"Failed to open PDF: {exc}", {}
+        return Outcome.fail(f"Failed to open PDF: {exc}")
 
     total_pages = len(reader.pages)
     try:
         selected_indices = parse_page_selection(page_spec, total_pages)
     except ValueError as exc:
-        return "failed", str(exc), {}
+        return Outcome.fail(str(exc))
 
     selected_set = set(selected_indices)
     extracted_writer = PdfWriter()
@@ -440,7 +442,7 @@ def extract_pdf_pages(
 
     for page_index, page in enumerate(reader.pages):
         if should_cancel and should_cancel():
-            return "cancelled", "Operation cancelled by user.", {}
+            return Outcome.abort()
 
         if page_index in selected_set:
             extracted_writer.add_page(page)
@@ -460,7 +462,7 @@ def extract_pdf_pages(
         with extracted_output_path.open("wb") as target:
             extracted_writer.write(target)
     except Exception as exc:
-        return "failed", f"Failed to write extracted PDF: {exc}", {}
+        return Outcome.fail(f"Failed to write extracted PDF: {exc}")
 
     remaining_output = None
     if remove_extracted_pages and remaining_writer is not None:
@@ -473,15 +475,16 @@ def extract_pdf_pages(
                 remaining_writer.write(target)
             remaining_output = str(safe_output)
         except Exception as exc:
-            return "failed", f"Failed to write remaining PDF: {exc}", {}
+            return Outcome.fail(f"Failed to write remaining PDF: {exc}")
 
-    return "success", None, {
-        "total_pages": total_pages,
-        "extracted_pages": len(selected_indices),
-        "remaining_pages": total_pages - len(selected_indices),
-        "extracted_output": str(extracted_output_path),
-        "remaining_output": remaining_output,
-    }
+    return Outcome.ok(
+        str(extracted_output_path),
+        total_pages=total_pages,
+        extracted_pages=len(selected_indices),
+        remaining_pages=total_pages - len(selected_indices),
+        extracted_output=str(extracted_output_path),
+        remaining_output=remaining_output,
+    )
 
 
 def split_pdf_to_single_page_pdfs(
@@ -490,7 +493,7 @@ def split_pdf_to_single_page_pdfs(
     *,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> tuple[str, Optional[str], dict]:
+) -> Outcome:
     """
     Split one PDF into one-PDF-per-page outputs.
     """
@@ -501,21 +504,20 @@ def split_pdf_to_single_page_pdfs(
     output_folder.mkdir(parents=True, exist_ok=True)
 
     if not input_pdf_path.is_file():
-        return "failed", f"Input PDF not found: {input_pdf_path}", {}
+        return Outcome.fail(f"Input PDF not found: {input_pdf_path}")
 
     try:
         reader = PdfReader(str(input_pdf_path))
     except Exception as exc:
-        return "failed", f"Failed to open PDF: {exc}", {}
+        return Outcome.fail(f"Failed to open PDF: {exc}")
 
     total_pages = len(reader.pages)
     outputs = []
     for page_index, page in enumerate(reader.pages, start=1):
         if should_cancel and should_cancel():
-            return "cancelled", "Operation cancelled by user.", {
-                "total_pages": total_pages,
-                "output_count": len(outputs),
-            }
+            return Outcome.abort(
+                total_pages=total_pages, output_count=len(outputs)
+            )
 
         writer = PdfWriter()
         writer.add_page(page)
@@ -526,7 +528,7 @@ def split_pdf_to_single_page_pdfs(
             with output_path.open("wb") as target:
                 writer.write(target)
         except Exception as exc:
-            return "failed", f"Failed writing page {page_index}: {exc}", {}
+            return Outcome.fail(f"Failed writing page {page_index}: {exc}")
 
         outputs.append(str(output_path))
         if progress_callback:
@@ -538,11 +540,9 @@ def split_pdf_to_single_page_pdfs(
                 }
             )
 
-    return "success", None, {
-        "total_pages": total_pages,
-        "output_count": len(outputs),
-        "outputs": outputs,
-    }
+    return Outcome.ok(
+        outputs, total_pages=total_pages, output_count=len(outputs)
+    )
 
 
 def split_pdf_to_images(
@@ -554,7 +554,7 @@ def split_pdf_to_images(
     dpi: int = 200,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> tuple[str, Optional[str], dict]:
+) -> Outcome:
     """
     Render one PDF into one image per page.
     """
@@ -565,16 +565,16 @@ def split_pdf_to_images(
     output_folder.mkdir(parents=True, exist_ok=True)
 
     if not input_pdf_path.is_file():
-        return "failed", f"Input PDF not found: {input_pdf_path}", {}
+        return Outcome.fail(f"Input PDF not found: {input_pdf_path}")
 
     fmt = str(image_format or "JPEG").strip().upper()
     if fmt not in {"JPEG", "PNG", "TIFF"}:
-        return "failed", f"Unsupported output image format: {fmt}", {}
+        return Outcome.fail(f"Unsupported output image format: {fmt}")
 
     try:
         document = pdfium.PdfDocument(str(input_pdf_path))
     except Exception as exc:
-        return "failed", f"Failed to open PDF for rendering: {exc}", {}
+        return Outcome.fail(f"Failed to open PDF for rendering: {exc}")
 
     output_paths = []
     total_pages = len(document)
@@ -583,10 +583,9 @@ def split_pdf_to_images(
     try:
         for page_index in range(total_pages):
             if should_cancel and should_cancel():
-                return "cancelled", "Operation cancelled by user.", {
-                    "total_pages": total_pages,
-                    "output_count": len(output_paths),
-                }
+                return Outcome.abort(
+                    total_pages=total_pages, output_count=len(output_paths)
+                )
 
             page = document[page_index]
             bitmap = page.render(scale=scale)
@@ -611,16 +610,16 @@ def split_pdf_to_images(
                     }
                 )
     except Exception as exc:
-        return "failed", f"Failed during PDF image export: {exc}", {}
+        return Outcome.fail(f"Failed during PDF image export: {exc}")
     finally:
         try:
             document.close()
         except Exception:
             pass
 
-    return "success", None, {
-        "total_pages": total_pages,
-        "output_count": len(output_paths),
-        "outputs": output_paths,
-        "format": fmt,
-    }
+    return Outcome.ok(
+        output_paths,
+        total_pages=total_pages,
+        output_count=len(output_paths),
+        format=fmt,
+    )
