@@ -453,7 +453,7 @@ function closeStream(toolId) {
 function handleEvent(toolId, evt) {
   switch (evt.type) {
     case 'progress': {
-      const pct = evt.percentage != null ? evt.percentage : (evt.pdf_percent ?? 0);
+      const pct = evt.percentage ?? 0;
       const label = evt.filename || evt.message || '';
       setProgress(toolId, pct, label);
       if (toolId === 'ocr_pdf') {

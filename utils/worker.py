@@ -426,7 +426,13 @@ class AddBorderWorker(OperationWorker):
 
 
 class OcrPdfWorker(OperationWorker):
-    """Worker for OCR-to-PDF operations."""
+    """Worker for OCR-to-PDF operations.
+
+    The unit of work is a document: a group of page images that becomes one
+    searchable PDF. Progress is reported per page rather than per document,
+    because one document can be a single page or eighty, and a bar that only
+    moves between documents looks stuck.
+    """
 
     def __init__(
         self,
@@ -458,6 +464,14 @@ class OcrPdfWorker(OperationWorker):
         self.only_documents = set(only_documents) if only_documents else None
         self.results = JobResult(verb="OCR'd", extra={"total_pages": 0, "flagged_documents": []})
 
+        # Page-weighted progress. The batch loop counts documents; these carry
+        # the page arithmetic the two progress bars are drawn from.
+        self._document_index = 0
+        self._document_total = 0
+        self._completed_pages = 0
+        self._total_pages = 0
+        self._pdfa_warning_added = False
+
     def _ocr_options(self):
         """The OCR settings for this run, as one value."""
         from modules.ocr_pdf.core import OcrOptions
@@ -473,73 +487,172 @@ class OcrPdfWorker(OperationWorker):
             compression_profile_key=self.compression_profile_key,
         )
 
-    def _emit_ocr_progress(
-        self,
-        *,
-        stage: str,
-        message: str,
-        current_pdf: int,
-        total_pdfs: int,
-        current_page: int,
-        total_pages_in_pdf: int,
-        completed_job_pages: int,
-        total_job_pages: int,
-        filename: str,
-    ):
-        """Emit structured OCR progress payload for UI progress bars."""
+    def update_progress(self, current: int, total: int, filename: str = ""):
+        """Record which document the loop has reached, and emit nothing.
+
+        The batch loop counts documents. OCR reports page-weighted progress
+        from `_emit_progress`, so the loop's count is kept and the emitting is
+        left to the page callbacks that know how far into a document we are.
+        """
+        self._document_index = current
+        self._document_total = total
+
+    def _emit_progress(self, *, message: str, filename: str, page: int, page_total: int):
+        """One progress event: how far through this PDF, and through the job.
+
+        `percentage` drives the Current PDF bar and `job_percent` the Overall
+        Job bar. Both are sent on every event so the two never disagree.
+        """
         if not self.progress_callback:
             return
 
-        safe_pdf_total = max(total_pages_in_pdf, 1)
-        safe_job_total = max(total_job_pages, 1)
-        pdf_percent = (current_page / safe_pdf_total) * 100.0
-        job_page_current = min(completed_job_pages + current_page, total_job_pages)
-        job_percent = (job_page_current / safe_job_total) * 100.0
+        job_pages = min(self._completed_pages + page, self._total_pages)
+        self.progress_callback({
+            "percentage": (page / max(page_total, 1)) * 100.0,
+            "job_percent": (job_pages / max(self._total_pages, 1)) * 100.0,
+            "current_pdf": self._document_index,
+            "total_pdfs": self._document_total,
+            "filename": filename,
+            "message": message,
+        })
 
-        self.progress_callback(
-            {
-                "stage": stage,
-                "message": message,
-                "current_pdf": current_pdf,
-                "total_pdfs": total_pdfs,
-                "current_page": current_page,
-                "total_pages_in_pdf": total_pages_in_pdf,
-                "pdf_percent": pdf_percent,
-                "job_page_current": job_page_current,
-                "job_page_total": total_job_pages,
-                "job_percent": job_percent,
-                "filename": filename,
-                # Backward-compatible keys used by other panels.
-                "current": current_pdf,
-                "total": total_pdfs,
-                "percentage": job_percent,
-            }
+    def _record_flagged(self, document_name: str, output_name: str, flagged: list):
+        """Keep the documents whose pages the quality gate withheld OCR from.
+
+        Recorded as documents, not just log lines, so the run can be repeated
+        for exactly these with the gate off.
+        """
+        self.results.extra.setdefault("flagged_documents", []).append({
+            "document": document_name,
+            "output": output_name,
+            "pages": [
+                {
+                    "file": page.get("file", "page"),
+                    "page_number": page.get("page_number"),
+                    "reasons": list(page.get("reasons", [])),
+                }
+                for page in flagged
+            ],
+        })
+
+    def _ocr_one(self, document: dict) -> ItemOutcome:
+        """Turn one document's page images into one searchable PDF."""
+        from modules.ocr_pdf.core import ocr_document_to_pdf
+
+        document_name = document["name"]
+        output_pdf_path = self.output_folder / f"{document_name}.pdf"
+        page_total = max(int(document.get("page_count", 0)), 1)
+        label = output_pdf_path.name
+
+        self._emit_progress(
+            message=f"Analyzing pages for {label} ({page_total} page(s))",
+            filename=label,
+            page=0,
+            page_total=page_total,
         )
+
+        def _on_document_progress(event: dict):
+            name = event.get("event")
+            page = int(event.get("page_current") or 0)
+            total = int(event.get("page_total") or page_total)
+            page_label = event.get("page_label") or label
+            percent = (page / max(total, 1)) * 100.0
+
+            if name == "analyzing_page":
+                self._emit_progress(
+                    message=(
+                        "Analyzing pages, determining pages to OCR, "
+                        f"page {page} of {total} - {percent:.2f}%"
+                    ),
+                    filename=label,
+                    page=0,
+                    page_total=total,
+                )
+            elif name in ("ocr_page", "skip_ocr_page"):
+                verb = "Processing" if name == "ocr_page" else "Skipping OCR for"
+                self._emit_progress(
+                    message=f"{verb} pg {page} of {total} - {percent:.2f}% ({page_label})",
+                    filename=label,
+                    page=page,
+                    page_total=total,
+                )
+
+        result = ocr_document_to_pdf(
+            input_files=document["files"],
+            output_pdf_path=output_pdf_path,
+            document_name=document_name,
+            options=self._ocr_options(),
+            progress_callback=_on_document_progress,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+
+        # Whatever the outcome, this document's pages are behind us.
+        self._completed_pages += page_total
+        status = result["status"]
+        details = result.get("details") or {}
+        flagged = details.get("flagged_pages", [])
+
+        if status == "cancelled":
+            return ItemOutcome.abort()
+
+        if status == "skipped":
+            for page in flagged:
+                reason = ", ".join(page.get("reasons", [])) or "flagged by precheck"
+                self.report_error(page.get("file", "page"), f"OCR quality flag: {reason}")
+            return ItemOutcome.skip(result.get("error") or "Skipped")
+
+        if status != "success":
+            return ItemOutcome.fail(result.get("error") or "OCR failed")
+
+        for warning in details.get("warnings", []):
+            self.results.note(warning)
+            self.update_status(warning)
+
+        for page in flagged:
+            reason = ", ".join(page.get("reasons", [])) or "flagged by quality precheck"
+            number = page.get("page_number")
+            page_label = page.get("file") or "page"
+            where = f"pg {number}: {page_label}" if number is not None else page_label
+            self.update_status(f"Skipped OCR text on {where} ({reason})")
+
+        # Pages are assessed whether or not the gate is on, so details lists
+        # them either way. Only record them when the gate actually withheld OCR
+        # text — otherwise a retry would offer to redo pages that already have
+        # a text layer.
+        if flagged and self.skip_messy:
+            self._record_flagged(document_name, label, flagged)
+
+        if self.save_pdfa and not result.get("used_pdfa") and not self._pdfa_warning_added:
+            warning = (
+                "PDF/A was unavailable or incompatible with selected options — "
+                "created standard searchable PDFs instead."
+            )
+            self.results.note(warning)
+            self.update_status(warning)
+            self._pdfa_warning_added = True
+
+        return ItemOutcome.ok(result["output_path"])
 
     def run(self):
         """Execute OCR-to-PDF operation."""
         from modules.ocr_pdf.core import (
-            check_ocr_dependencies,
+            detect_ocrmypdf_module,
             group_ocr_input_files,
-            ocr_document_to_pdf,
             summarize_ocr_documents,
         )
 
         try:
-            self.update_status("Checking OCR dependencies...")
-            ok, error_msg, dependency_info = check_ocr_dependencies(
-                language=self.language,
-                tesseract_path=self.tesseract_path,
-                require_pdfa=self.save_pdfa,
-            )
-            if not ok:
-                self.update_status("OCR dependencies are missing")
-                self.results.record_failure("dependency", error_msg)
-                self.report_error("dependency", error_msg)
-                return
-            if error_msg:
-                self.results.note(error_msg)
-                self.update_status(error_msg)
+            # Not a gate. The route refuses a start when OCR cannot run at all;
+            # this is the one case where it can run but not as asked, so the
+            # job says so before it spends time on the first document.
+            if self.save_pdfa and not detect_ocrmypdf_module():
+                note = (
+                    "PDF/A output was requested, but OCRmyPDF is not installed. "
+                    "The toolkit can still create a standard searchable PDF on "
+                    "this machine."
+                )
+                self.results.note(note)
+                self.update_status(note)
 
             self.update_status("Scanning folder for OCR page images...")
             documents = group_ocr_input_files(self.input_folder)
@@ -549,209 +662,25 @@ class OcrPdfWorker(OperationWorker):
                     f"Re-running {len(documents)} flagged document(s) with the quality gate off"
                 )
 
-            if not documents:
-                self.update_status("No supported image files found")
-                return
-
             summary = summarize_ocr_documents(documents)
-            self.results.total = summary["document_count"]
+            self._total_pages = max(summary["page_count"], 0)
             self.results.extra["total_pages"] = summary["page_count"]
-            self.update_status(
-                "Found "
-                f"{summary['page_count']} page image(s) across "
-                f"{summary['document_count']} output PDF(s)"
-            )
-
-            if self.cancelled:
-                self.results.mark_cancelled()
-                self.update_status("Operation cancelled")
-                return
-
-            pdfa_warning_added = False
-            total_documents = len(documents)
-            total_pages = max(summary["page_count"], 0)
-            completed_pages = 0
-            for index, document in enumerate(documents, start=1):
-                if self.cancelled:
-                    self.results.mark_cancelled()
-                    self.update_status("Operation cancelled")
-                    break
-
-                document_name = document["name"]
-                output_pdf_path = self.output_folder / f"{document_name}.pdf"
-                document_pages = max(int(document.get("page_count", 0)), 1)
-
-                self._emit_ocr_progress(
-                    stage="document_start",
-                    message=(
-                        f"Analyzing pages for {output_pdf_path.name} "
-                        f"({document_pages} page(s))"
-                    ),
-                    current_pdf=index,
-                    total_pdfs=total_documents,
-                    current_page=0,
-                    total_pages_in_pdf=document_pages,
-                    completed_job_pages=completed_pages,
-                    total_job_pages=total_pages,
-                    filename=output_pdf_path.name,
-                )
+            if documents:
                 self.update_status(
-                    f"OCR PDF {index}/{total_documents}: {output_pdf_path.name} "
-                    f"({document_pages} page(s))"
+                    "Found "
+                    f"{summary['page_count']} page image(s) across "
+                    f"{summary['document_count']} output PDF(s)"
                 )
 
-                def _on_document_progress(event: dict):
-                    event_name = event.get("event")
-                    page_current = int(event.get("page_current") or 0)
-                    page_total = int(event.get("page_total") or document_pages)
-                    page_label = event.get("page_label") or output_pdf_path.name
-
-                    if event_name == "analyzing_page":
-                        message = (
-                            "Analyzing pages, determining pages to OCR, "
-                            f"page {page_current} of {page_total} - "
-                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}%"
-                        )
-                        self._emit_ocr_progress(
-                            stage="analyzing",
-                            message=message,
-                            current_pdf=index,
-                            total_pdfs=total_documents,
-                            current_page=0,
-                            total_pages_in_pdf=page_total,
-                            completed_job_pages=completed_pages,
-                            total_job_pages=total_pages,
-                            filename=output_pdf_path.name,
-                        )
-                        return
-
-                    if event_name == "ocr_page":
-                        message = (
-                            f"Processing pg {page_current} of {page_total} - "
-                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}% "
-                            f"({page_label})"
-                        )
-                        self._emit_ocr_progress(
-                            stage="processing",
-                            message=message,
-                            current_pdf=index,
-                            total_pdfs=total_documents,
-                            current_page=page_current,
-                            total_pages_in_pdf=page_total,
-                            completed_job_pages=completed_pages,
-                            total_job_pages=total_pages,
-                            filename=output_pdf_path.name,
-                        )
-                        return
-
-                    if event_name == "skip_ocr_page":
-                        message = (
-                            f"Skipping OCR for pg {page_current} of {page_total} - "
-                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}% "
-                            f"({page_label})"
-                        )
-                        self._emit_ocr_progress(
-                            stage="processing",
-                            message=message,
-                            current_pdf=index,
-                            total_pdfs=total_documents,
-                            current_page=page_current,
-                            total_pages_in_pdf=page_total,
-                            completed_job_pages=completed_pages,
-                            total_job_pages=total_pages,
-                            filename=output_pdf_path.name,
-                        )
-
-                result = ocr_document_to_pdf(
-                    input_files=document["files"],
-                    output_pdf_path=output_pdf_path,
-                    document_name=document_name,
-                    options=self._ocr_options(),
-                    progress_callback=_on_document_progress,
-                    should_cancel=lambda: self.force_cancel_requested,
-                )
-
-                if result["status"] == "success":
-                    self.results.record_success(result["output_path"])
-                    details = result.get("details") or {}
-                    for warning in details.get("warnings", []):
-                        self.results.note(warning)
-                        self.update_status(warning)
-                    flagged = details.get("flagged_pages", [])
-                    for flagged_page in flagged:
-                        reason_text = ", ".join(flagged_page.get("reasons", [])) or "flagged by quality precheck"
-                        page_number = flagged_page.get("page_number")
-                        page_label = flagged_page.get("file") or "page"
-                        if page_number is not None:
-                            self.update_status(
-                                f"Skipped OCR text on pg {page_number}: {page_label} ({reason_text})"
-                            )
-                        else:
-                            self.update_status(
-                                f"Skipped OCR text on {page_label} ({reason_text})"
-                            )
-                    # Pages are assessed whether or not the gate is on, so
-                    # details lists them either way. Only record them when the
-                    # gate actually withheld OCR text — otherwise a retry would
-                    # offer to redo pages that already have a text layer.
-                    if flagged and self.skip_messy:
-                        # Keep the document, not just the log line, so the run
-                        # can be repeated for these pages with the gate off.
-                        self.results.extra.setdefault("flagged_documents", []).append({
-                            "document": document_name,
-                            "output": output_pdf_path.name,
-                            "pages": [
-                                {
-                                    "file": page.get("file", "page"),
-                                    "page_number": page.get("page_number"),
-                                    "reasons": list(page.get("reasons", [])),
-                                }
-                                for page in flagged
-                            ],
-                        })
-                    if self.save_pdfa and not result.get("used_pdfa") and not pdfa_warning_added:
-                        warning = (
-                            "PDF/A was unavailable or incompatible with selected options — "
-                            "created standard searchable PDFs instead."
-                        )
-                        self.results.note(warning)
-                        self.update_status(warning)
-                        pdfa_warning_added = True
-                elif result["status"] == "skipped":
-                    skip_reason = result.get("error") or "Skipped"
-                    self.results.record_skip(output_pdf_path.name, skip_reason)
-                    self.update_status(f"Skipped: {output_pdf_path.name} — {skip_reason}")
-                    details = result.get("details") or {}
-                    for page in details.get("flagged_pages", []):
-                        reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
-                        self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
-                elif result["status"] == "cancelled":
-                    self.results.mark_cancelled()
-                    self.update_status("Operation cancelled by user")
-                    break
-                else:
-                    doc_error = result.get("error") or "OCR failed"
-                    self.results.record_failure(output_pdf_path.name, doc_error)
-                    self.report_error(output_pdf_path.name, doc_error)
-
-                completed_pages += document_pages
-                self._emit_ocr_progress(
-                    stage="document_done",
-                    message=(
-                        f"Job Progress - PDF {index} of {total_documents} - "
-                        f"{(completed_pages / max(total_pages, 1)) * 100.0:.2f}%"
-                    ),
-                    current_pdf=index,
-                    total_pdfs=total_documents,
-                    current_page=document_pages,
-                    total_pages_in_pdf=document_pages,
-                    completed_job_pages=completed_pages - document_pages,
-                    total_job_pages=total_pages,
-                    filename=output_pdf_path.name,
-                )
-
-            self.update_status(self.results.summary())
-
+            run_file_batch(
+                documents,
+                result=self.results,
+                process=self._ocr_one,
+                reporter=self,
+                gerund="OCR PDF",
+                empty_message="No supported image files found",
+                label=lambda document: f"{document['name']}.pdf",
+            )
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))

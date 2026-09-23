@@ -74,40 +74,51 @@ def find_image_files(folder: Path) -> list[Path]:
     )
 
 
+def _file_name(item: Path) -> str:
+    return item.name
+
+
 def run_file_batch(
-    files: Iterable[Path],
+    items: Iterable,
     *,
     result: JobResult,
-    process: Callable[[Path], ItemOutcome],
+    process: Callable[[object], ItemOutcome],
     reporter: BatchReporter,
     gerund: str,
     empty_message: str = "No images found",
+    label: Callable[[object], str] = _file_name,
 ) -> JobResult:
-    """Run `process` over `files`, recording outcomes into `result`.
+    """Run `process` over `items`, recording outcomes into `result`.
+
+    An item is usually a Path, and `label` names it for progress and for the
+    failure and skip records. OCR works on documents — a group of page images
+    written to one PDF — rather than single files, so it passes its own label
+    and everything else about the loop is the same.
 
     Stops as soon as the reporter reports cancellation. Any exception raised by
-    `process` is contained and recorded against the file that raised it, so one
+    `process` is contained and recorded against the item that raised it, so one
     bad input cannot end the batch.
     """
-    files = list(files)
-    if not files:
+    items = list(items)
+    if not items:
         reporter.update_status(empty_message)
         return result
 
-    result.total = len(files)
+    result.total = len(items)
 
-    for index, path in enumerate(files, start=1):
+    for index, item in enumerate(items, start=1):
         if reporter.cancelled:
             result.mark_cancelled()
             reporter.update_status("Operation cancelled")
             return result
 
-        reporter.update_progress(index, result.total, path.name)
-        reporter.update_status(f"{gerund}: {path.name}")
+        name = label(item)
+        reporter.update_progress(index, result.total, name)
+        reporter.update_status(f"{gerund}: {name}")
 
         try:
-            outcome = process(path)
-        except Exception as exc:  # one bad file must not end the batch
+            outcome = process(item)
+        except Exception as exc:  # one bad item must not end the batch
             outcome = ItemOutcome.fail(str(exc))
 
         if outcome.status == CANCELLED:
@@ -118,11 +129,11 @@ def run_file_batch(
         if outcome.status == SUCCESS:
             result.record_success(outcome.output)
         elif outcome.status == SKIPPED:
-            result.record_skip(path.name, outcome.reason or "Skipped")
+            result.record_skip(name, outcome.reason or "Skipped")
         else:
             error = outcome.error or "Failed"
-            result.record_failure(path.name, error)
-            reporter.report_error(path.name, error)
+            result.record_failure(name, error)
+            reporter.report_error(name, error)
 
     reporter.update_status(result.summary())
     return result

@@ -71,6 +71,21 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("Merge TIFF Files cannot start", message)
 
+    def test_ocr_is_refused_when_tesseract_is_missing(self):
+        """The gate is the route's, not the worker's.
+
+        OcrPdfWorker used to re-check dependencies on its own thread, after
+        POST /api/ocr_pdf/start had already refused on the same grounds. The
+        refusal belongs here, before a worker is built.
+        """
+        with patch(
+            "utils.tool_registry.check_ocr_dependencies",
+            return_value=(False, "Tesseract OCR was not found.", {}),
+        ):
+            ok, message = get_spec("ocr_pdf").check({})
+        self.assertFalse(ok)
+        self.assertEqual(message, "Tesseract OCR was not found.")
+
 
 class ToolPrepareTests(unittest.TestCase):
     def test_image_tools_reject_a_missing_folder(self):
