@@ -26,8 +26,16 @@ first-page DPI, and the same deflate compression.
 
 Note the pre-existing behaviour that `dpi_per_file=True` does not mean per-page
 DPI: the old code collected each page's DPI and then wrote the first page's
-value for the whole document. That is unchanged here — this was a memory fix,
+value for the whole document. That was unchanged here — this was a memory fix,
 not a metadata change.
+
+**Superseded on 2026-09-21 (commit `9cd7c08`).** `dpi_per_file=True` now writes
+each page's own DPI, which is what the option always claimed to do. Streaming
+is what made the fix cheap: pages are written one at a time, so each one can
+carry its own resolution. `dpi_per_file=False` still writes the first page's
+DPI throughout. Covered by `test_each_page_keeps_its_own_dpi` and
+`test_turning_it_off_writes_one_dpi_throughout` in
+`testing/tiff_merge/test_merge_streaming.py`.
 
 ## Cost
 
