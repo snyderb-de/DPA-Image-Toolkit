@@ -4,9 +4,10 @@ PDF conversion and optimization core utilities.
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 from typing import Callable, Optional
+
+from utils.dependencies import Dependency, DependencySet, module_available
 
 from .compression_profiles import (
     DEFAULT_PROFILE_KEY,
@@ -48,100 +49,63 @@ def get_pdfa_profile_key_from_label(label: Optional[str]) -> str:
     return DEFAULT_PDFA_PROFILE_KEY
 
 
-def _module_available(module_name: str) -> bool:
-    return importlib.util.find_spec(module_name) is not None
+def _requirements(operation: str) -> tuple[tuple[str, str, bool, str, str], ...]:
+    """What each operation needs: module, label, required, detail, spare detail.
+
+    Computed once. The two entry points below used to derive the same four
+    booleans separately, so a new operation had to be added to both or the
+    panel and the gate would disagree about it.
+    """
+    operation = str(operation or "reduce_size")
+    return (
+        (
+            "pypdf", "pypdf",
+            operation in {"reduce_size", "split_pdf", "extract_pages"},
+            "Required for this operation",
+            "Optional unless reducing/splitting/extracting PDFs",
+        ),
+        (
+            "PIL", "Pillow",
+            operation in {"reduce_size", "split_images"},
+            "Required for this operation",
+            "Optional unless image recompression/render export is used",
+        ),
+        (
+            "pypdfium2", "pypdfium2",
+            operation in {"split_images"},
+            "Required for PDF page image rendering",
+            "Optional unless exporting PDF pages to JPEG/PNG/TIFF",
+        ),
+        (
+            "ocrmypdf", "OCRmyPDF",
+            operation == "pdfa",
+            "Required for PDF/A conversion",
+            "Optional backend for PDF/A conversion mode",
+        ),
+    )
 
 
-def get_pdf_conversion_dependency_statuses(
+def pdf_conversion_dependencies(
     operation: str = "reduce_size",
     include_pdfa: bool = True,
-) -> list[dict]:
-    operation = str(operation or "reduce_size")
-    needs_renderer = operation in {"split_images"}
-    needs_pypdf = operation in {"reduce_size", "split_pdf", "extract_pages"}
-    needs_pillow = operation in {"reduce_size", "split_images"}
-    needs_ocrmypdf = operation == "pdfa"
-
-    statuses = []
-    statuses.append(
-        {
-            "label": "pypdf",
-            "ok": _module_available("pypdf"),
-            "detail": (
-                "Required for this operation"
-                if needs_pypdf
-                else "Optional unless reducing/splitting/extracting PDFs"
-            ),
-        }
-    )
-    statuses.append(
-        {
-            "label": "Pillow",
-            "ok": _module_available("PIL"),
-            "detail": (
-                "Required for this operation"
-                if needs_pillow
-                else "Optional unless image recompression/render export is used"
-            ),
-        }
-    )
-    statuses.append(
-        {
-            "label": "pypdfium2",
-            "ok": _module_available("pypdfium2"),
-            "detail": (
-                "Required for PDF page image rendering"
-                if needs_renderer
-                else "Optional unless exporting PDF pages to JPEG/PNG/TIFF"
-            ),
-        }
-    )
-
-    if include_pdfa:
-        statuses.append(
-            {
-                "label": "OCRmyPDF",
-                "ok": _module_available("ocrmypdf"),
-                "detail": (
-                    "Required for PDF/A conversion"
-                    if needs_ocrmypdf
-                    else "Optional backend for PDF/A conversion mode"
-                ),
-            }
+) -> DependencySet:
+    """Probe what one PDF conversion operation needs."""
+    dependencies = []
+    for module, label, required, needed_detail, spare_detail in _requirements(operation):
+        if label == "OCRmyPDF" and not include_pdfa:
+            continue
+        dependencies.append(
+            Dependency(
+                label=label,
+                ok=module_available(module),
+                detail=needed_detail if required else spare_detail,
+                required=required,
+            )
         )
-
-    return statuses
-
-
-def check_pdf_conversion_dependencies(
-    operation: str = "reduce_size",
-) -> tuple[bool, Optional[str]]:
-    operation = str(operation or "reduce_size")
-    needs_pypdf = operation in {"reduce_size", "split_pdf", "extract_pages"}
-    needs_renderer = operation in {"split_images"}
-    needs_pillow = operation in {"reduce_size", "split_images"}
-    needs_ocrmypdf = operation == "pdfa"
-
-    required_modules = []
-    if needs_pypdf:
-        required_modules.append(("pypdf", "pypdf"))
-    if needs_pillow:
-        required_modules.append(("PIL", "Pillow"))
-    if needs_renderer:
-        required_modules.append(("pypdfium2", "pypdfium2"))
-    if needs_ocrmypdf:
-        required_modules.append(("ocrmypdf", "OCRmyPDF"))
-
-    missing = [
-        display_name
-        for module_name, display_name in required_modules
-        if not _module_available(module_name)
-    ]
-
-    if missing:
-        missing_text = ", ".join(missing)
-        return False, f"Missing required dependency: {missing_text}."
-    return True, None
+    return DependencySet(
+        tool_name="PDF Conversion",
+        dependencies=tuple(dependencies),
+    )
 
 
 def convert_pdf_to_pdfa(

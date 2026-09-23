@@ -66,7 +66,7 @@ class ToolRegistryTests(unittest.TestCase):
                 self.assertTrue(message, tool_id)
 
     def test_missing_dependency_produces_a_message_for_the_user(self):
-        with patch("utils.tool_dependencies._module_available", return_value=False):
+        with patch("utils.tool_dependencies.module_available", return_value=False):
             ok, message = get_spec("merge_tiffs").check({})
         self.assertFalse(ok)
         self.assertIn("Merge TIFF Files cannot start", message)
@@ -78,13 +78,10 @@ class ToolRegistryTests(unittest.TestCase):
         POST /api/ocr_pdf/start had already refused on the same grounds. The
         refusal belongs here, before a worker is built.
         """
-        with patch(
-            "utils.tool_registry.check_ocr_dependencies",
-            return_value=(False, "Tesseract OCR was not found.", {}),
-        ):
+        with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=None):
             ok, message = get_spec("ocr_pdf").check({})
         self.assertFalse(ok)
-        self.assertEqual(message, "Tesseract OCR was not found.")
+        self.assertIn("Tesseract OCR was not found", message)
 
 
 class ToolPrepareTests(unittest.TestCase):

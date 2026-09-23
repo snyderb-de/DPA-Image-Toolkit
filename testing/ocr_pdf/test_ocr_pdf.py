@@ -20,7 +20,7 @@ from modules.ocr_pdf.core import (
     assess_document_ocr_readiness,
     assess_ocr_readiness,
     build_input_pdf_from_images,
-    check_ocr_dependencies,
+    ocr_dependencies,
     extract_ocr_group_name,
     extract_ocr_sequence_number,
     find_ocr_input_files,
@@ -137,15 +137,33 @@ class OcrPdfCoreTests(unittest.TestCase):
         self.assertEqual(stats["flagged_pages"][0]["page_index"], 1)
         self.assertEqual(stats["flagged_pages"][0]["page_number"], 2)
 
-    def test_check_ocr_dependencies_allows_searchable_pdf_without_ocrmypdf(self):
+    def test_a_missing_ocrmypdf_still_permits_a_searchable_pdf(self):
+        """PDF/A needs it; a searchable PDF does not, so it never blocks."""
         with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=Path("/tmp/tesseract")), \
              patch("modules.ocr_pdf.core.list_tesseract_languages", return_value=["eng"]), \
              patch("modules.ocr_pdf.core.detect_ocrmypdf_module", return_value=False):
-            ok, message, details = check_ocr_dependencies(language="eng")
+            found = ocr_dependencies(language="eng")
 
-        self.assertTrue(ok)
-        self.assertIn("standard searchable PDF", message)
-        self.assertFalse(details["ocrmypdf_available"])
+        self.assertEqual(found.check(), (True, None))
+        statuses = {status["label"]: status for status in found.statuses()}
+        self.assertFalse(statuses["OCRmyPDF"]["ok"])
+        self.assertIn("PDF/A", statuses["OCRmyPDF"]["detail"])
+
+    def test_a_missing_language_pack_names_the_installed_ones(self):
+        with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=Path("/tmp/tesseract")), \
+             patch("modules.ocr_pdf.core.list_tesseract_languages", return_value=["eng", "deu"]):
+            ok, message = ocr_dependencies(language="fra").check()
+
+        self.assertFalse(ok)
+        self.assertIn("language 'fra' is not available", message)
+        self.assertIn("eng, deu", message)
+
+    def test_a_missing_tesseract_speaks_before_the_language_does(self):
+        with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=None):
+            ok, message = ocr_dependencies(language="fra").check()
+
+        self.assertFalse(ok)
+        self.assertIn("Tesseract OCR was not found", message)
 
     def test_build_input_pdf_from_images_creates_multipage_pdf(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -236,8 +254,8 @@ class OcrInterfaceTests(unittest.TestCase):
     """The module used to export seventeen names for five that were used."""
 
     PUBLIC = {
-        "OcrOptions", "check_ocr_dependencies", "get_ocr_dependency_statuses",
-        "group_ocr_input_files", "ocr_document_to_pdf", "summarize_ocr_documents",
+        "OcrOptions", "group_ocr_input_files", "ocr_dependencies",
+        "ocr_document_to_pdf", "summarize_ocr_documents",
     }
 
     def test_the_public_surface_is_what_callers_need(self):

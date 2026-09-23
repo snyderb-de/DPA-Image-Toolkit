@@ -18,16 +18,14 @@ from typing import Callable, Optional
 
 from modules.auto_cropping.core import DEFAULT_WHITE_THRESHOLD
 from modules.ocr_pdf.core import (
-    check_ocr_dependencies,
-    get_ocr_dependency_statuses,
+    ocr_dependencies,
     group_ocr_input_files,
     summarize_ocr_documents,
 )
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import (
     DEFAULT_PDFA_PROFILE_KEY,
-    check_pdf_conversion_dependencies,
-    get_pdf_conversion_dependency_statuses,
+    pdf_conversion_dependencies,
 )
 from modules.tiff_combine.compression import DEFAULT_COMPRESSION as MERGE_DEFAULT_COMPRESSION
 from modules.tiff_combine.naming import validate_naming_convention
@@ -37,10 +35,8 @@ from utils.file_handler import (
     validate_image_files,
     validate_tif_files,
 )
-from utils.tool_dependencies import (
-    check_tool_dependencies,
-    get_tool_dependency_statuses,
-)
+from utils.dependencies import DependencySet
+from utils.tool_dependencies import tool_dependencies
 from utils.worker import (
     AddBorderWorker,
     AutoCropWorker,
@@ -85,8 +81,15 @@ class ToolSpec:
     display_name: str
     prepare: Callable[[dict], Prepared]
     start: Callable[[dict, dict], Started]
-    statuses: Callable[[dict], list]
-    check: Callable[[dict], tuple]
+    # What the tool needs, probed. The dependency panel renders its statuses
+    # and a start is gated on its check, so the two cannot disagree.
+    dependencies: Callable[[dict], DependencySet]
+
+    def statuses(self, body: dict) -> list:
+        return self.dependencies(body).statuses()
+
+    def check(self, body: dict) -> tuple:
+        return self.dependencies(body).check()
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────
@@ -141,16 +144,8 @@ def _make_error_folder(base: Path, subfolder: str | None = None) -> Path:
     return errors
 
 
-def _statuses_by_key(tool_key: str) -> Callable[[dict], list]:
-    return lambda _body: get_tool_dependency_statuses(tool_key)
-
-
-def _check_by_key(tool_key: str) -> Callable[[dict], tuple]:
-    def check(_body: dict) -> tuple:
-        ok, message, _details = check_tool_dependencies(tool_key)
-        return ok, message
-
-    return check
+def _dependencies_by_key(tool_key: str) -> Callable[[dict], DependencySet]:
+    return lambda _body: tool_dependencies(tool_key)
 
 
 # ── Auto Crop ──────────────────────────────────────────────────────────────
@@ -384,9 +379,8 @@ def _start_ocr_pdf(body: dict, data: dict) -> Started:
     )
 
 
-def _check_ocr_pdf(_body: dict) -> tuple:
-    ok, message, _info = check_ocr_dependencies(language="eng", require_pdfa=True)
-    return ok, message
+def _dependencies_ocr_pdf(_body: dict) -> DependencySet:
+    return ocr_dependencies(language="eng", require_pdfa=True)
 
 
 # ── PDF Conversion ─────────────────────────────────────────────────────────
@@ -492,16 +486,8 @@ def _start_pdf_conversion(body: dict, data: dict) -> Started:
     )
 
 
-def _statuses_pdf_conversion(body: dict) -> list:
-    return get_pdf_conversion_dependency_statuses(
-        operation=body.get("operation", "reduce_size")
-    )
-
-
-def _check_pdf_conversion(body: dict) -> tuple:
-    return check_pdf_conversion_dependencies(
-        body.get("operation", "reduce_size")
-    )
+def _dependencies_pdf_conversion(body: dict) -> DependencySet:
+    return pdf_conversion_dependencies(body.get("operation", "reduce_size"))
 
 
 # ── The registry ───────────────────────────────────────────────────────────
@@ -514,56 +500,49 @@ TOOL_SPECS: dict[str, ToolSpec] = {
             display_name="Auto Crop",
             prepare=_prepare_image_folder,
             start=_start_auto_crop,
-            statuses=_statuses_by_key("auto_crop"),
-            check=_check_by_key("auto_crop"),
+            dependencies=_dependencies_by_key("auto_crop"),
         ),
         ToolSpec(
             id="straighten_images",
             display_name="Straighten Images",
             prepare=_prepare_image_folder,
             start=_start_straighten,
-            statuses=_statuses_by_key("straighten_images"),
-            check=_check_by_key("straighten_images"),
+            dependencies=_dependencies_by_key("straighten_images"),
         ),
         ToolSpec(
             id="merge_tiffs",
             display_name="Merge TIFF Files",
             prepare=_prepare_merge_tiffs,
             start=_start_merge_tiffs,
-            statuses=_statuses_by_key("merge_tiffs"),
-            check=_check_by_key("merge_tiffs"),
+            dependencies=_dependencies_by_key("merge_tiffs"),
         ),
         ToolSpec(
             id="split_tiffs",
             display_name="Split Multi-Page TIFFs",
             prepare=_prepare_split_tiffs,
             start=_start_split_tiffs,
-            statuses=_statuses_by_key("split_tiffs"),
-            check=_check_by_key("split_tiffs"),
+            dependencies=_dependencies_by_key("split_tiffs"),
         ),
         ToolSpec(
             id="add_border",
             display_name="Add Border",
             prepare=_prepare_image_folder,
             start=_start_add_border,
-            statuses=_statuses_by_key("add_border"),
-            check=_check_by_key("add_border"),
+            dependencies=_dependencies_by_key("add_border"),
         ),
         ToolSpec(
             id="ocr_pdf",
             display_name="OCR to PDF",
             prepare=_prepare_ocr_pdf,
             start=_start_ocr_pdf,
-            statuses=lambda _body: get_ocr_dependency_statuses(),
-            check=_check_ocr_pdf,
+            dependencies=_dependencies_ocr_pdf,
         ),
         ToolSpec(
             id="pdf_conversion",
             display_name="PDF Conversion",
             prepare=_prepare_pdf_conversion,
             start=_start_pdf_conversion,
-            statuses=_statuses_pdf_conversion,
-            check=_check_pdf_conversion,
+            dependencies=_dependencies_pdf_conversion,
         ),
     )
 }

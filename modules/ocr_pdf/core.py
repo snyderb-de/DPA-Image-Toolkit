@@ -25,6 +25,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from utils.dependencies import Dependency, DependencySet, module_available
+
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import optimize_pdf_writer
 
@@ -199,14 +201,14 @@ def detect_ocrmypdf_module() -> bool:
     """
     Check whether OCRmyPDF is importable in the current Python environment.
     """
-    return importlib.util.find_spec("ocrmypdf") is not None
+    return module_available("ocrmypdf")
 
 
 def detect_pypdf_module() -> bool:
     """
     Check whether pypdf is importable in the current Python environment.
     """
-    return importlib.util.find_spec("pypdf") is not None
+    return module_available("pypdf")
 
 
 def list_tesseract_languages(
@@ -250,131 +252,57 @@ def list_tesseract_languages(
     return lines
 
 
-def check_ocr_dependencies(
+def _requested_languages(language: str) -> list[str]:
+    """The language codes asked for. "eng+deu" is two."""
+    return [part.strip() for part in str(language).split("+") if part.strip()]
+
+
+def ocr_dependencies(
     language: str = "eng",
     tesseract_path: Optional[str | Path] = None,
     require_pdfa: bool = True,
-) -> tuple[bool, Optional[str], dict]:
-    """
-    Validate OCR dependencies for the toolkit.
+) -> DependencySet:
+    """Probe what OCR to PDF needs.
 
-    Tesseract is required for the searchable-PDF workflow. OCRmyPDF is optional
-    and is only needed when PDF/A output is requested and available.
+    Not every dependency is an importable module: Tesseract is a binary found
+    on PATH or in the standard Windows location, and a language pack is a file
+    Tesseract itself reports. Each carries the message shown when it is the
+    reason a job cannot start, because "Tesseract OCR is missing" is not enough
+    to act on without saying where the toolkit looked.
+
+    OCRmyPDF is optional. Without it the toolkit still produces a searchable
+    PDF, just not PDF/A, so it never blocks a start.
     """
     resolved_tesseract = detect_tesseract_path(tesseract_path)
-    if not resolved_tesseract:
-        return (
-            False,
-            (
+    installed = list_tesseract_languages(resolved_tesseract) if resolved_tesseract else []
+    requested = _requested_languages(language) or ["eng"]
+    missing_languages = [
+        code for code in requested if installed and code not in installed
+    ]
+
+    installed_preview = ", ".join(installed[:12])
+    if len(installed) > 12:
+        installed_preview += ", ..."
+
+    dependencies = [
+        Dependency(
+            label="Tesseract OCR",
+            ok=bool(resolved_tesseract),
+            detail=(
+                str(resolved_tesseract) if resolved_tesseract
+                else "Required for searchable PDF output"
+            ),
+            blocks=(
                 "Tesseract OCR was not found. Install Tesseract and ensure "
                 "'tesseract' is available on PATH, or install it in the "
                 "standard Windows Tesseract-OCR location."
             ),
-            {
-                "tesseract_path": None,
-                "languages": [],
-                "ocrmypdf_available": detect_ocrmypdf_module(),
-                "pypdf_available": detect_pypdf_module(),
-            },
-        )
-
-    languages = list_tesseract_languages(resolved_tesseract)
-    requested_languages = [
-        part.strip()
-        for part in str(language).split("+")
-        if part.strip()
-    ]
-    if languages and requested_languages:
-        missing = [code for code in requested_languages if code not in languages]
-        if missing:
-            installed_preview = ", ".join(languages[:12])
-            if len(languages) > 12:
-                installed_preview += ", ..."
-            return (
-                False,
-                (
-                    f"Tesseract is installed, but language '{'+'.join(missing)}' "
-                    f"is not available. Installed languages: {installed_preview}"
-                ),
-                {
-                    "tesseract_path": resolved_tesseract,
-                    "languages": languages,
-                    "ocrmypdf_available": detect_ocrmypdf_module(),
-                    "pypdf_available": detect_pypdf_module(),
-                },
-            )
-
-    if not detect_pypdf_module():
-        return (
-            False,
-            (
-                "The Python package 'pypdf' is not installed. Install the toolkit "
-                "requirements before running OCR to PDF."
-            ),
-            {
-                "tesseract_path": resolved_tesseract,
-                "languages": languages,
-                "ocrmypdf_available": detect_ocrmypdf_module(),
-                "pypdf_available": False,
-            },
-        )
-
-    return (
-        True,
-        (
-            "PDF/A output was requested, but OCRmyPDF is not installed. "
-            "The toolkit can still create a standard searchable PDF on this machine."
-            if require_pdfa and not detect_ocrmypdf_module()
-            else None
         ),
-        {
-            "tesseract_path": resolved_tesseract,
-            "languages": languages,
-            "ocrmypdf_available": detect_ocrmypdf_module(),
-            "pypdf_available": True,
-            "require_pdfa": require_pdfa,
-        },
-    )
-
-
-def get_ocr_dependency_statuses(
-    language: str = "eng",
-    tesseract_path: Optional[str | Path] = None,
-    require_pdfa: bool = True,
-) -> list[dict]:
-    """
-    Return dependency status entries for the OCR panel.
-    """
-    resolved_tesseract = detect_tesseract_path(tesseract_path)
-    pypdf_available = detect_pypdf_module()
-    ocrmypdf_available = detect_ocrmypdf_module()
-    installed_languages = list_tesseract_languages(resolved_tesseract) if resolved_tesseract else []
-    requested_languages = [
-        part.strip()
-        for part in str(language).split("+")
-        if part.strip()
-    ] or ["eng"]
-    missing_languages = [
-        code for code in requested_languages
-        if installed_languages and code not in installed_languages
-    ]
-
-    statuses = [
-        {
-            "label": "Tesseract OCR",
-            "ok": bool(resolved_tesseract),
-            "detail": str(resolved_tesseract) if resolved_tesseract else "Required for searchable PDF output",
-        },
-        {
-            "label": "pypdf",
-            "ok": pypdf_available,
-            "detail": "Required to merge OCR page PDFs into one document",
-        },
-        {
-            "label": "OCR Language",
-            "ok": bool(resolved_tesseract) and not missing_languages,
-            "detail": (
-                f"Language ready: {'+'.join(requested_languages)}"
+        Dependency(
+            label="OCR Language",
+            ok=bool(resolved_tesseract) and not missing_languages,
+            detail=(
+                f"Language ready: {'+'.join(requested)}"
                 if resolved_tesseract and not missing_languages
                 else (
                     f"Missing language pack: {'+'.join(missing_languages)}"
@@ -382,23 +310,39 @@ def get_ocr_dependency_statuses(
                     else "Requires Tesseract first"
                 )
             ),
-        },
+            blocks=(
+                f"Tesseract is installed, but language '{'+'.join(missing_languages)}' "
+                f"is not available. Installed languages: {installed_preview}"
+                if missing_languages else None
+            ),
+        ),
+        Dependency(
+            label="pypdf",
+            ok=detect_pypdf_module(),
+            detail="Required to merge OCR page PDFs into one document",
+            blocks=(
+                "The Python package 'pypdf' is not installed. Install the toolkit "
+                "requirements before running OCR to PDF."
+            ),
+        ),
     ]
 
     if require_pdfa:
-        statuses.append(
-            {
-                "label": "OCRmyPDF",
-                "ok": ocrmypdf_available,
-                "detail": (
+        ocrmypdf_available = detect_ocrmypdf_module()
+        dependencies.append(
+            Dependency(
+                label="OCRmyPDF",
+                ok=ocrmypdf_available,
+                detail=(
                     "Optional archival backend for PDF/A"
                     if ocrmypdf_available
                     else "Missing: PDF/A fallback unavailable on this machine"
                 ),
-            }
+                required=False,
+            )
         )
 
-    return statuses
+    return DependencySet(tool_name="OCR to PDF", dependencies=tuple(dependencies))
 
 
 def find_ocr_input_files(
