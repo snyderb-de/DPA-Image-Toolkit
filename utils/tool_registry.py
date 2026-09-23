@@ -414,29 +414,72 @@ def _prepare_pdf_conversion(body: dict) -> Prepared:
     )
 
 
+# split_pdf and extract_pages rewrite or take apart one document, so a folder
+# selection has no meaning for them. The UI hides the folder toggle for both,
+# which makes this reachable only by posting to the route directly.
+_PDF_SINGLE_FILE_ONLY = ("split_pdf", "extract_pages")
+
+
+def _pdf_output_root(
+    operation: str, input_path: Path, split_output_type: str
+) -> Optional[Path]:
+    """The one folder this job writes into, or None when it has no single one.
+
+    This is the folder an undo is allowed to delete within, so it is decided
+    here rather than inside the worker thread. extract_pages writes beside its
+    source, and the source folder is never a folder an undo may touch, so it
+    gets nothing and cannot be undone.
+    """
+    if operation == "reduce_size":
+        base = input_path if input_path.is_dir() else input_path.parent
+        return _make_output(base, "reduced-pdfs")
+    if operation == "pdfa":
+        base = input_path if input_path.is_dir() else input_path.parent
+        return _make_output(base, "pdfa-pdfs")
+    if operation == "split_pdf":
+        suffix = "_split_pdfs" if split_output_type == "pdfs" else "_images"
+        return _make_output(input_path.parent, f"{input_path.stem}{suffix}")
+    return None
+
+
 def _start_pdf_conversion(body: dict, data: dict) -> Started:
     if not data.get("path"):
         raise ToolError("No path prepared")
 
+    operation = data["operation"]
+    if operation not in PdfConversionWorker.OPERATIONS:
+        raise ToolError(f"Unknown operation: {operation}")
+
     input_path = Path(data["path"])
+    if operation in _PDF_SINGLE_FILE_ONLY and data["mode"] != "file":
+        raise ToolError("This operation requires one PDF file.")
+
+    extract_page_spec = str(body.get("extract_page_spec", "")).strip()
+    if operation == "extract_pages" and not extract_page_spec:
+        raise ToolError("Page selection is required.")
+
+    split_output_type = str(body.get("split_output_type", "pdfs"))
     error_base = input_path if input_path.is_dir() else input_path.parent
     errors = _make_error_folder(error_base, "pdf-conversion")
+    output_root = _pdf_output_root(operation, input_path, split_output_type)
     return Started(
         worker=PdfConversionWorker(
             selection_mode=data["mode"],
             input_path=input_path,
-            operation=data["operation"],
+            operation=operation,
+            output_root=output_root,
             reduce_size_enabled=bool(body.get("reduce_size", True)),
             compression_profile_key=str(
                 body.get("compression_profile", DEFAULT_PROFILE_KEY)
             ),
-            split_output_type=str(body.get("split_output_type", "pdfs")),
-            extract_page_spec=str(body.get("extract_page_spec", "")),
+            split_output_type=split_output_type,
+            extract_page_spec=extract_page_spec,
             remove_extracted_pages=bool(body.get("write_remaining_pages", False)),
             extract_removal_mode="safe",
             pdfa_profile_key=str(body.get("pdfa_profile", DEFAULT_PDFA_PROFILE_KEY)),
         ),
         error_folder=errors,
+        output_folder=output_root,
     )
 
 
