@@ -28,6 +28,8 @@ from modules.ocr_pdf.core import (
     group_ocr_input_files,
     ocr_document_to_pdf,
 )
+
+from utils.outcome import SKIPPED, Outcome
 from testing.ocr_pdf.generate_fixtures import generate_ocr_pdf_fixtures
 
 
@@ -191,15 +193,15 @@ class OcrPdfCoreTests(unittest.TestCase):
             existing_pdf = output / "roll_001.pdf"
             existing_pdf.write_text("already here")
 
-            result = ocr_document_to_pdf(
+            outcome = ocr_document_to_pdf(
                 input_files=[input_file],
                 output_pdf_path=existing_pdf,
                 document_name="roll_001",
                 options=OcrOptions(skip_existing=True),
             )
 
-            self.assertEqual(result["status"], "skipped")
-            self.assertEqual(result["output_path"], existing_pdf)
+            self.assertEqual(outcome.status, SKIPPED)
+            self.assertEqual(outcome.reason, "Output PDF already exists")
 
     def test_ocr_document_to_pdf_keeps_flagged_pages_without_ocr_text(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -226,9 +228,9 @@ class OcrPdfCoreTests(unittest.TestCase):
                 },
             ), patch(
                 "modules.ocr_pdf.core._run_tesseract_document_workflow",
-                return_value=("success", None),
+                return_value=Outcome.ok(),
             ) as mocked_workflow:
-                result = ocr_document_to_pdf(
+                outcome = ocr_document_to_pdf(
                     input_files=[input_file],
                     output_pdf_path=output / "roll_001.pdf",
                     document_name="roll_001",
@@ -239,10 +241,9 @@ class OcrPdfCoreTests(unittest.TestCase):
                     ),
                 )
 
-        self.assertEqual(result["status"], "success")
-        self.assertIsNone(result["error"])
-        self.assertIn("warnings", result["details"])
-        self.assertIn("included without OCR text", result["details"]["warnings"][0])
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertIn("warnings", outcome.details)
+        self.assertIn("included without OCR text", outcome.details["warnings"][0])
         mocked_workflow.assert_called_once()
         self.assertEqual(
             mocked_workflow.call_args.kwargs.get("skip_ocr_page_indexes"),

@@ -529,7 +529,7 @@ class OcrPdfWorker(OperationWorker):
                     page_total=total,
                 )
 
-        result = ocr_document_to_pdf(
+        outcome = ocr_document_to_pdf(
             input_files=document["files"],
             output_pdf_path=output_pdf_path,
             document_name=document_name,
@@ -540,21 +540,17 @@ class OcrPdfWorker(OperationWorker):
 
         # Whatever the outcome, this document's pages are behind us.
         self._completed_pages += page_total
-        status = result["status"]
-        details = result.get("details") or {}
+        details = outcome.details
         flagged = details.get("flagged_pages", [])
 
-        if status == "cancelled":
-            return Outcome.abort()
-
-        if status == "skipped":
+        if outcome.status == SKIPPED:
             for page in flagged:
                 reason = ", ".join(page.get("reasons", [])) or "flagged by precheck"
                 self.report_error(page.get("file", "page"), f"OCR quality flag: {reason}")
-            return Outcome.skip(result.get("error") or "Skipped")
+            return outcome
 
-        if status != "success":
-            return Outcome.fail(result.get("error") or "OCR failed")
+        if not outcome.succeeded:
+            return outcome
 
         for warning in details.get("warnings", []):
             self.results.note(warning)
@@ -574,7 +570,7 @@ class OcrPdfWorker(OperationWorker):
         if flagged and self.skip_messy:
             self._record_flagged(document_name, label, flagged)
 
-        if self.save_pdfa and not result.get("used_pdfa") and not self._pdfa_warning_added:
+        if self.save_pdfa and not details.get("used_pdfa") and not self._pdfa_warning_added:
             warning = (
                 "PDF/A was unavailable or incompatible with selected options — "
                 "created standard searchable PDFs instead."
@@ -583,7 +579,7 @@ class OcrPdfWorker(OperationWorker):
             self.update_status(warning)
             self._pdfa_warning_added = True
 
-        return Outcome.ok(result["output_path"])
+        return outcome
 
     def run(self):
         """Execute OCR-to-PDF operation."""
