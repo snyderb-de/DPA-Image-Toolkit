@@ -56,7 +56,16 @@ Nothing open.
 
 - [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
+- [ ] `P2-W2-E1-025` **W2 · E1** — **Put the OCR PDF worker on the shared batch loop.** `OcrPdfWorker.run` re-implements `run_file_batch` and repeats the registry's dependency gate; its progress payload has 14 keys of which the UI reads 6. Candidate 1 in `docs/research/architecture-review-2026-09-22.html`.
+- [ ] `P2-W2-E1-026` **W2 · E1** — **Finish the PDF conversion worker.** Split and extract hand-roll the loop, request validation runs inside the thread, and `Started.output_folder` is unset so PDF jobs cannot be undone. Candidate 2 in the review.
+- [ ] `P2-W1-E0-027` **W1 · E0** — **Delete the dead half of `utils/file_handler.py` and keep one folder picker.** `web/app.py` carries its own picker copies; ADR 0001's claim that it calls `file_handler` is no longer true and needs correcting. Candidate 7 in the review.
+- [ ] `P2-W1-E0-028` **W1 · E0** — **Move `cancel(force=False)` to `OperationWorker` and drop the unused `error_folder` constructor argument.** Removes the `TypeError` catch in `JobRunner.cancel` and its test. Candidate 4 in the review.
+- [ ] `P2-W1-E0-029` **W1 · E0** — **Fix the `crop_image` patch in `testing/auto_crop/test_auto_crop.py:239`.** It returns a 2-tuple where `_crop_one` unpacks three, so the test passes through the loop's exception guard, not the crop-failed path it names.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
+- [ ] `P2-W1-E1-030` **W1 · E1** — **Give `JobRunner` a typed job record.** `Started` fields are flattened into the data dict and dug out by key in three files; the runner probes `worker.results` and `data["error_folder"]`. Candidate 3 in the review.
+- [ ] `P2-W1-E1-031` **W1 · E1** — **One outcome type at the module seam.** Six return envelopes and four cancel encodings across `modules/*/core.py`; every `_x_one` exists to translate them. Changes only `merge_tiff_group`'s return shape, not the streaming write ADR 0004 protects. Candidate 5 in the review.
+- [ ] `P2-W1-E1-032` **W1 · E1** — **One dependency model instead of three.** Table-driven for five tools, hand-written for OCR and PDF; Tk panel prose in `utils/tool_dependencies.py` kept alive only by tests. Candidate 6 in the review.
+- [ ] `P2-W1-E0-033` **W1 · E0** — **Correct ADR 0004's `dpi_per_file` paragraph.** It says the first page's DPI is written throughout; commit `9cd7c08` made per-page DPI real.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
@@ -95,6 +104,12 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ### Dashboard polish
 
 - [ ] `P3-W1-E0-023` **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
+
+---
+
+### Architecture
+
+- [ ] `P3-W1-E1-034` **W1 · E1** — **Fold the three profile tables into one shape.** Merge compression, PDF compression and PDF/A profiles each ship the same four helpers and three route JSON shapes. Low churn; fold when one next changes. Candidate 8 in `docs/research/architecture-review-2026-09-22.html`.
 
 ---
 
