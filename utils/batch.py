@@ -6,54 +6,21 @@ the same eighteen lines: enumerate, sort, set the total, poll for cancellation,
 emit progress, call one module core, tally the outcome. The loop lived inside a
 worker thread, so no test ever reached it.
 
-It lives here once now. Tools supply a `process` callable that turns one path
-into an `ItemOutcome`; everything around that is shared and directly testable.
+It lives here once now. Tools supply a `process` callable that turns one item
+into an `Outcome`; everything around that is shared and directly testable.
 """
 
 from __future__ import annotations
 
 import os
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Protocol, Sequence
 
 from utils.job_result import JobError, JobResult
+from utils.outcome import CANCELLED, FAILED, SKIPPED, SUCCESS, Outcome
 
 IMAGE_EXTENSIONS = (".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp", ".gif")
-
-SUCCESS = "success"
-SKIPPED = "skipped"
-FAILED = "failed"
-CANCELLED = "cancelled"
-
-
-@dataclass(frozen=True)
-class ItemOutcome:
-    """What happened to one file."""
-
-    status: str
-    output: Optional[Path] = None
-    error: Optional[str] = None
-    reason: Optional[str] = None
-
-    @classmethod
-    def ok(cls, output=None) -> "ItemOutcome":
-        """`output` is what the item wrote: one path, several, or none."""
-        return cls(SUCCESS, output=output)
-
-    @classmethod
-    def skip(cls, reason: str = "Skipped") -> "ItemOutcome":
-        return cls(SKIPPED, reason=reason)
-
-    @classmethod
-    def fail(cls, error: str) -> "ItemOutcome":
-        return cls(FAILED, error=error)
-
-    @classmethod
-    def abort(cls) -> "ItemOutcome":
-        """Cancelled part-way through this file — end the whole batch."""
-        return cls(CANCELLED)
 
 
 class BatchReporter(Protocol):
@@ -82,7 +49,7 @@ def run_file_batch(
     items: Iterable,
     *,
     result: JobResult,
-    process: Callable[[object], ItemOutcome],
+    process: Callable[[object], Outcome],
     reporter: BatchReporter,
     gerund: str,
     empty_message: str = "No images found",
@@ -119,7 +86,7 @@ def run_file_batch(
         try:
             outcome = process(item)
         except Exception as exc:  # one bad item must not end the batch
-            outcome = ItemOutcome.fail(str(exc))
+            outcome = Outcome.fail(str(exc))
 
         if outcome.status == CANCELLED:
             result.mark_cancelled()
@@ -148,29 +115,6 @@ def run_file_batch(
 # could reach it.
 
 
-@dataclass(frozen=True)
-class GroupOutcome:
-    """What happened to one group."""
-
-    status: str
-    errors: tuple = ()
-    output: Optional[Path] = None
-
-    @classmethod
-    def ok(cls, output: Optional[Path] = None) -> "GroupOutcome":
-        return cls(SUCCESS, output=output)
-
-    @classmethod
-    def fail(cls, errors: Iterable) -> "GroupOutcome":
-        """`errors` are (filename, message) pairs describing what went wrong."""
-        return cls(FAILED, tuple(errors))
-
-    @classmethod
-    def abort(cls) -> "GroupOutcome":
-        """Cancelled part-way through this group — stop the whole batch."""
-        return cls(CANCELLED)
-
-
 def choose_worker_count(total: int, cap: int = 4) -> int:
     """A modest parallel width: never more than the work, the CPUs, or `cap`."""
     if total <= 1:
@@ -182,7 +126,7 @@ def run_group_batch(
     names: Sequence[str],
     *,
     result: JobResult,
-    process: Callable[[str], GroupOutcome],
+    process: Callable[[str], Outcome],
     reporter: BatchReporter,
     max_workers: Optional[int] = None,
     empty_message: str = "No groups to process",
@@ -262,13 +206,13 @@ def run_group_batch(
     return result
 
 
-def _guarded(process: Callable[[str], GroupOutcome]) -> Callable[[str], GroupOutcome]:
+def _guarded(process: Callable[[str], Outcome]) -> Callable[[str], Outcome]:
     """One group raising must not take the executor down with it."""
 
-    def run(name: str) -> GroupOutcome:
+    def run(name: str) -> Outcome:
         try:
             return process(name)
         except Exception as exc:
-            return GroupOutcome.fail([(name, f"Merge failed: {exc}")])
+            return Outcome.fail_each([(name, f"Merge failed: {exc}")])
 
     return run

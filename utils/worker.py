@@ -12,14 +12,9 @@ from modules.auto_cropping.core import DEFAULT_WHITE_THRESHOLD
 from modules.tiff_combine.compression import DEFAULT_COMPRESSION as MERGE_DEFAULT_COMPRESSION
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
-from utils.batch import (
-    GroupOutcome,
-    ItemOutcome,
-    find_image_files,
-    run_file_batch,
-    run_group_batch,
-)
+from utils.batch import find_image_files, run_file_batch, run_group_batch
 from utils.job_result import JobError, JobResult
+from utils.outcome import Outcome
 
 class OperationWorker(threading.Thread):
     """Base worker thread for operations."""
@@ -133,7 +128,7 @@ class AutoCropWorker(OperationWorker):
 
         self.results = JobResult(verb="Cropped")
 
-    def _crop_one(self, image_file: Path) -> ItemOutcome:
+    def _crop_one(self, image_file: Path) -> Outcome:
         from modules.auto_cropping.core import (
             CROP_SKIPPED,
             CROP_SUCCESS,
@@ -148,12 +143,12 @@ class AutoCropWorker(OperationWorker):
             straighten=self.straighten,
         )
         if status == CROP_SUCCESS:
-            return ItemOutcome.ok(output_path)
+            return Outcome.ok(output_path)
         if status == CROP_SKIPPED:
             # Inputs are never moved; the source stays available for review.
             self.results.errors.append(JobError(image_file.name, error_msg))
-            return ItemOutcome.skip(error_msg)
-        return ItemOutcome.fail(error_msg)
+            return Outcome.skip(error_msg)
+        return Outcome.fail(error_msg)
 
     def run(self):
         """Execute auto-crop operation."""
@@ -187,7 +182,7 @@ class StraightenWorker(OperationWorker):
         self.output_folder = Path(output_folder)
         self.results = JobResult(verb="Straightened", extra={"angles": []})
 
-    def _straighten_one(self, image_file: Path) -> ItemOutcome:
+    def _straighten_one(self, image_file: Path) -> Outcome:
         from modules.auto_cropping.core import straighten_image
 
         output_path, error_msg, stats = straighten_image(
@@ -196,14 +191,14 @@ class StraightenWorker(OperationWorker):
             preserve_dpi=True,
         )
         if error_msg:
-            return ItemOutcome.fail(error_msg)
+            return Outcome.fail(error_msg)
 
         self.results.extra["angles"].append({
             "file": image_file.name,
             "angle": stats.get("angle", 0.0),
             "output": output_path,
         })
-        return ItemOutcome.ok(output_path)
+        return Outcome.ok(output_path)
 
     def run(self):
         """Execute standalone straighten operation."""
@@ -251,7 +246,7 @@ class TiffMergeWorker(OperationWorker):
 
         self.results = JobResult(verb="Merged")
 
-    def _merge_one(self, group_name: str) -> GroupOutcome:
+    def _merge_one(self, group_name: str) -> Outcome:
         """Merge one TIFF group."""
         from modules.tiff_combine.core import merge_tiff_group
 
@@ -268,11 +263,11 @@ class TiffMergeWorker(OperationWorker):
         # merge_tiff_group flags a cancellation on the error it records, so the
         # flag is authoritative — no need to read the message text.
         if any(error.get("cancelled") for error in errors):
-            return GroupOutcome.abort()
+            return Outcome.abort()
 
         if success:
-            return GroupOutcome.ok(output_path)
-        return GroupOutcome.fail(
+            return Outcome.ok(output_path)
+        return Outcome.fail(
             (error.get("file", group_name), error.get("error", "Unknown error"))
             for error in errors
         )
@@ -320,7 +315,7 @@ class TiffSplitWorker(OperationWorker):
         verb = "Split" if operation == "split" else "Extracted"
         self.results = JobResult(verb=verb, total=len(self.input_files))
 
-    def _select_pages_one(self, file_path: Path) -> ItemOutcome:
+    def _select_pages_one(self, file_path: Path) -> Outcome:
         """Write the chosen pages of one source into a single document."""
         from modules.tiff_combine.pages import select_pages
 
@@ -337,12 +332,12 @@ class TiffSplitWorker(OperationWorker):
             should_cancel=lambda: self.force_cancel_requested,
         )
         if stats.get("cancelled"):
-            return ItemOutcome.abort()
+            return Outcome.abort()
         if not ok:
-            return ItemOutcome.fail(error or "Could not extract pages")
-        return ItemOutcome.ok(output)
+            return Outcome.fail(error or "Could not extract pages")
+        return Outcome.ok(output)
 
-    def _split_one(self, file_path: Path) -> ItemOutcome:
+    def _split_one(self, file_path: Path) -> Outcome:
         from modules.tiff_split.core import split_tiff_file
 
         output_folder = self.output_root if (self.use_root_output and self.output_root) else None
@@ -355,12 +350,12 @@ class TiffSplitWorker(OperationWorker):
 
         if not success:
             if stats.get("cancelled"):
-                return ItemOutcome.abort()
-            return ItemOutcome.fail(error_msg or "Split failed")
+                return Outcome.abort()
+            return Outcome.fail(error_msg or "Split failed")
 
         if stats.get("skipped"):
-            return ItemOutcome.skip(stats.get("reason") or "Single-page TIFF")
-        return ItemOutcome.ok(output_paths)
+            return Outcome.skip(stats.get("reason") or "Single-page TIFF")
+        return Outcome.ok(output_paths)
 
     def run(self):
         """Execute TIFF split operation."""
@@ -396,7 +391,7 @@ class AddBorderWorker(OperationWorker):
         self.output_folder = Path(output_folder)
         self.results = JobResult(verb="Bordered")
 
-    def _border_one(self, image_file: Path) -> ItemOutcome:
+    def _border_one(self, image_file: Path) -> Outcome:
         from modules.image_border.core import add_border_to_image
 
         output_path, error_msg, _stats = add_border_to_image(
@@ -404,7 +399,7 @@ class AddBorderWorker(OperationWorker):
             self.output_folder,
             preserve_dpi=True,
         )
-        return ItemOutcome.fail(error_msg) if error_msg else ItemOutcome.ok(output_path)
+        return Outcome.fail(error_msg) if error_msg else Outcome.ok(output_path)
 
     def run(self):
         """Execute add-border operation."""
@@ -535,7 +530,7 @@ class OcrPdfWorker(OperationWorker):
             ],
         })
 
-    def _ocr_one(self, document: dict) -> ItemOutcome:
+    def _ocr_one(self, document: dict) -> Outcome:
         """Turn one document's page images into one searchable PDF."""
         from modules.ocr_pdf.core import ocr_document_to_pdf
 
@@ -593,16 +588,16 @@ class OcrPdfWorker(OperationWorker):
         flagged = details.get("flagged_pages", [])
 
         if status == "cancelled":
-            return ItemOutcome.abort()
+            return Outcome.abort()
 
         if status == "skipped":
             for page in flagged:
                 reason = ", ".join(page.get("reasons", [])) or "flagged by precheck"
                 self.report_error(page.get("file", "page"), f"OCR quality flag: {reason}")
-            return ItemOutcome.skip(result.get("error") or "Skipped")
+            return Outcome.skip(result.get("error") or "Skipped")
 
         if status != "success":
-            return ItemOutcome.fail(result.get("error") or "OCR failed")
+            return Outcome.fail(result.get("error") or "OCR failed")
 
         for warning in details.get("warnings", []):
             self.results.note(warning)
@@ -631,7 +626,7 @@ class OcrPdfWorker(OperationWorker):
             self.update_status(warning)
             self._pdfa_warning_added = True
 
-        return ItemOutcome.ok(result["output_path"])
+        return Outcome.ok(result["output_path"])
 
     def run(self):
         """Execute OCR-to-PDF operation."""
@@ -760,22 +755,22 @@ class PdfConversionWorker(OperationWorker):
         )
 
     @staticmethod
-    def _outcome(status: str, error: Optional[str], output, fallback: str) -> ItemOutcome:
+    def _outcome(status: str, error: Optional[str], output, fallback: str) -> Outcome:
         """Map the (status, error, stats) shape every pdf_tools op returns."""
         if status == "cancelled":
-            return ItemOutcome.abort()
+            return Outcome.abort()
         if status != "success":
-            return ItemOutcome.fail(error or fallback)
-        return ItemOutcome.ok(output)
+            return Outcome.fail(error or fallback)
+        return Outcome.ok(output)
 
-    def _reduce_one(self, pdf_path: Path) -> ItemOutcome:
+    def _reduce_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import reduce_pdf_size
         import shutil
 
         output_pdf_path = self.output_root / pdf_path.name
         if not self.reduce_size_enabled:
             shutil.copy2(pdf_path, output_pdf_path)
-            return ItemOutcome.ok(output_pdf_path)
+            return Outcome.ok(output_pdf_path)
 
         status, error, _stats = reduce_pdf_size(
             input_pdf_path=pdf_path,
@@ -786,7 +781,7 @@ class PdfConversionWorker(OperationWorker):
         )
         return self._outcome(status, error, output_pdf_path, "Reduce size failed")
 
-    def _pdfa_one(self, pdf_path: Path) -> ItemOutcome:
+    def _pdfa_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import convert_pdf_to_pdfa
 
         output_pdf_path = self.output_root / pdf_path.name
@@ -798,7 +793,7 @@ class PdfConversionWorker(OperationWorker):
         )
         return self._outcome(status, error, output_pdf_path, "PDF/A conversion failed")
 
-    def _split_one(self, pdf_path: Path) -> ItemOutcome:
+    def _split_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import (
             split_pdf_to_images,
             split_pdf_to_single_page_pdfs,
@@ -829,7 +824,7 @@ class PdfConversionWorker(OperationWorker):
             self.update_status(f"✅ Created {int(stats.get('output_count', 0))} output file(s)")
         return self._outcome(status, error, self.output_root, "Split failed")
 
-    def _extract_one(self, pdf_path: Path) -> ItemOutcome:
+    def _extract_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import extract_pdf_pages
 
         extracted = pdf_path.parent / f"{pdf_path.stem}_extracted.pdf"
@@ -852,7 +847,7 @@ class PdfConversionWorker(OperationWorker):
         outputs = [extracted]
         if stats.get("remaining_output"):
             outputs.append(Path(stats["remaining_output"]))
-        return ItemOutcome.ok(outputs)
+        return Outcome.ok(outputs)
 
     def run(self):
         """Execute selected PDF conversion operation."""
