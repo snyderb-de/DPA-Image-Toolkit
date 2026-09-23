@@ -67,30 +67,37 @@ Nothing open.
 
 Handwriting recognition for handwriting-heavy material, separate from the current printed-text OCR workflow.
 
-- [ ] `P3-W1-E1-016` **W1 · E1** — **Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
-- [ ] `P3-W1-E1-017` **W1 · E1** — **Gather a benchmark set** of real English handwritten samples before choosing an engine.
-- [ ] `P3-W1-E2-018` **W1 · E2** — **Test `TrOCR`** for English handwriting recognition
-  - *What:* transformer-based OCR models from Microsoft, including handwritten checkpoints
-  - *Pros:* modern model family; strongest open-source-looking starting point for English handwriting; no dependency on Tesseract OCR quality
-  - *Cons:* heavier ML/runtime footprint; not naturally aligned with simple PDF/A archival workflows; likely requires a custom page-to-text pipeline
-- [ ] `P3-W1-E2-019` **W1 · E2** — **Test `PaddleOCR`** for English handwriting recognition
-  - *What:* general OCR toolkit with support for printed text and handwriting scenarios
-  - *Pros:* broader OCR stack; active project; may handle mixed page conditions better than Tesseract
-  - *Cons:* heavier install and model management; not a drop-in archival PDF/A replacement; would need evaluation on microfilm-derived scans
-- [ ] `P3-W1-E2-020` **W1 · E2** — **Test `Kraken`** for historical or manuscript-like handwriting
-  - *What:* OCR/HTR toolkit with strong historical-text and handwritten-text reputation
-  - *Pros:* better fit for specialized handwriting and historical-text workflows; strong research/community use in HTR contexts
-  - *Cons:* steeper workflow; less turnkey for desktop staff use; often expects more document prep or model selection effort
-- [ ] `P3-W1-E2-021` **W1 · E2** — **Test `Calamari OCR`** for line-based handwriting recognition
-  - *What:* OCR/HTR engine commonly used in historical-text pipelines
-  - *Pros:* respected in handwritten and historical OCR circles; good candidate if line-level workflows become acceptable
-  - *Cons:* less page-oriented; may require segmentation or model work first; weaker fit for a simple folder-to-PDF desktop tool
+Researched 2026-09-23: `docs/research/handwriting-recognition.md`. The finding is that no
+HTR engine belongs inside the EXE — the best-fitting one does not run on Windows, the rest
+need PyTorch or TensorFlow, and the best measured accuracy on 18th/19th-century English
+including microfilm is 7.3% CER, which is a text layer the existing quality gate exists to
+refuse. The items below are rewritten against that note; several of the original claims
+were wrong and are corrected in place.
+
+- [x] `P3-W1-E1-016` **Decided: a separate panel, if anything is built at all.** Not for code-structure reasons — the output contract differs. Printed-text OCR produces a searchable PDF; handwriting at achievable accuracy should produce a transcript sidecar with per-line confidence, not a silent text layer.
+- [ ] `P3-W1-E1-017` **W3 · E1** — **Gather a benchmark set.** Now the only item that should be worked until it is done, because every item below is unanswerable without it. 30–50 pages, many hands rather than many pages of one hand, spanning the real difficulty range, with a diplomatic ground-truth transcription of each page, kept versioned on the share so every future engine is scored on the same material. Pages that have never been published online, so no candidate model has already seen them.
+- [ ] `P3-W1-E1-035` **W3 · E1** — **Run the benchmark set through the Transkribus free tier** — 50 credits a month, 50 handwritten pages, no card, no install. A one-day go/no-go on whether HTR is worth anything on this material before any engineering is considered. Production use is €99/year for 900 pages, which is less than half a day of staff transcription.
+- [ ] `P3-W1-E2-020` **W1 · E2** — **Test `Kraken`** — the best-fitting engine, on the wrong operating system.
+  - *What:* HTR toolkit with its own segmentation, and the owner of the **RevCity model**: 18th-century American English, trained on the Revolutionary City corpus, Apache-2.0, 16.2 MB, ~6.6% CER self-reported. The only pretrained model anywhere aimed at this exact material.
+  - *Blocker:* the README says Linux or macOS, and the PyPI metadata declares `Operating System :: POSIX`. Windows is not supported or tested. Documented-unsupported is not the same as proven-broken, so the one test that could reopen this is an actual Windows install attempt.
+  - *Cost if it did work:* needs `torch` — the Windows CPU wheel alone is 124 MB compressed, before weights.
+- [ ] `P3-W1-E2-018` **W1 · E2** — **Test `TrOCR`** — right family, wrong century, wrong shape.
+  - *Corrected:* it is trained on IAM, which is **modern** English handwriting, not historical. It is **line-level only** and brings no segmentation, so it needs a separate segmenter supplied.
+  - *Size:* weights are 246 MB small / 1,333 MB base / 2,229 MB large, on top of PyTorch.
+- [ ] `P3-W1-E2-019` **W1 · E2** — **Test `PaddleOCR`** — the old con was the wrong con.
+  - *Corrected:* it needs no PyTorch and is `OS Independent`, so installation is not the problem. Accuracy is: PP-OCRv5's own handwritten-**English** metric is 0.5806 server / 0.4944 mobile, and its handwriting work is Chinese-first. No historical-manuscript models.
+- [ ] `P3-W1-E2-021` **W1 · E2** — **Test `Calamari OCR`** — demote, or drop.
+  - *Corrected:* "respected in handwritten circles" is wrong. All nine models in `calamari_models` are **printed-text** (GT4HistOCR, Fraktur, Antiqua, UW3). There is no handwriting model to start from. Also GPL-3.0, the only copyleft candidate, which is a real question for a distributed EXE; needs TensorFlow; last release 2.3.1, 2024-11-12.
+- [ ] `P3-W1-E2-036` **W1 · E2** — **Assess the candidates the original list missed** — Transkribus (cloud only, but the incumbent and the likeliest answer), eScriptorium and Loghi (both viable, both server or Docker shaped), and vision-language models, which now match or beat dedicated HTR on this period. Hosted VLMs mean sending archival images to a third party, which is an institutional question before it is a technical one.
 - [ ] `P3-W1-E2-022` **W1 · E2** — **Compare each HCR candidate** on:
   - plain cursive handwriting
   - mixed print + handwriting pages
   - noisy microfilm scans
   - installation complexity on Windows
   - feasibility of producing searchable PDF outputs without misleading text layers
+  - **does it bring its own segmentation** — TrOCR and Calamari do not
+  - **does it emit per-line confidence** — needed to extend the existing quality gate
+- [ ] `P3-W1-E1-037` **W1 · E1** — **Re-check the moving parts in mid-2026 and after.** The Transkribus API page said "Launching June 2026" and on-premise is "coming soon"; neither is verified. Open-weight VLMs are improving fastest — Qwen2-VL-7B already beat GPT-4o on 18th/19th-century English. An ONNX export of a kraken line recognizer would change the EXE answer entirely.
 
 ### Dashboard polish
 
