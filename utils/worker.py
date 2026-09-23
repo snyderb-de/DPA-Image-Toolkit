@@ -14,7 +14,7 @@ from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
 from utils.batch import find_image_files, run_file_batch, run_group_batch
 from utils.job_result import JobError, JobResult
-from utils.outcome import Outcome
+from utils.outcome import SKIPPED, Outcome
 
 class OperationWorker(threading.Thread):
     """Base worker thread for operations."""
@@ -129,26 +129,21 @@ class AutoCropWorker(OperationWorker):
         self.results = JobResult(verb="Cropped")
 
     def _crop_one(self, image_file: Path) -> Outcome:
-        from modules.auto_cropping.core import (
-            CROP_SKIPPED,
-            CROP_SUCCESS,
-            crop_image,
-        )
+        from modules.auto_cropping.core import crop_image
 
-        output_path, error_msg, status = crop_image(
+        outcome = crop_image(
             image_file,
             self.output_folder,
             white_threshold=self.white_threshold,
             preserve_dpi=True,
             straighten=self.straighten,
         )
-        if status == CROP_SUCCESS:
-            return Outcome.ok(output_path)
-        if status == CROP_SKIPPED:
-            # Inputs are never moved; the source stays available for review.
-            self.results.errors.append(JobError(image_file.name, error_msg))
-            return Outcome.skip(error_msg)
-        return Outcome.fail(error_msg)
+        if outcome.status == SKIPPED:
+            # A skip is listed among the errors so the report says which pages
+            # were left alone and why. Inputs are never moved; the source stays
+            # available for review.
+            self.results.errors.append(JobError(image_file.name, outcome.reason))
+        return outcome
 
     def run(self):
         """Execute auto-crop operation."""
@@ -185,20 +180,14 @@ class StraightenWorker(OperationWorker):
     def _straighten_one(self, image_file: Path) -> Outcome:
         from modules.auto_cropping.core import straighten_image
 
-        output_path, error_msg, stats = straighten_image(
-            image_file,
-            self.output_folder,
-            preserve_dpi=True,
-        )
-        if error_msg:
-            return Outcome.fail(error_msg)
-
-        self.results.extra["angles"].append({
-            "file": image_file.name,
-            "angle": stats.get("angle", 0.0),
-            "output": output_path,
-        })
-        return Outcome.ok(output_path)
+        outcome = straighten_image(image_file, self.output_folder, preserve_dpi=True)
+        if outcome.succeeded:
+            self.results.extra["angles"].append({
+                "file": image_file.name,
+                "angle": outcome.details.get("angle", 0.0),
+                "output": outcome.output,
+            })
+        return outcome
 
     def run(self):
         """Execute standalone straighten operation."""
@@ -394,12 +383,7 @@ class AddBorderWorker(OperationWorker):
     def _border_one(self, image_file: Path) -> Outcome:
         from modules.image_border.core import add_border_to_image
 
-        output_path, error_msg, _stats = add_border_to_image(
-            image_file,
-            self.output_folder,
-            preserve_dpi=True,
-        )
-        return Outcome.fail(error_msg) if error_msg else Outcome.ok(output_path)
+        return add_border_to_image(image_file, self.output_folder, preserve_dpi=True)
 
     def run(self):
         """Execute add-border operation."""

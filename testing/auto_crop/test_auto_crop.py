@@ -18,14 +18,12 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.auto_cropping.core import (
-    CROP_FAILED,
-    CROP_SKIPPED,
-    CROP_SUCCESS,
     crop_image,
     get_crop_stats,
     straighten_image,
     _deskew_image,
 )
+from utils.outcome import FAILED, SKIPPED, Outcome
 from utils.worker import AutoCropWorker
 
 from testing.auto_crop.generate_fixtures import generate_auto_crop_fixtures
@@ -109,13 +107,12 @@ class AutoCropCoreTests(unittest.TestCase):
             output_dir = root / "cropped"
             _make_document_image(source_path)
 
-            output_path, error, status = crop_image(source_path, output_dir)
+            outcome = crop_image(source_path, output_dir)
 
-            self.assertIsNone(error)
-            self.assertIsNotNone(output_path)
-            self.assertTrue(Path(output_path).exists())
+            self.assertTrue(outcome.succeeded, outcome.error)
+            self.assertTrue(Path(outcome.output).exists())
 
-            with Image.open(source_path) as source_img, Image.open(output_path) as cropped_img:
+            with Image.open(source_path) as source_img, Image.open(outcome.output) as cropped_img:
                 self.assertLess(cropped_img.size[0], source_img.size[0])
                 self.assertLess(cropped_img.size[1], source_img.size[1])
 
@@ -127,18 +124,15 @@ class AutoCropCoreTests(unittest.TestCase):
 
             cropped = root / "doc.jpg"
             _make_document_image(cropped)
-            _, _, status = crop_image(cropped, output_dir)
-            self.assertEqual(status, CROP_SUCCESS)
+            self.assertTrue(crop_image(cropped, output_dir).succeeded)
 
             blank = root / "blank.jpg"
             Image.new("RGB", (400, 300), "white").save(blank)
-            _, _, status = crop_image(blank, output_dir)
-            self.assertEqual(status, CROP_SKIPPED)
+            self.assertEqual(crop_image(blank, output_dir).status, SKIPPED)
 
             unreadable = root / "broken.jpg"
             unreadable.write_bytes(b"not an image")
-            _, _, status = crop_image(unreadable, output_dir)
-            self.assertEqual(status, CROP_FAILED)
+            self.assertEqual(crop_image(unreadable, output_dir).status, FAILED)
 
     def test_content_too_small_is_a_skip_not_a_failure(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -148,11 +142,11 @@ class AutoCropCoreTests(unittest.TestCase):
             array[150:154, 200:204] = 0
             Image.fromarray(array).save(speck)
 
-            output_path, error, status = crop_image(speck, root / "cropped")
+            outcome = crop_image(speck, root / "cropped")
 
-            self.assertEqual(status, CROP_SKIPPED)
-            self.assertIsNone(output_path)
-            self.assertIn("too small", error)
+            self.assertEqual(outcome.status, SKIPPED)
+            self.assertIsNone(outcome.output)
+            self.assertIn("too small", outcome.reason)
 
     def test_crop_image_returns_blank_message_for_white_image(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -165,11 +159,11 @@ class AutoCropCoreTests(unittest.TestCase):
                 quality=92,
             )
 
-            output_path, error, status = crop_image(source_path, output_dir)
+            outcome = crop_image(source_path, output_dir)
 
-            self.assertIsNone(output_path)
-            self.assertIsNotNone(error)
-            self.assertIn("blank", error.lower())
+            self.assertEqual(outcome.status, SKIPPED)
+            self.assertIsNone(outcome.output)
+            self.assertIn("blank", outcome.reason.lower())
 
 
     def test_deskew_returns_same_shape(self):
@@ -204,10 +198,9 @@ class AutoCropCoreTests(unittest.TestCase):
             source_path = root / "source.jpg"
             output_dir = root / "cropped"
             _make_document_image(source_path)
-            output_path, error, status = crop_image(source_path, output_dir, straighten=True)
-            self.assertIsNone(error)
-            self.assertIsNotNone(output_path)
-            self.assertTrue(Path(output_path).exists())
+            outcome = crop_image(source_path, output_dir, straighten=True)
+            self.assertTrue(outcome.succeeded, outcome.error)
+            self.assertTrue(Path(outcome.output).exists())
 
     def test_straighten_image_writes_same_size_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -217,14 +210,13 @@ class AutoCropCoreTests(unittest.TestCase):
             _make_document_image(source_path)
             _rotate_image(source_path, -3.0)
 
-            output_path, error, stats = straighten_image(source_path, output_dir)
+            outcome = straighten_image(source_path, output_dir)
 
-            self.assertIsNone(error)
-            self.assertIsNotNone(output_path)
-            self.assertTrue(Path(output_path).exists())
-            self.assertGreater(abs(stats["angle"]), 2.0)
+            self.assertTrue(outcome.succeeded, outcome.error)
+            self.assertTrue(Path(outcome.output).exists())
+            self.assertGreater(abs(outcome.details["angle"]), 2.0)
 
-            with Image.open(source_path) as source_img, Image.open(output_path) as output_img:
+            with Image.open(source_path) as source_img, Image.open(outcome.output) as output_img:
                 self.assertEqual(output_img.size, source_img.size)
 
     def test_worker_reports_failures_without_moving_source_files(self):
@@ -236,13 +228,13 @@ class AutoCropCoreTests(unittest.TestCase):
             source_path.write_bytes(b"not an image")
 
             worker = AutoCropWorker(root, output_dir)
-            # crop_image returns (output_path, error_message, status). Returning
-            # a shorter tuple here would raise inside the worker and be recorded
-            # as a failure by the batch loop's exception guard, so the test would
-            # pass without ever exercising the CROP_FAILED path it names.
+            # crop_image returns an Outcome. Returning something else here
+            # would raise inside the worker and be recorded as a failure by the
+            # batch loop's exception guard, so the test would pass without ever
+            # exercising the failure path it names.
             with patch(
                 "modules.auto_cropping.core.crop_image",
-                return_value=(None, "Failed to read image: bad.jpg", CROP_FAILED),
+                return_value=Outcome.fail("Failed to read image: bad.jpg"),
             ):
                 worker.run()
 

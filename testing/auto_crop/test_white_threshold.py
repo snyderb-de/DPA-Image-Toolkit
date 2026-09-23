@@ -47,9 +47,9 @@ def faint_margin_page(path: Path) -> Path:
 
 
 def crop_size(source: Path, out: Path, threshold: int):
-    output, error, _status = crop_image(source, out, white_threshold=threshold)
-    assert output is not None, error
-    with Image.open(output) as cropped:
+    outcome = crop_image(source, out, white_threshold=threshold)
+    assert outcome.output is not None, outcome.error or outcome.reason
+    with Image.open(outcome.output) as cropped:
         return cropped.size
 
 
