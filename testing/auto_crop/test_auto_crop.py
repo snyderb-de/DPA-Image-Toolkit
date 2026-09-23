@@ -236,15 +236,23 @@ class AutoCropCoreTests(unittest.TestCase):
             source_path.write_bytes(b"not an image")
 
             worker = AutoCropWorker(root, output_dir, error_dir)
+            # crop_image returns (output_path, error_message, status). Returning
+            # a shorter tuple here would raise inside the worker and be recorded
+            # as a failure by the batch loop's exception guard, so the test would
+            # pass without ever exercising the CROP_FAILED path it names.
             with patch(
                 "modules.auto_cropping.core.crop_image",
-                return_value=(None, "Failed to read image: bad.jpg"),
+                return_value=(None, "Failed to read image: bad.jpg", CROP_FAILED),
             ):
                 worker.run()
 
             results = worker.get_results()
             self.assertTrue(source_path.exists())
             self.assertEqual(results["failed"], 1)
+            self.assertEqual(
+                [error["error"] for error in results["errors"]],
+                ["Failed to read image: bad.jpg"],
+            )
             self.assertFalse((error_dir / "failed" / "bad.jpg").exists())
 
 
