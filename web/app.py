@@ -126,6 +126,22 @@ def _update_settings_payload(settings: dict | None = None) -> dict:
     }
 
 
+def _resolve_initial_dir(initial_dir: str | None) -> str | None:
+    """Return a usable directory to open the picker in, else None.
+
+    A remembered folder may be typed with a ~ or may have been removed since
+    it was recorded, so anything that is not a real directory is dropped and
+    the picker opens wherever the platform defaults to.
+    """
+    if not initial_dir:
+        return None
+    try:
+        path = Path(initial_dir).expanduser()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return str(path) if path.is_dir() else None
+
+
 def _pick_folder(title: str = "Select Folder", initial_dir: str | None = None) -> str | None:
     if not _HAS_TK:
         return None
@@ -133,8 +149,9 @@ def _pick_folder(title: str = "Select Folder", initial_dir: str | None = None) -
     root.withdraw()
     root.attributes("-topmost", True)
     kwargs: dict = {"title": title}
-    if initial_dir and Path(initial_dir).is_dir():
-        kwargs["initialdir"] = initial_dir
+    resolved_initial_dir = _resolve_initial_dir(initial_dir)
+    if resolved_initial_dir:
+        kwargs["initialdir"] = resolved_initial_dir
     result = filedialog.askdirectory(**kwargs)
     root.destroy()
     return str(Path(result)) if result else None
@@ -147,8 +164,9 @@ def _pick_files(title: str, filetypes: list, initial_dir: str | None = None) -> 
     root.withdraw()
     root.attributes("-topmost", True)
     kwargs: dict = {"title": title, "filetypes": [tuple(ft) for ft in filetypes]}
-    if initial_dir and Path(initial_dir).is_dir():
-        kwargs["initialdir"] = initial_dir
+    resolved_initial_dir = _resolve_initial_dir(initial_dir)
+    if resolved_initial_dir:
+        kwargs["initialdir"] = resolved_initial_dir
     result = filedialog.askopenfilenames(**kwargs)
     root.destroy()
     return [str(Path(p)) for p in result] if result else []

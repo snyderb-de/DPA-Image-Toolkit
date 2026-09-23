@@ -127,10 +127,15 @@ def _make_output(folder: Path, name: str) -> Path:
 
 
 def _make_error_folder(base: Path, subfolder: str | None = None) -> Path:
-    errors = create_error_folder(base)
-    if subfolder:
-        errors = errors / subfolder
-    errors.mkdir(parents=True, exist_ok=True)
+    # A job that cannot record its failures refuses to start rather than run
+    # and drop them, so the message reaches the user as a tool error.
+    try:
+        errors = create_error_folder(base)
+        if subfolder:
+            errors = errors / subfolder
+            errors.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ToolError(f"Could not create the errored-files folder: {exc}") from exc
     return errors
 
 
