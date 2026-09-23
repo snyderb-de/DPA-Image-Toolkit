@@ -57,9 +57,6 @@ Nothing open.
 - [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] `P2-W1-E1-030` **W1 · E1** — **Give `JobRunner` a typed job record.** `Started` fields are flattened into the data dict and dug out by key in three files; the runner probes `worker.results` and `data["error_folder"]`. Candidate 3 in the review.
-- [ ] `P2-W1-E1-031` **W1 · E1** — **One outcome type at the module seam.** Six return envelopes and four cancel encodings across `modules/*/core.py`; every `_x_one` exists to translate them. Changes only `merge_tiff_group`'s return shape, not the streaming write ADR 0004 protects. Candidate 5 in the review.
-- [ ] `P2-W1-E1-032` **W1 · E1** — **One dependency model instead of three.** Table-driven for five tools, hand-written for OCR and PDF; Tk panel prose in `utils/tool_dependencies.py` kept alive only by tests. Candidate 6 in the review.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
@@ -109,7 +106,13 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 ### Architecture
 
-Batches 1 and 2 of the deepening work in `docs/research/architecture-review-2026-09-22.html`.
+Batches 1 to 3 of the deepening work in `docs/research/architecture-review-2026-09-22.html`.
+
+- [x] **`P2-W1-E1-030` Give `JobRunner` a typed job record** — `Started` already carried the folders as typed fields, and the start route flattened them into the runner's free-form data dict as strings so three other places could dig them out by key. The runner knew the key `error_folder`, which nothing in it had written, and the undo boundary was reassembled at the route from three loosely related keys. `JobRunner.start` now records one frozen `Job` and `runner.job(tool_id)` hands it back. `Started` gained `input_folder`, which every start function already had in a local, so the route no longer guesses it from two possible keys. The undo route had no test at all and now has two.
+
+- [x] **`P2-W1-E1-032` One dependency model instead of three** — a table for the five image tools, a hand-written pair of functions for OCR, another for PDF conversion, each deriving the same facts twice so the dependency panel and the start gate could drift. One `DependencySet` now; `statuses()` and `check()` come off the same list. Two fields on `ToolSpec` become one, and the two functions each module exported become one. A dependency can be optional, which is what OCRmyPDF is, and can carry its own message, which is what a missing Tesseract or language pack needs. The Tk panel prose went with it: no production callers since the desktop UI was retired, kept alive only by its own tests.
+
+- [x] **`P2-W1-E1-031` One outcome type at the module seam** — six return envelopes and four ways of saying "cancelled" across `modules/*/core.py`, so every worker carried a translation function whose only job was knowing which convention the module it called happened to use. One `Outcome` now, in `utils/outcome.py` so a module can say what happened without depending on the loop that consumes it. `ItemOutcome` and `GroupOutcome` merged into it. Landed as six commits, one per module family, each with the suite green. `utils/worker.py` is 834 lines, down from 1020. ADR 0004 is unaffected: the streaming write, page order, mode unification and per-page DPI are untouched.
 
 - [x] **`P2-W2-E1-025` Put the OCR PDF worker on the shared batch loop** — `OcrPdfWorker.run` was 240 lines, most of them a second copy of `run_file_batch`. `run_file_batch` gained one optional argument, a label function, because OCR's unit of work is a document rather than a single file; everything else about the loop is the same for OCR as for the other six tools. The worker's dependency gate is gone: `POST /api/ocr_pdf/start` already refused on the same grounds with the same message, so the worker was re-checking on its own thread what the route had settled. Two test patches went with it. The progress payload had fourteen keys and the panel reads six, and this fixed what it did with one: the bar labelled **Current PDF** was fed the job percentage, so both bars showed the same number and the per-document bar was decorative.
 
