@@ -58,14 +58,10 @@ Nothing open.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
 - [ ] `P2-W2-E1-025` **W2 · E1** — **Put the OCR PDF worker on the shared batch loop.** `OcrPdfWorker.run` re-implements `run_file_batch` and repeats the registry's dependency gate; its progress payload has 14 keys of which the UI reads 6. Candidate 1 in `docs/research/architecture-review-2026-09-22.html`.
 - [ ] `P2-W2-E1-026` **W2 · E1** — **Finish the PDF conversion worker.** Split and extract hand-roll the loop, request validation runs inside the thread, and `Started.output_folder` is unset so PDF jobs cannot be undone. Candidate 2 in the review.
-- [ ] `P2-W1-E0-027` **W1 · E0** — **Delete the dead half of `utils/file_handler.py` and keep one folder picker.** `web/app.py` carries its own picker copies; ADR 0001's claim that it calls `file_handler` is no longer true and needs correcting. Candidate 7 in the review.
-- [ ] `P2-W1-E0-028` **W1 · E0** — **Move `cancel(force=False)` to `OperationWorker` and drop the unused `error_folder` constructor argument.** Removes the `TypeError` catch in `JobRunner.cancel` and its test. Candidate 4 in the review.
-- [ ] `P2-W1-E0-029` **W1 · E0** — **Fix the `crop_image` patch in `testing/auto_crop/test_auto_crop.py:239`.** It returns a 2-tuple where `_crop_one` unpacks three, so the test passes through the loop's exception guard, not the crop-failed path it names.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
 - [ ] `P2-W1-E1-030` **W1 · E1** — **Give `JobRunner` a typed job record.** `Started` fields are flattened into the data dict and dug out by key in three files; the runner probes `worker.results` and `data["error_folder"]`. Candidate 3 in the review.
 - [ ] `P2-W1-E1-031` **W1 · E1** — **One outcome type at the module seam.** Six return envelopes and four cancel encodings across `modules/*/core.py`; every `_x_one` exists to translate them. Changes only `merge_tiff_group`'s return shape, not the streaming write ADR 0004 protects. Candidate 5 in the review.
 - [ ] `P2-W1-E1-032` **W1 · E1** — **One dependency model instead of three.** Table-driven for five tools, hand-written for OCR and PDF; Tk panel prose in `utils/tool_dependencies.py` kept alive only by tests. Candidate 6 in the review.
-- [ ] `P2-W1-E0-033` **W1 · E0** — **Correct ADR 0004's `dpi_per_file` paragraph.** It says the first page's DPI is written throughout; commit `9cd7c08` made per-page DPI real.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
@@ -105,8 +101,6 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 
 - [ ] `P3-W1-E0-023` **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
 
----
-
 ### Architecture
 
 - [ ] `P3-W1-E1-034` **W1 · E1** — **Fold the three profile tables into one shape.** Merge compression, PDF compression and PDF/A profiles each ship the same four helpers and three route JSON shapes. Low churn; fold when one next changes. Candidate 8 in `docs/research/architecture-review-2026-09-22.html`.
@@ -114,6 +108,18 @@ Handwriting recognition for handwriting-heavy material, separate from the curren
 ---
 
 ## Recently completed
+
+### Architecture
+
+Batch 1 of the deepening work in `docs/research/architecture-review-2026-09-22.html`.
+
+- [x] **`P2-W1-E0-027` Delete the unused half of `utils/file_handler.py`** — nine functions, three callers. The web UI grew its own folder and file pickers when it stopped going through the shared helpers, so `pick_folder`, `pick_files`, `create_output_folder`, `file_exists`, `folder_exists`, `get_file_size` and `format_file_size` had no callers at all. The surviving three are used by `utils/tool_registry.py`. `utils/log_utils.py` went with them: its only callers were the two error branches that logged a failed `mkdir` and returned `None`. `create_error_folder` now lets the `OSError` out and the registry turns it into a `ToolError`, so a job that cannot record its failures refuses to start instead of failing later on a `TypeError`. The surviving pickers gained the one thing the deleted copies did better, expanding a `~` in a remembered folder. ADR 0001's consequence bullet is corrected.
+
+- [x] **`P2-W1-E0-028` Move the two-stage cancel onto `OperationWorker`** — three workers overrode `cancel()` with the same body and four inherited one that took no argument, so `JobRunner.cancel` tried `cancel(force=True)`, caught the `TypeError` and retried. The base now owns `cancel(force=False)` and `force_cancel_requested`, and the runner calls it once. The same change drops `error_folder` from four worker constructors: every one stored it, none read it. Failures are still written from the folder the registry records on `Started`.
+
+- [x] **`P2-W1-E0-029` Make the auto-crop failure test exercise the path it names** — the test patched `crop_image` to return a 2-tuple where `_crop_one` unpacks three. The `ValueError` was contained by `run_file_batch` and counted as a failure, so the assertion passed without the `CROP_FAILED` branch ever running. It now patches the real shape and asserts the error message that reaches the result.
+
+- [x] **`P2-W1-E0-033` Correct ADR 0004 on per-page DPI** — the ADR recorded that `dpi_per_file=True` wrote the first page's value throughout. Commit `9cd7c08` changed that. The original text stays in the past tense with a dated supersession beneath it.
 
 ### Tools
 
