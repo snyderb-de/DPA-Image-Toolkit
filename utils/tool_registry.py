@@ -66,13 +66,15 @@ class Prepared:
 
 @dataclass(frozen=True)
 class Started:
-    """A worker ready to run, and the folders its job will write into.
+    """A worker ready to run, and the folders its job will use.
 
-    `output_folder` is the boundary an undo is allowed to delete within. A tool
-    that leaves it unset cannot be undone, which is the safe default.
+    `output_folder` is the boundary an undo is allowed to delete within, and
+    `input_folder` the folder it must refuse. A tool that leaves
+    `output_folder` unset cannot be undone, which is the safe default.
     """
 
     worker: object
+    input_folder: Optional[Path] = None
     error_folder: Optional[Path] = None
     output_folder: Optional[Path] = None
 
@@ -178,6 +180,7 @@ def _start_auto_crop(body: dict, data: dict) -> Started:
             straighten=bool(body.get("straighten", False)),
             white_threshold=_white_threshold(body),
         ),
+        input_folder=folder,
         error_folder=errors,
         output_folder=output,
     )
@@ -191,6 +194,7 @@ def _start_straighten(_body: dict, data: dict) -> Started:
     output = _make_output(folder, "straightened")
     return Started(
         worker=StraightenWorker(folder, output),
+        input_folder=folder,
         error_folder=errors,
         output_folder=output,
     )
@@ -204,6 +208,7 @@ def _start_add_border(_body: dict, data: dict) -> Started:
     output = _make_output(folder, "bordered")
     return Started(
         worker=AddBorderWorker(folder, output),
+        input_folder=folder,
         error_folder=errors,
         output_folder=output,
     )
@@ -244,6 +249,7 @@ def _start_merge_tiffs(body: dict, data: dict) -> Started:
             folder, output, groups,
             compression=str(body.get("compression") or MERGE_DEFAULT_COMPRESSION),
         ),
+        input_folder=folder,
         error_folder=errors,
         output_folder=output,
     )
@@ -318,6 +324,7 @@ def _start_split_tiffs(body: dict, data: dict) -> Started:
             page_spec=page_spec,
             compression=str(body.get("compression") or MERGE_DEFAULT_COMPRESSION),
         ),
+        input_folder=Path(folder) if folder else None,
         error_folder=errors,
         # File mode scatters <name>_pages/ folders beside each source, so there
         # is no single root an undo could be bounded to.
@@ -371,6 +378,7 @@ def _start_ocr_pdf(body: dict, data: dict) -> Started:
                 body.get("compression_profile", DEFAULT_PROFILE_KEY)
             ),
         ),
+        input_folder=folder,
         error_folder=errors,
         output_folder=output,
     )
@@ -478,6 +486,7 @@ def _start_pdf_conversion(body: dict, data: dict) -> Started:
             extract_removal_mode="safe",
             pdfa_profile_key=str(body.get("pdfa_profile", DEFAULT_PDFA_PROFILE_KEY)),
         ),
+        input_folder=input_path,
         error_folder=errors,
         output_folder=output_root,
     )

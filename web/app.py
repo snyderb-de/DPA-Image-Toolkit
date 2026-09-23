@@ -391,14 +391,14 @@ def tool_start(tool_id):
     except ToolError as exc:
         return jsonify({"ok": False, "error": str(exc)})
 
-    if started.error_folder is not None:
-        runner.update_data(tool_id, error_folder=str(started.error_folder))
-    # Remembered so an undo knows the only folder it may delete within.
-    runner.update_data(
+    runner.start(
         tool_id,
-        output_folder=str(started.output_folder) if started.output_folder else None,
+        started.worker,
+        report_name=spec.display_name,
+        input_folder=started.input_folder,
+        output_folder=started.output_folder,
+        error_folder=started.error_folder,
     )
-    runner.start(tool_id, started.worker, report_name=spec.display_name)
     return jsonify({"ok": True})
 
 
@@ -412,23 +412,21 @@ def tool_undo(tool_id):
     if state["state"] == "running":
         return jsonify({"ok": False, "error": "The job is still running."})
 
-    results = state["results"] or {}
-    outputs = results.get("outputs") or []
-    data = runner.get_data(tool_id)
-    output_folder = data.get("output_folder")
-
-    if not output_folder:
+    job = runner.job(tool_id)
+    if job is None or job.output_folder is None:
         return jsonify({
             "ok": False,
             "error": "This job did not record a single output folder, so it cannot be undone.",
         })
+
+    outputs = (state["results"] or {}).get("outputs") or []
     if not outputs:
         return jsonify({"ok": False, "error": "This job wrote nothing to undo."})
 
     report = undo.undo_outputs(
         outputs,
-        output_root=output_folder,
-        input_folder=data.get("folder") or data.get("path"),
+        output_root=job.output_folder,
+        input_folder=job.input_folder,
     )
     payload = report.to_dict()
     payload["ok"] = report.ok
@@ -510,11 +508,11 @@ def tool_open_errors(tool_id):
     if not runner.knows(tool_id):
         return jsonify({"ok": False, "error": "Unknown tool"}), 404
 
-    error_folder = runner.get_data(tool_id).get("error_folder")
-    if not error_folder:
+    job = runner.job(tool_id)
+    if job is None or job.error_folder is None:
         return jsonify({"ok": False, "error": "No error folder is available for this job yet."})
 
-    path = Path(error_folder)
+    path = job.error_folder
     if not path.exists() or not path.is_dir():
         return jsonify({"ok": False, "error": f"Error folder does not exist: {path}"})
 
