@@ -21,6 +21,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import tifffile
+
+from utils.outcome import Outcome
 from PIL import Image
 
 from .compression import DEFAULT_COMPRESSION, resolve as resolve_compression
@@ -84,10 +86,11 @@ def select_pages(
     page_spec: str,
     compression: str = DEFAULT_COMPRESSION,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> Tuple[bool, Optional[str], Optional[str], Dict]:
+) -> Outcome:
     """Write the chosen pages of `source` to `output_path`, in the order given.
 
-    Returns (success, output_path, error, stats). The source is never modified.
+    The source is never modified. A cancellation part way through removes the
+    partial output and reports itself as one, so the batch it belongs to stops.
     """
     source = Path(source)
     output_path = Path(output_path)
@@ -98,12 +101,12 @@ def select_pages(
     try:
         total = count_pages(source)
     except Exception as exc:
-        return False, None, f"Could not read {source.name}: {exc}", {}
+        return Outcome.fail(f"Could not read {source.name}: {exc}")
 
     try:
         order = parse_page_order(page_spec, total)
     except ValueError as exc:
-        return False, None, str(exc), {"total_pages": total}
+        return Outcome.fail(str(exc), total_pages=total)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     codec = resolve_compression(compression)
@@ -133,18 +136,17 @@ def select_pages(
                 written += 1
     except Exception as exc:
         output_path.unlink(missing_ok=True)
-        return False, None, f"Failed to write {output_path.name}: {exc}", {
-            "total_pages": total,
-        }
+        return Outcome.fail(
+            f"Failed to write {output_path.name}: {exc}", total_pages=total
+        )
 
     if was_cancelled:
         output_path.unlink(missing_ok=True)
-        return False, None, "Operation cancelled by user.", {
-            "cancelled": True, "total_pages": total,
-        }
+        return Outcome.abort(total_pages=total)
 
-    return True, str(output_path), None, {
-        "total_pages": total,
-        "pages_written": written,
-        "order": [index + 1 for index in order],
-    }
+    return Outcome.ok(
+        str(output_path),
+        total_pages=total,
+        pages_written=written,
+        order=[index + 1 for index in order],
+    )

@@ -313,38 +313,24 @@ class TiffSplitWorker(OperationWorker):
         else:
             destination = file_path.parent / f"{file_path.stem}_selected.tif"
 
-        ok, output, error, stats = select_pages(
+        return select_pages(
             file_path,
             destination,
             self.page_spec,
             compression=self.compression,
             should_cancel=lambda: self.force_cancel_requested,
         )
-        if stats.get("cancelled"):
-            return Outcome.abort()
-        if not ok:
-            return Outcome.fail(error or "Could not extract pages")
-        return Outcome.ok(output)
 
     def _split_one(self, file_path: Path) -> Outcome:
         from modules.tiff_split.core import split_tiff_file
 
         output_folder = self.output_root if (self.use_root_output and self.output_root) else None
-        success, output_paths, error_msg, stats = split_tiff_file(
+        return split_tiff_file(
             file_path,
             output_folder=output_folder,
             skip_single_page=True,
             should_cancel=lambda: self.force_cancel_requested,
         )
-
-        if not success:
-            if stats.get("cancelled"):
-                return Outcome.abort()
-            return Outcome.fail(error_msg or "Split failed")
-
-        if stats.get("skipped"):
-            return Outcome.skip(stats.get("reason") or "Single-page TIFF")
-        return Outcome.ok(output_paths)
 
     def run(self):
         """Execute TIFF split operation."""

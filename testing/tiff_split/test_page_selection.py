@@ -29,6 +29,7 @@ from modules.tiff_combine.pages import (
     parse_page_order,
     select_pages,
 )
+from utils.outcome import FAILED
 
 
 def shaded_document(path: Path, pages: int) -> Path:
@@ -138,30 +139,30 @@ class SelectPagesTests(unittest.TestCase):
         self.assertEqual(count_pages(self.source), 5)
 
     def test_a_range_is_extracted_in_order(self):
-        ok, out, error, stats = self.select("2-4")
+        outcome = self.select("2-4")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), [60, 110, 160])
-        self.assertEqual(stats["order"], [2, 3, 4])
-        self.assertEqual(stats["total_pages"], 5)
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), [60, 110, 160])
+        self.assertEqual(outcome.details["order"], [2, 3, 4])
+        self.assertEqual(outcome.details["total_pages"], 5)
 
     def test_pages_come_out_in_the_order_asked_for(self):
-        ok, out, error, _stats = self.select("3,1,2")
+        outcome = self.select("3,1,2")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), [110, 10, 60])
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), [110, 10, 60])
 
     def test_a_backwards_range_reverses_the_document(self):
-        ok, out, error, _stats = self.select("5-1")
+        outcome = self.select("5-1")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), [210, 160, 110, 60, 10])
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), [210, 160, 110, 60, 10])
 
     def test_a_repeated_page_is_written_twice(self):
-        ok, out, error, _stats = self.select("2,2")
+        outcome = self.select("2,2")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), [60, 60])
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), [60, 60])
 
     def test_the_source_is_never_changed(self):
         before = shades(self.source)
@@ -172,44 +173,42 @@ class SelectPagesTests(unittest.TestCase):
         self.assertTrue(self.source.exists())
 
     def test_dpi_survives(self):
-        ok, out, _error, _stats = self.select("1-3")
+        outcome = self.select("1-3")
 
-        self.assertTrue(ok)
-        with Image.open(out) as selected:
+        self.assertTrue(outcome.succeeded)
+        with Image.open(outcome.output) as selected:
             self.assertEqual(tuple(selected.info.get("dpi", ())), (300.0, 300.0))
 
     def test_the_output_folder_is_created(self):
-        ok, out, error, _stats = select_pages(
+        outcome = select_pages(
             self.source, self.root / "nested" / "deep" / "out.tif", "1"
         )
 
-        self.assertTrue(ok, error)
-        self.assertTrue(Path(out).exists())
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertTrue(Path(outcome.output).exists())
 
     def test_a_bad_spec_fails_without_leaving_a_file(self):
-        ok, out, error, _stats = self.select("99")
+        outcome = self.select("99")
 
-        self.assertFalse(ok)
-        self.assertIsNone(out)
-        self.assertIn("outside 1-5", error)
+        self.assertEqual(outcome.status, FAILED)
+        self.assertIsNone(outcome.output)
+        self.assertIn("outside 1-5", outcome.error)
         self.assertFalse((self.root / "out.tif").exists())
 
     def test_an_unreadable_source_is_reported_by_name(self):
         broken = self.root / "broken.tif"
         broken.write_bytes(b"not a tiff")
 
-        ok, _out, error, _stats = select_pages(broken, self.root / "out.tif", "1")
+        outcome = select_pages(broken, self.root / "out.tif", "1")
 
-        self.assertFalse(ok)
-        self.assertIn("broken.tif", error)
+        self.assertEqual(outcome.status, FAILED)
+        self.assertIn("broken.tif", outcome.error)
 
     def test_cancelling_leaves_no_half_written_file(self):
-        ok, out, error, stats = self.select("1-5", should_cancel=lambda: True)
+        outcome = self.select("1-5", should_cancel=lambda: True)
 
-        self.assertFalse(ok)
-        self.assertIsNone(out)
-        self.assertIn("cancelled", error.lower())
-        self.assertTrue(stats.get("cancelled"))
+        self.assertTrue(outcome.was_cancelled)
+        self.assertIsNone(outcome.output)
         self.assertFalse((self.root / "out.tif").exists())
 
     def test_cancelling_part_way_through_leaves_nothing(self):
@@ -224,31 +223,29 @@ class SelectPagesTests(unittest.TestCase):
         def cancel_once_written():
             return partial.exists() and partial.stat().st_size > 0
 
-        ok, out, error, stats = self.select("1-5", should_cancel=cancel_once_written)
+        outcome = self.select("1-5", should_cancel=cancel_once_written)
 
-        self.assertFalse(ok)
-        self.assertIsNone(out)
-        self.assertIn("cancelled", error.lower())
-        self.assertTrue(stats.get("cancelled"))
+        self.assertTrue(outcome.was_cancelled)
+        self.assertIsNone(outcome.output)
         self.assertFalse((self.root / "out.tif").exists())
 
     def test_the_compression_choice_reaches_the_file(self):
-        small = self.select("1-5", name="small.tif", compression="deflate")[1]
-        large = self.select("1-5", name="large.tif", compression="none")[1]
+        small = self.select("1-5", name="small.tif", compression="deflate").output
+        large = self.select("1-5", name="large.tif", compression="none").output
 
         self.assertLess(Path(small).stat().st_size, Path(large).stat().st_size)
 
     def test_an_unknown_compression_falls_back_rather_than_failing(self):
-        ok, out, error, _stats = self.select("1", compression="nonsense")
+        outcome = self.select("1", compression="nonsense")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), [10])
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), [10])
 
     def test_selecting_every_page_reproduces_the_document(self):
-        ok, out, error, _stats = self.select("1-5")
+        outcome = self.select("1-5")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), shades(self.source))
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), shades(self.source))
 
     def test_a_colour_source_stays_colour(self):
         colour = self.root / "colour.tif"
@@ -258,10 +255,10 @@ class SelectPagesTests(unittest.TestCase):
         ]
         frames[0].save(colour, save_all=True, append_images=frames[1:], dpi=(300, 300))
 
-        ok, out, error, _stats = select_pages(colour, self.root / "c.tif", "2,1")
+        outcome = select_pages(colour, self.root / "c.tif", "2,1")
 
-        self.assertTrue(ok, error)
-        with Image.open(out) as selected:
+        self.assertTrue(outcome.succeeded, outcome.error)
+        with Image.open(outcome.output) as selected:
             self.assertEqual(selected.mode, "RGB")
             self.assertEqual(tuple(np.asarray(selected)[0, 0]), (200, 40, 10))
 
@@ -270,10 +267,10 @@ class SelectPagesTests(unittest.TestCase):
         Image.fromarray(np.full((20, 20), 77, np.uint8)).save(single)
 
         self.assertEqual(count_pages(single), 1)
-        ok, out, error, _stats = select_pages(single, self.root / "s.tif", "1")
+        outcome = select_pages(single, self.root / "s.tif", "1")
 
-        self.assertTrue(ok, error)
-        self.assertEqual(shades(out), [77])
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(shades(outcome.output), [77])
 
 
 class MemoryStaysFlatTests(unittest.TestCase):
@@ -289,11 +286,11 @@ sys.path.insert(0, sys.argv[1])
 from pathlib import Path
 from modules.tiff_combine.pages import select_pages
 root = Path(sys.argv[2])
-ok, out, error, stats = select_pages(root / "big.tif", root / "out.tif", sys.argv[3])
+outcome = select_pages(root / "big.tif", root / "out.tif", sys.argv[3])
 peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 if sys.platform != "darwin":
     peak *= 1024
-print(f"{ok}|{peak / 1048576:.0f}|{error}")
+print(f"{outcome.succeeded}|{peak / 1048576:.0f}|{outcome.error}")
 """
 
     def peak_for(self, spec: str) -> float:
