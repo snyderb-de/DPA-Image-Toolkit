@@ -239,26 +239,13 @@ class TiffMergeWorker(OperationWorker):
         """Merge one TIFF group."""
         from modules.tiff_combine.core import merge_tiff_group
 
-        success, output_path, errors = merge_tiff_group(
+        return merge_tiff_group(
             group_name,
             self.input_folder,
             self.output_folder,
             dpi_per_file=True,
             should_cancel=lambda: self.force_cancel_requested,
             compression=self.compression,
-        )
-        errors = errors or []
-
-        # merge_tiff_group flags a cancellation on the error it records, so the
-        # flag is authoritative — no need to read the message text.
-        if any(error.get("cancelled") for error in errors):
-            return Outcome.abort()
-
-        if success:
-            return Outcome.ok(output_path)
-        return Outcome.fail(
-            (error.get("file", group_name), error.get("error", "Unknown error"))
-            for error in errors
         )
 
     def run(self):

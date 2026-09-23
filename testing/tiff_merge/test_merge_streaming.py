@@ -31,6 +31,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.tiff_combine.core import merge_tiff_group
+from utils.outcome import FAILED
 
 PAGE_W, PAGE_H = 900, 1200
 
@@ -60,20 +61,20 @@ class StreamingMergeTests(unittest.TestCase):
             root = Path(temp_dir)
             build_group(root, 12)
 
-            ok, out, errors = merge_tiff_group("doc", root, root / "merged")
+            outcome = merge_tiff_group("doc", root, root / "merged")
 
-            self.assertTrue(ok, errors)
-            self.assertEqual(errors, [])
-            self.assertEqual(merged_pages(out), 12)
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            self.assertEqual(outcome.errors, ())
+            self.assertEqual(merged_pages(outcome.output), 12)
 
     def test_pages_keep_their_order(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             sources = build_group(root, 5)
-            ok, out, _errors = merge_tiff_group("doc", root, root / "merged")
-            self.assertTrue(ok)
+            outcome = merge_tiff_group("doc", root, root / "merged")
+            self.assertTrue(outcome.succeeded, outcome.errors)
 
-            with Image.open(out) as merged:
+            with Image.open(outcome.output) as merged:
                 for index, source in enumerate(sources):
                     merged.seek(index)
                     with Image.open(source) as original:
@@ -87,10 +88,10 @@ class StreamingMergeTests(unittest.TestCase):
             root = Path(temp_dir)
             build_group(root, 4, mode="L")
 
-            ok, out, _errors = merge_tiff_group("doc", root, root / "merged")
+            outcome = merge_tiff_group("doc", root, root / "merged")
 
-            self.assertTrue(ok)
-            with Image.open(out) as merged:
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            with Image.open(outcome.output) as merged:
                 self.assertEqual(merged.mode, "L")
 
     def test_one_rgb_page_promotes_the_whole_group(self):
@@ -100,10 +101,10 @@ class StreamingMergeTests(unittest.TestCase):
             build_group(root, 3, mode="L")
             page(root / "doc_0004.tif", 4, mode="RGB")
 
-            ok, out, _errors = merge_tiff_group("doc", root, root / "merged")
+            outcome = merge_tiff_group("doc", root, root / "merged")
 
-            self.assertTrue(ok)
-            with Image.open(out) as merged:
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            with Image.open(outcome.output) as merged:
                 self.assertEqual(merged.mode, "RGB")
                 self.assertEqual(getattr(merged, "n_frames", 1), 4)
 
@@ -112,10 +113,10 @@ class StreamingMergeTests(unittest.TestCase):
             root = Path(temp_dir)
             build_group(root, 3)
 
-            ok, out, _errors = merge_tiff_group("doc", root, root / "merged")
+            outcome = merge_tiff_group("doc", root, root / "merged")
 
-            self.assertTrue(ok)
-            with Image.open(out) as merged:
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            with Image.open(outcome.output) as merged:
                 self.assertEqual(tuple(merged.info.get("dpi", ())), (300.0, 300.0))
 
     def test_an_unreadable_page_is_reported_and_the_rest_merge(self):
@@ -124,11 +125,11 @@ class StreamingMergeTests(unittest.TestCase):
             build_group(root, 4)
             (root / "doc_0003.tif").write_bytes(b"not a tiff")
 
-            ok, out, errors = merge_tiff_group("doc", root, root / "merged")
+            outcome = merge_tiff_group("doc", root, root / "merged")
 
-            self.assertTrue(ok, errors)
-            self.assertEqual([e["file"] for e in errors], ["doc_0003.tif"])
-            self.assertEqual(merged_pages(out), 3)
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            self.assertEqual([name for name, _ in outcome.errors], ["doc_0003.tif"])
+            self.assertEqual(merged_pages(outcome.output), 3)
             self.assertTrue((root / "doc_0003.tif").exists(), "source was moved")
 
     def test_a_group_of_only_bad_pages_fails_without_leaving_a_file(self):
@@ -137,11 +138,11 @@ class StreamingMergeTests(unittest.TestCase):
             for i in range(1, 4):
                 (root / f"doc_{i:04d}.tif").write_bytes(b"not a tiff")
 
-            ok, out, errors = merge_tiff_group("doc", root, root / "merged")
+            outcome = merge_tiff_group("doc", root, root / "merged")
 
-            self.assertFalse(ok)
-            self.assertIsNone(out)
-            self.assertTrue(errors)
+            self.assertEqual(outcome.status, FAILED)
+            self.assertIsNone(outcome.output)
+            self.assertTrue(outcome.errors)
             self.assertFalse((root / "merged" / "doc.tif").exists(),
                              "an empty TIFF was left behind")
 
@@ -150,13 +151,12 @@ class StreamingMergeTests(unittest.TestCase):
             root = Path(temp_dir)
             build_group(root, 6)
 
-            ok, out, errors = merge_tiff_group(
+            outcome = merge_tiff_group(
                 "doc", root, root / "merged", should_cancel=lambda: True
             )
 
-            self.assertFalse(ok)
-            self.assertIsNone(out)
-            self.assertTrue(any(e.get("cancelled") for e in errors))
+            self.assertTrue(outcome.was_cancelled)
+            self.assertIsNone(outcome.output)
 
     def test_cancelling_leaves_no_partial_document(self):
         """The writer has already created the file by the time cancel is seen."""
@@ -186,13 +186,12 @@ class StreamingMergeTests(unittest.TestCase):
             def cancel_once_written():
                 return partial.exists() and partial.stat().st_size > 0
 
-            ok, out, errors = merge_tiff_group(
+            outcome = merge_tiff_group(
                 "doc", root, root / "merged", should_cancel=cancel_once_written
             )
 
-            self.assertFalse(ok)
-            self.assertIsNone(out)
-            self.assertTrue(any(e.get("cancelled") for e in errors))
+            self.assertTrue(outcome.was_cancelled)
+            self.assertIsNone(outcome.output)
             self.assertFalse(partial.exists(), "a partial document survived cancellation")
 
 
@@ -226,24 +225,24 @@ class PerPageDpiTests(unittest.TestCase):
             root = Path(temp_dir)
             wanted = self.build_mixed_dpi(root)
 
-            ok, out, _errors = merge_tiff_group(
+            outcome = merge_tiff_group(
                 "doc", root, root / "merged", dpi_per_file=True
             )
 
-            self.assertTrue(ok)
-            self.assertEqual(self.read_dpi(out), wanted)
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            self.assertEqual(self.read_dpi(outcome.output), wanted)
 
     def test_turning_it_off_writes_one_dpi_throughout(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self.build_mixed_dpi(root)
 
-            ok, out, _errors = merge_tiff_group(
+            outcome = merge_tiff_group(
                 "doc", root, root / "merged", dpi_per_file=False
             )
 
-            self.assertTrue(ok)
-            self.assertEqual(self.read_dpi(out), [(300, 300)] * 3)
+            self.assertTrue(outcome.succeeded, outcome.errors)
+            self.assertEqual(self.read_dpi(outcome.output), [(300, 300)] * 3)
 
     def test_a_uniform_group_is_unaffected_either_way(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -252,11 +251,11 @@ class PerPageDpiTests(unittest.TestCase):
 
             for flag in (True, False):
                 with self.subTest(dpi_per_file=flag):
-                    ok, out, _errors = merge_tiff_group(
+                    outcome = merge_tiff_group(
                         "doc", root, root / f"merged_{flag}", dpi_per_file=flag
                     )
-                    self.assertTrue(ok)
-                    self.assertEqual(self.read_dpi(out), [(300, 300)] * 3)
+                    self.assertTrue(outcome.succeeded, outcome.errors)
+                    self.assertEqual(self.read_dpi(outcome.output), [(300, 300)] * 3)
 
 
 class MemoryStaysFlatTests(unittest.TestCase):
@@ -272,11 +271,11 @@ class MemoryStaysFlatTests(unittest.TestCase):
         from pathlib import Path
         from modules.tiff_combine.core import merge_tiff_group
         root = Path(sys.argv[2])
-        ok, out, errors = merge_tiff_group("doc", root, root / "merged")
+        outcome = merge_tiff_group("doc", root, root / "merged")
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         if sys.platform != "darwin":
             peak *= 1024          # Linux reports KB, macOS bytes
-        print(f"{ok}|{peak / 1048576:.0f}")
+        print(f"{outcome.succeeded}|{peak / 1048576:.0f}")
     """)
 
     def peak_for(self, pages: int) -> float:

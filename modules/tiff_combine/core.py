@@ -14,6 +14,8 @@ Features:
 from pathlib import Path
 import numpy as np
 import tifffile
+
+from utils.outcome import SUCCESS, Outcome
 from PIL import Image
 from typing import Callable, Tuple, List, Dict, Optional
 from .compression import DEFAULT_COMPRESSION, is_lossless, resolve as resolve_compression
@@ -39,7 +41,7 @@ def merge_tiff_group(
     dpi_per_file: bool = True,
     should_cancel: Optional[Callable[[], bool]] = None,
     compression: str = DEFAULT_COMPRESSION,
-) -> Tuple[bool, Optional[str], List[Dict]]:
+) -> Outcome:
     """
     Merge a group of TIFF files into single multi-page TIFF.
 
@@ -50,10 +52,9 @@ def merge_tiff_group(
         dpi_per_file (bool): Preserve per-file DPI metadata
 
     Returns:
-        tuple: (success, merged_file_path, error_list)
-            - success (bool): True if merge succeeded
-            - merged_file_path (str): Path to output file or None
-            - error_list (list): List of files that failed or had issues
+        Outcome: a success carrying the merged path, or a failure carrying one
+            (file, message) pair per page that could not be used. A group can
+            lose a page and still merge, so a success may carry pairs too.
     """
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
@@ -74,7 +75,7 @@ def merge_tiff_group(
         ]
 
         if not group_files:
-            return False, None, [{"file": group_name, "error": "No files found in group"}]
+            return Outcome.fail_each([(group_name, "No files found in group")])
 
         # Sort files by sequence number
         group_files = [
@@ -102,11 +103,7 @@ def merge_tiff_group(
 
         for file_path in group_files:
             if _cancelled():
-                return False, None, error_list + [{
-                    "file": group_name,
-                    "error": "Operation cancelled by user.",
-                    "cancelled": True,
-                }]
+                return Outcome.abort(errors=tuple(error_list))
             try:
                 with Image.open(file_path) as img:
                     if img.mode in ("RGB", "RGBA"):
@@ -119,15 +116,13 @@ def merge_tiff_group(
                         first_dpi = dpi
                 readable_files.append(file_path)
             except Exception as e:
-                error_list.append(
-                    {"file": file_path.name, "error": f"Failed to open: {str(e)}"}
-                )
+                error_list.append((file_path.name, f"Failed to open: {str(e)}"))
                 continue
 
         if not readable_files:
-            return False, None, error_list or [
-                {"file": group_name, "error": "No valid images to merge"}
-            ]
+            return Outcome.fail_each(
+                error_list or [(group_name, "No valid images to merge")]
+            )
 
         if target_mode is None:
             target_mode = "RGB"
@@ -157,9 +152,7 @@ def merge_tiff_group(
                                 img = convert_image_mode(img, target_mode)
                             page = np.asarray(img)
                     except Exception as e:
-                        error_list.append(
-                            {"file": file_path.name, "error": f"Failed to convert: {str(e)}"}
-                        )
+                        error_list.append((file_path.name, f"Failed to convert: {str(e)}"))
                         continue
 
                     # dpi_per_file used to be collected and then discarded —
@@ -175,29 +168,25 @@ def merge_tiff_group(
                     )
                     written += 1
         except Exception as e:
-            return False, None, error_list + [
-                {"file": output_filename, "error": f"Failed to save TIFF: {str(e)}"}
-            ]
+            return Outcome.fail_each(
+                error_list + [(output_filename, f"Failed to save TIFF: {str(e)}")]
+            )
 
         if was_cancelled:
             output_path.unlink(missing_ok=True)
-            return False, None, error_list + [{
-                "file": group_name,
-                "error": "Operation cancelled by user.",
-                "cancelled": True,
-            }]
+            return Outcome.abort(errors=tuple(error_list))
 
         if not written:
             # Every page failed to convert; do not leave an empty TIFF behind.
             output_path.unlink(missing_ok=True)
-            return False, None, error_list or [
-                {"file": group_name, "error": "No images after mode conversion"}
-            ]
+            return Outcome.fail_each(
+                error_list or [(group_name, "No images after mode conversion")]
+            )
 
-        return True, str(output_path), error_list
+        return Outcome(SUCCESS, output=str(output_path), errors=tuple(error_list))
 
     except Exception as e:
-        return False, None, [{"file": group_name, "error": f"Merge failed: {str(e)}"}]
+        return Outcome.fail_each([(group_name, f"Merge failed: {str(e)}")])
 
 
 def convert_image_mode(image: Image.Image, target_mode: str = "RGB") -> Image.Image:

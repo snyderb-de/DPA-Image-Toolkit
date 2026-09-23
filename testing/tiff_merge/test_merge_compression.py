@@ -43,9 +43,9 @@ def scan_page(path: Path, seed: int = 5) -> Path:
 
 
 def merge_with(root: Path, key: str):
-    ok, out, errors = merge_tiff_group("doc", root, root / f"out_{key}", compression=key)
-    assert ok, errors
-    return Path(out)
+    outcome = merge_tiff_group("doc", root, root / f"out_{key}", compression=key)
+    assert outcome.succeeded, outcome.errors
+    return Path(outcome.output)
 
 
 class ProfileTableTests(unittest.TestCase):

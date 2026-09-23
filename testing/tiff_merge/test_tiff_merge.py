@@ -117,17 +117,17 @@ class TiffMergeCoreTests(unittest.TestCase):
 
     def test_merge_tiff_group_creates_multipage_outputs_with_expected_frame_counts(self):
         for group_name, expected_pages in EXPECTED_GROUPS.items():
-            success, output_path, errors = merge_tiff_group(
+            outcome = merge_tiff_group(
                 group_name=group_name,
                 input_folder=self.fixture_dir,
                 output_folder=self.output_dir,
                 dpi_per_file=True,
             )
-            self.assertTrue(success, msg=f"{group_name}: {errors}")
-            self.assertEqual(errors, [])
-            self.assertIsNotNone(output_path)
+            self.assertTrue(outcome.succeeded, msg=f"{group_name}: {outcome.errors}")
+            self.assertEqual(outcome.errors, ())
+            self.assertIsNotNone(outcome.output)
 
-            output_file = Path(output_path)
+            output_file = Path(outcome.output)
             self.assertTrue(output_file.exists())
             self.assertEqual(output_file.name, f"{group_name}.tif")
 
