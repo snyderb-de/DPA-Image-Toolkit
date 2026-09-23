@@ -21,12 +21,11 @@ from utils.job_runner import JobRunner
 class FakeWorker(threading.Thread):
     """Stands in for an OperationWorker without touching any image library."""
 
-    def __init__(self, emit_error=False, accepts_force=False):
+    def __init__(self, emit_error=False):
         super().__init__(daemon=True)
         self.cancelled = False
         self.force_cancelled = False
         self.emit_error = emit_error
-        self.accepts_force = accepts_force
         self.release = threading.Event()
         self.started = threading.Event()
         self.progress_callback = None
@@ -42,13 +41,11 @@ class FakeWorker(threading.Thread):
     def set_error_callback(self, callback):
         self.error_callback = callback
 
-    def cancel(self, *args, **kwargs):
-        """Real workers differ: some accept force=True, some take no arguments."""
-        if args or kwargs.get("force"):
-            if not self.accepts_force:
-                raise TypeError("cancel() takes 1 positional argument but 2 were given")
-            self.force_cancelled = True
+    def cancel(self, force: bool = False):
+        """Matches OperationWorker.cancel: every worker accepts force."""
         self.cancelled = True
+        if force:
+            self.force_cancelled = True
         self.release.set()
 
     def run(self):
@@ -76,16 +73,64 @@ class JobRunnerTests(unittest.TestCase):
             self.runner.state("auto_crop"), {"state": "idle", "results": None}
         )
 
-    def test_replace_data_overwrites_and_update_data_merges(self):
+    def test_prepare_data_is_replaced_wholesale(self):
+        """It is a stash for the prepare-to-start hand-off, nothing more."""
         self.runner.replace_data("auto_crop", {"folder": "/a", "file_count": 3})
-        self.runner.update_data("auto_crop", error_folder="/a/errored-files")
         self.assertEqual(
             self.runner.get_data("auto_crop"),
-            {"folder": "/a", "file_count": 3, "error_folder": "/a/errored-files"},
+            {"folder": "/a", "file_count": 3},
         )
 
         self.runner.replace_data("auto_crop", {"folder": "/b"})
         self.assertEqual(self.runner.get_data("auto_crop"), {"folder": "/b"})
+
+    def test_no_job_is_recorded_until_one_starts(self):
+        self.assertIsNone(self.runner.job("auto_crop"))
+
+    def test_a_started_job_records_its_folders(self):
+        worker = FakeWorker()
+        self.runner.start(
+            "auto_crop", worker,
+            report_name="Auto Crop",
+            input_folder=Path("/a"),
+            output_folder=Path("/a/cropped"),
+            error_folder=Path("/a/errored-files"),
+        )
+        self.assertTrue(worker.started.wait(timeout=5))
+
+        job = self.runner.job("auto_crop")
+        self.assertIs(job.worker, worker)
+        self.assertEqual(job.report_name, "Auto Crop")
+        self.assertEqual(job.input_folder, Path("/a"))
+        self.assertEqual(job.output_folder, Path("/a/cropped"))
+        self.assertEqual(job.error_folder, Path("/a/errored-files"))
+
+        worker.cancel()
+        self.runner.wait("auto_crop", timeout=5)
+
+    def test_a_job_that_names_no_folders_records_none(self):
+        """Not every tool can be undone, and the safe default is a None."""
+        worker = FakeWorker()
+        self.runner.start("auto_crop", worker)
+        self.assertTrue(worker.started.wait(timeout=5))
+
+        job = self.runner.job("auto_crop")
+        self.assertIsNone(job.input_folder)
+        self.assertIsNone(job.output_folder)
+        self.assertIsNone(job.error_folder)
+
+        worker.cancel()
+        self.runner.wait("auto_crop", timeout=5)
+
+    def test_a_reset_forgets_the_job(self):
+        worker = FakeWorker()
+        self.runner.start("auto_crop", worker, output_folder=Path("/a/cropped"))
+        self.assertTrue(worker.started.wait(timeout=5))
+        worker.cancel()
+        self.runner.wait("auto_crop", timeout=5)
+
+        self.assertTrue(self.runner.reset("auto_crop"))
+        self.assertIsNone(self.runner.job("auto_crop"))
 
     def test_subscriber_receives_worker_events_then_done_and_end(self):
         q = self.runner.subscribe("auto_crop")
@@ -138,19 +183,18 @@ class JobRunnerTests(unittest.TestCase):
         self.runner.wait("auto_crop", timeout=5)
         self.assertTrue(worker.cancelled)
 
-    def test_force_cancel_falls_back_when_worker_takes_no_force(self):
-        """Not every worker has a two-stage cancel; force must not raise."""
-        worker = FakeWorker(accepts_force=False)
+    def test_a_graceful_cancel_does_not_force(self):
+        worker = FakeWorker()
         self.runner.start("auto_crop", worker)
         self.assertTrue(worker.started.wait(timeout=5))
 
-        self.assertTrue(self.runner.cancel("auto_crop", force=True))
+        self.assertTrue(self.runner.cancel("auto_crop"))
         self.runner.wait("auto_crop", timeout=5)
         self.assertTrue(worker.cancelled)
         self.assertFalse(worker.force_cancelled)
 
-    def test_force_cancel_reaches_workers_that_support_it(self):
-        worker = FakeWorker(accepts_force=True)
+    def test_force_cancel_reaches_the_worker(self):
+        worker = FakeWorker()
         self.runner.start("auto_crop", worker)
         self.assertTrue(worker.started.wait(timeout=5))
 

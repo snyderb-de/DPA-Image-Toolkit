@@ -90,12 +90,25 @@
 
     <section class="manual-section" id="split-tiffs">
       <h2>Split Multi-Page TIFFs</h2>
-      <p>Extracts pages from multi-page TIFF files into single-page TIFF outputs.</p>
+      <p>Two jobs on multi-page TIFFs: split every page into its own file, or keep a chosen set of pages as one document.</p>
+
+      <h3>Split into single pages</h3>
       <ul>
         <li>File mode output: sibling <code>&lt;name&gt;_pages/</code> folders.</li>
         <li>Folder mode output: <code>extracted-pages/</code>.</li>
         <li>Single-page TIFFs are skipped.</li>
         <li>Pages are named <code>&lt;name&gt;_001.tif</code>, <code>&lt;name&gt;_002.tif</code>, and so on, so split output can be merged back or sent straight to OCR to PDF as one document.</li>
+      </ul>
+
+      <h3>Extract / reorder pages</h3>
+      <p>Type which pages to keep. They are written in the order you type them, as one <code>&lt;name&gt;_selected.tif</code> per source file.</p>
+      <ul>
+        <li><code>1-3</code> keeps the first three pages.</li>
+        <li><code>3,1,2</code> reorders — page three first, then one, then two.</li>
+        <li><code>4-2</code> counts down, reversing that run of pages.</li>
+        <li>A page may appear more than once: <code>1,3,1</code> writes page one twice.</li>
+        <li>The page numbers are checked against the first file before the job starts, so a typo is one message rather than one per file.</li>
+        <li>Sources are never changed — the selection is always written to a new file.</li>
       </ul>
     </section>
 

@@ -2,7 +2,7 @@
 
 **Status:** v1.1.9 is the current GitHub release. Primary deploy target is the PyInstaller Windows one-file EXE built from `launch_web.py`.
 
-The next release was blocked by an OpenCV 5 incompatibility in deskewing — the release workflow runs the suite before building, so the break stopped a tagged build rather than shipping. That is fixed and dependency majors are now capped. The EXE itself has not been rebuilt or smoke-tested since the architecture work, which is the P0 below.
+v1.1.10 shipped the architecture work: one web UI, one tool registry, typed job results, and one filename grouping rule shared by every tool. It also fixed the OpenCV 5 incompatibility that had been blocking releases, and capped dependency majors so a major cannot arrive uninvited again. The released EXE has been smoke-tested on Windows.
 
 ---
 
@@ -29,6 +29,10 @@ Every item carries a priority, an effort estimate and a win score. Items are gro
 | **W2** | Noticeable, not felt daily |
 | **W1** | Barely felt day to day |
 
+Each open item carries an id like `P2-W3-E1-007`. The trailing number is the
+identity and never changes; the `P`, `W` and `E` parts are descriptive, so an
+item re-scored from P2 to P1 becomes `P1-W3-E1-007` and is still the same item.
+
 Within P2, items are ordered by win per unit of effort — best payoff for the
 least work first, so the cheap high-win items float to the top. P0 and P1 are
 ordered by priority alone; P3 keeps dependency order, since the research steps
@@ -38,31 +42,22 @@ feed each other.
 
 ## P0 — Blocks the next release
 
-- [ ] **W3 · E1** — **Smoke-test the released Windows EXE** — download `image-toolkit.exe` into a clean user profile, run all seven tools, confirm no local Python install or `_internal/` folder is needed. More important than it was: the architecture work changed what `launch_web.py` pulls in and deleted a package `packaging/dpa-toolkit.spec` still references, and none of it has been exercised on Windows.
+Nothing open.
 
 ---
 
 ## P1 — Defect or friction felt now
 
-- [ ] **W3 · E1** — **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
+- [ ] `P1-W3-E1-002` **W3 · E1** — **Validate on Windows 10 / Windows 11** — continue full workflow checks on the actual target environment.
 
 ---
 
 ## P2 — Planned improvement
 
-- [ ] **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
-- [ ] **W3 · E1** — **OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped. Today there is no way through except reprocessing outside the toolkit.
-- [ ] **W3 · E1** — **Drag-and-drop folder support** — every job starts with a folder pick today.
-- [ ] **W2 · E0** — **Decide code-signing / distribution policy** — the EXE is unsigned. Acceptable for a controlled rollout, but it may trigger Windows SmartScreen warnings.
-- [ ] **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
-- [ ] **W3 · E2** — **TIFF Merge: memory-safe streaming** for very large batches (200+ pages), which currently have to be split up by hand.
-- [ ] **W3 · E2** — **Undo support** — move output back, restore originals. A wrong run means manual cleanup today.
-- [ ] **W2 · E1** — **Configurable white threshold via a UI slider** — tune per batch instead of re-running with defaults that do not suit the material.
-- [ ] **W2 · E2** — **Page reordering and extraction from existing multi-page TIFFs** — currently not possible without leaving the toolkit.
-- [ ] **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
-- [ ] **W1 · E1** — **TIFF Merge: per-page DPI preservation** — a correctness detail, invisible most days.
-- [ ] **W1 · E1** — **TIFF Merge: advanced compression options** — JPEG, LZW and PackBits. Merge output is currently uncompressed or default TIFF compression only.
-- [ ] **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
+- [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
+- [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
+- [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
+- [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.
 
 ---
 
@@ -72,38 +67,97 @@ feed each other.
 
 Handwriting recognition for handwriting-heavy material, separate from the current printed-text OCR workflow.
 
-- [ ] **W1 · E1** — **Decide whether handwriting support belongs in the main OCR tool or a separate HCR panel**
-- [ ] **W1 · E1** — **Gather a benchmark set** of real English handwritten samples before choosing an engine.
-- [ ] **W1 · E2** — **Test `TrOCR`** for English handwriting recognition
-  - *What:* transformer-based OCR models from Microsoft, including handwritten checkpoints
-  - *Pros:* modern model family; strongest open-source-looking starting point for English handwriting; no dependency on Tesseract OCR quality
-  - *Cons:* heavier ML/runtime footprint; not naturally aligned with simple PDF/A archival workflows; likely requires a custom page-to-text pipeline
-- [ ] **W1 · E2** — **Test `PaddleOCR`** for English handwriting recognition
-  - *What:* general OCR toolkit with support for printed text and handwriting scenarios
-  - *Pros:* broader OCR stack; active project; may handle mixed page conditions better than Tesseract
-  - *Cons:* heavier install and model management; not a drop-in archival PDF/A replacement; would need evaluation on microfilm-derived scans
-- [ ] **W1 · E2** — **Test `Kraken`** for historical or manuscript-like handwriting
-  - *What:* OCR/HTR toolkit with strong historical-text and handwritten-text reputation
-  - *Pros:* better fit for specialized handwriting and historical-text workflows; strong research/community use in HTR contexts
-  - *Cons:* steeper workflow; less turnkey for desktop staff use; often expects more document prep or model selection effort
-- [ ] **W1 · E2** — **Test `Calamari OCR`** for line-based handwriting recognition
-  - *What:* OCR/HTR engine commonly used in historical-text pipelines
-  - *Pros:* respected in handwritten and historical OCR circles; good candidate if line-level workflows become acceptable
-  - *Cons:* less page-oriented; may require segmentation or model work first; weaker fit for a simple folder-to-PDF desktop tool
-- [ ] **W1 · E2** — **Compare each HCR candidate** on:
+Researched 2026-09-23: `docs/research/handwriting-recognition.md`. The finding is that no
+HTR engine belongs inside the EXE — the best-fitting one does not run on Windows, the rest
+need PyTorch or TensorFlow, and the best measured accuracy on 18th/19th-century English
+including microfilm is 7.3% CER, which is a text layer the existing quality gate exists to
+refuse. The items below are rewritten against that note; several of the original claims
+were wrong and are corrected in place.
+
+- [x] `P3-W1-E1-016` **Decided: a separate panel, if anything is built at all.** Not for code-structure reasons — the output contract differs. Printed-text OCR produces a searchable PDF; handwriting at achievable accuracy should produce a transcript sidecar with per-line confidence, not a silent text layer.
+- [ ] `P3-W1-E1-017` **W3 · E1** — **Gather a benchmark set.** Now the only item that should be worked until it is done, because every item below is unanswerable without it. 30–50 pages, many hands rather than many pages of one hand, spanning the real difficulty range, with a diplomatic ground-truth transcription of each page, kept versioned on the share so every future engine is scored on the same material. Pages that have never been published online, so no candidate model has already seen them.
+- [ ] `P3-W1-E1-035` **W3 · E1** — **Run the benchmark set through the Transkribus free tier** — 50 credits a month, 50 handwritten pages, no card, no install. A one-day go/no-go on whether HTR is worth anything on this material before any engineering is considered. Production use is €99/year for 900 pages, which is less than half a day of staff transcription.
+- [ ] `P3-W1-E2-020` **W1 · E2** — **Test `Kraken`** — the best-fitting engine, on the wrong operating system.
+  - *What:* HTR toolkit with its own segmentation, and the owner of the **RevCity model**: 18th-century American English, trained on the Revolutionary City corpus, Apache-2.0, 16.2 MB, ~6.6% CER self-reported. The only pretrained model anywhere aimed at this exact material.
+  - *Blocker:* the README says Linux or macOS, and the PyPI metadata declares `Operating System :: POSIX`. Windows is not supported or tested. Documented-unsupported is not the same as proven-broken, so the one test that could reopen this is an actual Windows install attempt.
+  - *Cost if it did work:* needs `torch` — the Windows CPU wheel alone is 124 MB compressed, before weights.
+- [ ] `P3-W1-E2-018` **W1 · E2** — **Test `TrOCR`** — right family, wrong century, wrong shape.
+  - *Corrected:* it is trained on IAM, which is **modern** English handwriting, not historical. It is **line-level only** and brings no segmentation, so it needs a separate segmenter supplied.
+  - *Size:* weights are 246 MB small / 1,333 MB base / 2,229 MB large, on top of PyTorch.
+- [ ] `P3-W1-E2-019` **W1 · E2** — **Test `PaddleOCR`** — the old con was the wrong con.
+  - *Corrected:* it needs no PyTorch and is `OS Independent`, so installation is not the problem. Accuracy is: PP-OCRv5's own handwritten-**English** metric is 0.5806 server / 0.4944 mobile, and its handwriting work is Chinese-first. No historical-manuscript models.
+- [ ] `P3-W1-E2-021` **W1 · E2** — **Test `Calamari OCR`** — demote, or drop.
+  - *Corrected:* "respected in handwritten circles" is wrong. All nine models in `calamari_models` are **printed-text** (GT4HistOCR, Fraktur, Antiqua, UW3). There is no handwriting model to start from. Also GPL-3.0, the only copyleft candidate, which is a real question for a distributed EXE; needs TensorFlow; last release 2.3.1, 2024-11-12.
+- [ ] `P3-W1-E2-036` **W1 · E2** — **Assess the candidates the original list missed** — Transkribus (cloud only, but the incumbent and the likeliest answer), eScriptorium and Loghi (both viable, both server or Docker shaped), and vision-language models, which now match or beat dedicated HTR on this period. Hosted VLMs mean sending archival images to a third party, which is an institutional question before it is a technical one.
+- [ ] `P3-W1-E2-022` **W1 · E2** — **Compare each HCR candidate** on:
   - plain cursive handwriting
   - mixed print + handwriting pages
   - noisy microfilm scans
   - installation complexity on Windows
   - feasibility of producing searchable PDF outputs without misleading text layers
+  - **does it bring its own segmentation** — TrOCR and Calamari do not
+  - **does it emit per-line confidence** — needed to extend the existing quality gate
+- [ ] `P3-W1-E1-037` **W1 · E1** — **Re-check the moving parts in mid-2026 and after.** The Transkribus API page said "Launching June 2026" and on-premise is "coming soon"; neither is verified. Open-weight VLMs are improving fastest — Qwen2-VL-7B already beat GPT-4o on 18th/19th-century English. An ONNX export of a kraken line recognizer would change the EXE answer entirely.
 
 ### Dashboard polish
 
-- [ ] **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
+- [ ] `P3-W1-E0-023` **W1 · E0** — **Add screenshots to the dashboard** — seven images, one per tool panel, plus a Screenshots section in `docs/index.html`. Cosmetic, GitHub Pages only, nothing in the EXE. Needs a browser session to capture.
+
+### Architecture
+
+- [ ] `P3-W1-E1-034` **W1 · E1** — **Fold the three profile tables into one shape.** Merge compression, PDF compression and PDF/A profiles each ship the same four helpers and three route JSON shapes. Low churn; fold when one next changes. Candidate 8 in `docs/research/architecture-review-2026-09-22.html`.
 
 ---
 
 ## Recently completed
+
+### Architecture
+
+Batches 1 to 3 of the deepening work in `docs/research/architecture-review-2026-09-22.html`.
+
+- [x] **`P2-W1-E1-030` Give `JobRunner` a typed job record** — `Started` already carried the folders as typed fields, and the start route flattened them into the runner's free-form data dict as strings so three other places could dig them out by key. The runner knew the key `error_folder`, which nothing in it had written, and the undo boundary was reassembled at the route from three loosely related keys. `JobRunner.start` now records one frozen `Job` and `runner.job(tool_id)` hands it back. `Started` gained `input_folder`, which every start function already had in a local, so the route no longer guesses it from two possible keys. The undo route had no test at all and now has two.
+
+- [x] **`P2-W1-E1-032` One dependency model instead of three** — a table for the five image tools, a hand-written pair of functions for OCR, another for PDF conversion, each deriving the same facts twice so the dependency panel and the start gate could drift. One `DependencySet` now; `statuses()` and `check()` come off the same list. Two fields on `ToolSpec` become one, and the two functions each module exported become one. A dependency can be optional, which is what OCRmyPDF is, and can carry its own message, which is what a missing Tesseract or language pack needs. The Tk panel prose went with it: no production callers since the desktop UI was retired, kept alive only by its own tests.
+
+- [x] **`P2-W1-E1-031` One outcome type at the module seam** — six return envelopes and four ways of saying "cancelled" across `modules/*/core.py`, so every worker carried a translation function whose only job was knowing which convention the module it called happened to use. One `Outcome` now, in `utils/outcome.py` so a module can say what happened without depending on the loop that consumes it. `ItemOutcome` and `GroupOutcome` merged into it. Landed as six commits, one per module family, each with the suite green. `utils/worker.py` is 834 lines, down from 1020. ADR 0004 is unaffected: the streaming write, page order, mode unification and per-page DPI are untouched.
+
+- [x] **`P2-W2-E1-025` Put the OCR PDF worker on the shared batch loop** — `OcrPdfWorker.run` was 240 lines, most of them a second copy of `run_file_batch`. `run_file_batch` gained one optional argument, a label function, because OCR's unit of work is a document rather than a single file; everything else about the loop is the same for OCR as for the other six tools. The worker's dependency gate is gone: `POST /api/ocr_pdf/start` already refused on the same grounds with the same message, so the worker was re-checking on its own thread what the route had settled. Two test patches went with it. The progress payload had fourteen keys and the panel reads six, and this fixed what it did with one: the bar labelled **Current PDF** was fed the job percentage, so both bars showed the same number and the per-document bar was decorative.
+
+- [x] **`P2-W2-E1-026` Finish the PDF conversion worker** — `run` was a 130-line if/elif in which reduce and PDF/A used the loop while split and extract hand-rolled it. All four are now process functions; a single-file operation is a batch of one. The "requires one PDF file" and "page selection is required" checks, and the unknown-operation case, moved to `utils/tool_registry.py`, so they refuse at Start instead of failing inside the thread. The output folder moved with them, which is what `Started.output_folder` needed: reduce, PDF/A and split are undoable now. Extract still is not, deliberately — it writes beside its source, and a source folder is never one an undo may delete within. Split, extract and the four refusals had no worker-level coverage and now do.
+
+- [x] **`P2-W1-E0-027` Delete the unused half of `utils/file_handler.py`** — nine functions, three callers. The web UI grew its own folder and file pickers when it stopped going through the shared helpers, so `pick_folder`, `pick_files`, `create_output_folder`, `file_exists`, `folder_exists`, `get_file_size` and `format_file_size` had no callers at all. The surviving three are used by `utils/tool_registry.py`. `utils/log_utils.py` went with them: its only callers were the two error branches that logged a failed `mkdir` and returned `None`. `create_error_folder` now lets the `OSError` out and the registry turns it into a `ToolError`, so a job that cannot record its failures refuses to start instead of failing later on a `TypeError`. The surviving pickers gained the one thing the deleted copies did better, expanding a `~` in a remembered folder. ADR 0001's consequence bullet is corrected.
+
+- [x] **`P2-W1-E0-028` Move the two-stage cancel onto `OperationWorker`** — three workers overrode `cancel()` with the same body and four inherited one that took no argument, so `JobRunner.cancel` tried `cancel(force=True)`, caught the `TypeError` and retried. The base now owns `cancel(force=False)` and `force_cancel_requested`, and the runner calls it once. The same change drops `error_folder` from four worker constructors: every one stored it, none read it. Failures are still written from the folder the registry records on `Started`.
+
+- [x] **`P2-W1-E0-029` Make the auto-crop failure test exercise the path it names** — the test patched `crop_image` to return a 2-tuple where `_crop_one` unpacks three. The `ValueError` was contained by `run_file_batch` and counted as a failure, so the assertion passed without the `CROP_FAILED` branch ever running. It now patches the real shape and asserts the error message that reaches the result.
+
+- [x] **`P2-W1-E0-033` Correct ADR 0004 on per-page DPI** — the ADR recorded that `dpi_per_file=True` wrote the first page's value throughout. Commit `9cd7c08` changed that. The original text stays in the past tense with a dated supersession beneath it.
+
+### Tools
+
+- [x] **`P2-W2-E2-011` TIFF Split: page extraction and reordering** — pulling three pages out of a forty-page roll, or putting two back in the right order, meant leaving the toolkit. The Split panel now offers **Extract / reorder pages** alongside the existing split, taking a page spec that keeps the order it was typed in: `2-4` extracts a range, `3,1,2` reorders, `4-2` counts down, and a page may repeat. Extraction and reordering are the same operation once order is preserved, which is why this is one control and not two. It does not reuse the PDF page parser — that one sorts and de-duplicates, so it cannot express an order. Pages stream out one at a time like the merge, the spec is validated once against the first file so a typo is one message rather than one per file, and the source is never modified.
+
+- [x] **`P2-W1-E1-014` TIFF Merge: compression options** — Deflate, LZW, PackBits, JPEG and none, chosen per job. Deflate stays the default because it is the smallest lossless option; LZW and PackBits are offered for readers that cannot open deflate TIFFs, not to save space, and the labels say so. JPEG is labelled as altering the image. Needs `imagecodecs`, a 13 MB wheel, which is also hinted in the PyInstaller spec because tifffile resolves codecs lazily and the analysis cannot see them.
+
+- [x] **`P2-W1-E1-013` TIFF Merge: per-page DPI preservation** — `dpi_per_file=True` never did this. Each page's DPI was read, collected, and then discarded: every page was written with the first page's value. It now means what it says, and `False` still writes one DPI for the whole document. Only possible once merge streamed, because `tifffile` takes a resolution per page.
+
+- [x] **`P2-W2-E1-010` Configurable white threshold** — `crop_image` always took a `white_threshold`, but nothing ever passed one, so faint paper counted as content on every page or none. A **Background sensitivity** slider now carries it from the panel to the page. It is a ceiling: `_get_effective_white_threshold` adapts per page and returns `max(200, min(requested, adaptive))`, so the range is 200–253 and the label says so rather than implying an absolute.
+
+- [x] **`P2-W3-E2-009` Undo support** — a finished job can remove what it wrote. The item said "move output back, restore originals", but no tool has ever moved a source, so there is nothing to restore: undo deletes the run's output and nothing else. It only considers paths the job recorded, refuses anything outside that job's output folder, refuses the source folder outright, and reports whatever it declined. Every tool now records what it wrote, which it previously only did for OCR and PDF conversion.
+
+- [x] **`P2-W3-E2-008` TIFF Merge: memory-safe streaming** — pages were all decoded and held before writing, so peak memory grew with the page count: 1,283 MB for 60 pages, and 200-page batches had to be split by hand. Pages now stream to disk one at a time via `tifffile`; peak is flat at ~97 MB, and a 200-page merge completes in 8 seconds at 98 MB. Output is pixel-identical. See `docs/adr/0004-tifffile-for-streaming-merge.md`.
+
+- [x] **`P2-W3-E1-005` Faster folder selection** — every job started with a trip through the native picker. Each folder tool now keeps its last five folders as one-click chips, and takes a pasted path. Drag-and-drop was investigated and rejected: pywebview 6.2.1 exposes no file-drop event, and a browser drop yields no filesystem path, so it cannot give the backend what it needs without uploading every file. Gating staff to folder selection was preferred anyway.
+
+- [x] **`P2-W3-E1-004` OCR: manual override for quality-flagged pages** — a finished job now records which documents the gate withheld OCR text from, and an **OCR Flagged Pages** button re-runs just those with the gate off. Previously the only way through was re-running the whole folder, which gave up the gate for every page that deserved it.
+
+### Decisions
+
+- [x] **`P2-W2-E1-024` Researched SmartScreen-clean code signing** — `docs/research/smartscreen-code-signing.md`, against primary sources. Signing and reputation are separate mechanisms; EV no longer grants immediate reputation; reputation needs "hundreds of clean installs from a wide audience", which a handful of staff never reach. SmartScreen also does not apply to network shares, so the warnings may not be SmartScreen at all — diagnose that first, it is free.
+
+### Release
+
+- [x] **`P0-W3-E1-001` Smoke-tested the released Windows EXE** — v1.1.10 launches from a clean profile, all seven tools open, straightening works, the PDF Conversion icon renders, and no `_internal/` folder is needed beside the executable.
 
 ### Architecture (branch `refactor/deepen-architecture`, PR #3)
 

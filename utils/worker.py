@@ -8,16 +8,13 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, List
 
+from modules.auto_cropping.core import DEFAULT_WHITE_THRESHOLD
+from modules.tiff_combine.compression import DEFAULT_COMPRESSION as MERGE_DEFAULT_COMPRESSION
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import DEFAULT_PDFA_PROFILE_KEY
-from utils.batch import (
-    GroupOutcome,
-    ItemOutcome,
-    find_image_files,
-    run_file_batch,
-    run_group_batch,
-)
+from utils.batch import find_image_files, run_file_batch, run_group_batch
 from utils.job_result import JobError, JobResult
+from utils.outcome import SKIPPED, Outcome
 
 class OperationWorker(threading.Thread):
     """Base worker thread for operations."""
@@ -31,6 +28,7 @@ class OperationWorker(threading.Thread):
         """
         super().__init__(daemon=True, name=name)
         self.cancelled = False
+        self.force_cancel_requested = False
         self.progress_callback: Optional[Callable] = None
         self.status_callback: Optional[Callable] = None
         self.error_callback: Optional[Callable] = None
@@ -47,9 +45,20 @@ class OperationWorker(threading.Thread):
         """Set callback for error notifications."""
         self.error_callback = callback
 
-    def cancel(self):
-        """Request cancellation."""
+    def cancel(self, force: bool = False):
+        """
+        Request cancellation.
+
+        The first request is graceful: the worker stops at the next item
+        boundary and keeps what it has already written. A force request also
+        sets `force_cancel_requested`, which a worker that can stop part way
+        through one item passes to the module doing the work. A worker with
+        nothing to interrupt mid-item simply never reads it, so force is
+        always safe to send.
+        """
         self.cancelled = True
+        if force:
+            self.force_cancel_requested = True
 
     def update_progress(self, current: int, total: int, filename: str = ""):
         """
@@ -98,8 +107,8 @@ class AutoCropWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
         straighten: bool = False,
+        white_threshold: int = DEFAULT_WHITE_THRESHOLD,
     ):
         """
         Initialize auto-crop worker.
@@ -107,37 +116,34 @@ class AutoCropWorker(OperationWorker):
         Args:
             input_folder (Path): Folder with images to crop
             output_folder (Path): Folder for cropped images
-            error_folder (Path): Folder for failed images
         """
         super().__init__(name="AutoCropWorker")
 
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.straighten = straighten
+        # Ceiling on what counts as background. crop_image may choose a lower
+        # value for a given page; it never goes above this.
+        self.white_threshold = int(white_threshold)
 
         self.results = JobResult(verb="Cropped")
 
-    def _crop_one(self, image_file: Path) -> ItemOutcome:
-        from modules.auto_cropping.core import (
-            CROP_SKIPPED,
-            CROP_SUCCESS,
-            crop_image,
-        )
+    def _crop_one(self, image_file: Path) -> Outcome:
+        from modules.auto_cropping.core import crop_image
 
-        output_path, error_msg, status = crop_image(
+        outcome = crop_image(
             image_file,
             self.output_folder,
+            white_threshold=self.white_threshold,
             preserve_dpi=True,
             straighten=self.straighten,
         )
-        if status == CROP_SUCCESS:
-            return ItemOutcome.ok(output_path)
-        if status == CROP_SKIPPED:
-            # Inputs are never moved; the source stays available for review.
-            self.results.errors.append(JobError(image_file.name, error_msg))
-            return ItemOutcome.skip(error_msg)
-        return ItemOutcome.fail(error_msg)
+        if outcome.status == SKIPPED:
+            # A skip is listed among the errors so the report says which pages
+            # were left alone and why. Inputs are never moved; the source stays
+            # available for review.
+            self.results.errors.append(JobError(image_file.name, outcome.reason))
+        return outcome
 
     def run(self):
         """Execute auto-crop operation."""
@@ -165,31 +171,23 @@ class StraightenWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
     ):
         super().__init__(name="StraightenWorker")
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.results = JobResult(verb="Straightened", extra={"angles": []})
 
-    def _straighten_one(self, image_file: Path) -> ItemOutcome:
+    def _straighten_one(self, image_file: Path) -> Outcome:
         from modules.auto_cropping.core import straighten_image
 
-        output_path, error_msg, stats = straighten_image(
-            image_file,
-            self.output_folder,
-            preserve_dpi=True,
-        )
-        if error_msg:
-            return ItemOutcome.fail(error_msg)
-
-        self.results.extra["angles"].append({
-            "file": image_file.name,
-            "angle": stats.get("angle", 0.0),
-            "output": output_path,
-        })
-        return ItemOutcome.ok()
+        outcome = straighten_image(image_file, self.output_folder, preserve_dpi=True)
+        if outcome.succeeded:
+            self.results.extra["angles"].append({
+                "file": image_file.name,
+                "angle": outcome.details.get("angle", 0.0),
+                "output": outcome.output,
+            })
+        return outcome
 
     def run(self):
         """Execute standalone straighten operation."""
@@ -217,8 +215,8 @@ class TiffMergeWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
         groups: dict,
+        compression: str = MERGE_DEFAULT_COMPRESSION,
     ):
         """
         Initialize TIFF merge worker.
@@ -226,54 +224,29 @@ class TiffMergeWorker(OperationWorker):
         Args:
             input_folder (Path): Folder with TIFF files
             output_folder (Path): Folder for merged TIFFs
-            error_folder (Path): Folder for failed files
             groups (dict): Groups detected by naming validation
         """
         super().__init__(name="TiffMergeWorker")
 
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.groups = groups
+        self.compression = compression
 
         self.results = JobResult(verb="Merged")
-        self.force_cancel_requested = False
 
-    def _merge_one(self, group_name: str) -> GroupOutcome:
+    def _merge_one(self, group_name: str) -> Outcome:
         """Merge one TIFF group."""
         from modules.tiff_combine.core import merge_tiff_group
 
-        success, _output_path, errors = merge_tiff_group(
+        return merge_tiff_group(
             group_name,
             self.input_folder,
             self.output_folder,
             dpi_per_file=True,
             should_cancel=lambda: self.force_cancel_requested,
+            compression=self.compression,
         )
-        errors = errors or []
-
-        # merge_tiff_group flags a cancellation on the error it records, so the
-        # flag is authoritative — no need to read the message text.
-        if any(error.get("cancelled") for error in errors):
-            return GroupOutcome.abort()
-
-        if success:
-            return GroupOutcome.ok()
-        return GroupOutcome.fail(
-            (error.get("file", group_name), error.get("error", "Unknown error"))
-            for error in errors
-        )
-
-    def cancel(self, force: bool = False):
-        """
-        Request cancellation.
-
-        First request stops scheduling new groups and lets active merges finish.
-        A force request attempts to stop active merges mid-group.
-        """
-        self.cancelled = True
-        if force:
-            self.force_cancel_requested = True
 
     def run(self):
         """Execute TIFF merge operation."""
@@ -302,54 +275,60 @@ class TiffSplitWorker(OperationWorker):
         input_files: List[Path],
         output_root: Optional[Path] = None,
         use_root_output: bool = False,
+        operation: str = "split",
+        page_spec: str = "",
+        compression: str = MERGE_DEFAULT_COMPRESSION,
     ):
         super().__init__(name="TiffSplitWorker")
         self.input_files = [Path(file_path) for file_path in input_files]
         self.output_root = Path(output_root) if output_root else None
         self.use_root_output = use_root_output
-        self.results = JobResult(verb="Split", total=len(self.input_files))
-        self.force_cancel_requested = False
+        # "split" writes one file per page; "select" writes one document holding
+        # the chosen pages in the chosen order. Same loop, different per-file work.
+        self.operation = operation
+        self.page_spec = page_spec
+        self.compression = compression
+        verb = "Split" if operation == "split" else "Extracted"
+        self.results = JobResult(verb=verb, total=len(self.input_files))
 
-    def cancel(self, force: bool = False):
-        """
-        Request cancellation.
+    def _select_pages_one(self, file_path: Path) -> Outcome:
+        """Write the chosen pages of one source into a single document."""
+        from modules.tiff_combine.pages import select_pages
 
-        First request stops after the current TIFF file.
-        A force request attempts to stop mid-file.
-        """
-        self.cancelled = True
-        if force:
-            self.force_cancel_requested = True
+        if self.use_root_output and self.output_root:
+            destination = self.output_root / f"{file_path.stem}_selected.tif"
+        else:
+            destination = file_path.parent / f"{file_path.stem}_selected.tif"
 
-    def _split_one(self, file_path: Path) -> ItemOutcome:
+        return select_pages(
+            file_path,
+            destination,
+            self.page_spec,
+            compression=self.compression,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+
+    def _split_one(self, file_path: Path) -> Outcome:
         from modules.tiff_split.core import split_tiff_file
 
         output_folder = self.output_root if (self.use_root_output and self.output_root) else None
-        success, _output_paths, error_msg, stats = split_tiff_file(
+        return split_tiff_file(
             file_path,
             output_folder=output_folder,
             skip_single_page=True,
             should_cancel=lambda: self.force_cancel_requested,
         )
 
-        if not success:
-            if stats.get("cancelled"):
-                return ItemOutcome.abort()
-            return ItemOutcome.fail(error_msg or "Split failed")
-
-        if stats.get("skipped"):
-            return ItemOutcome.skip(stats.get("reason") or "Single-page TIFF")
-        return ItemOutcome.ok()
-
     def run(self):
         """Execute TIFF split operation."""
         try:
+            selecting = self.operation == "select"
             run_file_batch(
                 self.input_files,
                 result=self.results,
-                process=self._split_one,
+                process=self._select_pages_one if selecting else self._split_one,
                 reporter=self,
-                gerund="Splitting",
+                gerund="Extracting from" if selecting else "Splitting",
                 empty_message="No TIFF files selected",
             )
         except Exception as e:
@@ -374,15 +353,10 @@ class AddBorderWorker(OperationWorker):
         self.output_folder = Path(output_folder)
         self.results = JobResult(verb="Bordered")
 
-    def _border_one(self, image_file: Path) -> ItemOutcome:
+    def _border_one(self, image_file: Path) -> Outcome:
         from modules.image_border.core import add_border_to_image
 
-        _output_path, error_msg, _stats = add_border_to_image(
-            image_file,
-            self.output_folder,
-            preserve_dpi=True,
-        )
-        return ItemOutcome.fail(error_msg) if error_msg else ItemOutcome.ok()
+        return add_border_to_image(image_file, self.output_folder, preserve_dpi=True)
 
     def run(self):
         """Execute add-border operation."""
@@ -404,13 +378,18 @@ class AddBorderWorker(OperationWorker):
 
 
 class OcrPdfWorker(OperationWorker):
-    """Worker for OCR-to-PDF operations."""
+    """Worker for OCR-to-PDF operations.
+
+    The unit of work is a document: a group of page images that becomes one
+    searchable PDF. Progress is reported per page rather than per document,
+    because one document can be a single page or eighty, and a bar that only
+    moves between documents looks stuck.
+    """
 
     def __init__(
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
         language: str = "eng",
         skip_existing: bool = True,
         save_pdfa: bool = True,
@@ -419,11 +398,11 @@ class OcrPdfWorker(OperationWorker):
         compression_profile_key: str = DEFAULT_PROFILE_KEY,
         metadata: Optional[dict] = None,
         tesseract_path: Optional[Path] = None,
+        only_documents=None,
     ):
         super().__init__(name="OcrPdfWorker")
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.language = language
         self.skip_existing = skip_existing
         self.save_pdfa = save_pdfa
@@ -432,19 +411,18 @@ class OcrPdfWorker(OperationWorker):
         self.compression_profile_key = str(compression_profile_key or DEFAULT_PROFILE_KEY)
         self.metadata = metadata or {}
         self.tesseract_path = Path(tesseract_path) if tesseract_path else None
-        self.force_cancel_requested = False
-        self.results = JobResult(verb="OCR'd", extra={"total_pages": 0})
+        # When set, only these documents are processed. Used to re-run the
+        # documents a previous job flagged, without redoing the whole folder.
+        self.only_documents = set(only_documents) if only_documents else None
+        self.results = JobResult(verb="OCR'd", extra={"total_pages": 0, "flagged_documents": []})
 
-    def cancel(self, force: bool = False):
-        """
-        Request cancellation.
-
-        First request performs a graceful stop after the current document.
-        A force request attempts to stop mid-document.
-        """
-        self.cancelled = True
-        if force:
-            self.force_cancel_requested = True
+        # Page-weighted progress. The batch loop counts documents; these carry
+        # the page arithmetic the two progress bars are drawn from.
+        self._document_index = 0
+        self._document_total = 0
+        self._completed_pages = 0
+        self._total_pages = 0
+        self._pdfa_warning_added = False
 
     def _ocr_options(self):
         """The OCR settings for this run, as one value."""
@@ -461,260 +439,196 @@ class OcrPdfWorker(OperationWorker):
             compression_profile_key=self.compression_profile_key,
         )
 
-    def _emit_ocr_progress(
-        self,
-        *,
-        stage: str,
-        message: str,
-        current_pdf: int,
-        total_pdfs: int,
-        current_page: int,
-        total_pages_in_pdf: int,
-        completed_job_pages: int,
-        total_job_pages: int,
-        filename: str,
-    ):
-        """Emit structured OCR progress payload for UI progress bars."""
+    def update_progress(self, current: int, total: int, filename: str = ""):
+        """Record which document the loop has reached, and emit nothing.
+
+        The batch loop counts documents. OCR reports page-weighted progress
+        from `_emit_progress`, so the loop's count is kept and the emitting is
+        left to the page callbacks that know how far into a document we are.
+        """
+        self._document_index = current
+        self._document_total = total
+
+    def _emit_progress(self, *, message: str, filename: str, page: int, page_total: int):
+        """One progress event: how far through this PDF, and through the job.
+
+        `percentage` drives the Current PDF bar and `job_percent` the Overall
+        Job bar. Both are sent on every event so the two never disagree.
+        """
         if not self.progress_callback:
             return
 
-        safe_pdf_total = max(total_pages_in_pdf, 1)
-        safe_job_total = max(total_job_pages, 1)
-        pdf_percent = (current_page / safe_pdf_total) * 100.0
-        job_page_current = min(completed_job_pages + current_page, total_job_pages)
-        job_percent = (job_page_current / safe_job_total) * 100.0
+        job_pages = min(self._completed_pages + page, self._total_pages)
+        self.progress_callback({
+            "percentage": (page / max(page_total, 1)) * 100.0,
+            "job_percent": (job_pages / max(self._total_pages, 1)) * 100.0,
+            "current_pdf": self._document_index,
+            "total_pdfs": self._document_total,
+            "filename": filename,
+            "message": message,
+        })
 
-        self.progress_callback(
-            {
-                "stage": stage,
-                "message": message,
-                "current_pdf": current_pdf,
-                "total_pdfs": total_pdfs,
-                "current_page": current_page,
-                "total_pages_in_pdf": total_pages_in_pdf,
-                "pdf_percent": pdf_percent,
-                "job_page_current": job_page_current,
-                "job_page_total": total_job_pages,
-                "job_percent": job_percent,
-                "filename": filename,
-                # Backward-compatible keys used by other panels.
-                "current": current_pdf,
-                "total": total_pdfs,
-                "percentage": job_percent,
-            }
+    def _record_flagged(self, document_name: str, output_name: str, flagged: list):
+        """Keep the documents whose pages the quality gate withheld OCR from.
+
+        Recorded as documents, not just log lines, so the run can be repeated
+        for exactly these with the gate off.
+        """
+        self.results.extra.setdefault("flagged_documents", []).append({
+            "document": document_name,
+            "output": output_name,
+            "pages": [
+                {
+                    "file": page.get("file", "page"),
+                    "page_number": page.get("page_number"),
+                    "reasons": list(page.get("reasons", [])),
+                }
+                for page in flagged
+            ],
+        })
+
+    def _ocr_one(self, document: dict) -> Outcome:
+        """Turn one document's page images into one searchable PDF."""
+        from modules.ocr_pdf.core import ocr_document_to_pdf
+
+        document_name = document["name"]
+        output_pdf_path = self.output_folder / f"{document_name}.pdf"
+        page_total = max(int(document.get("page_count", 0)), 1)
+        label = output_pdf_path.name
+
+        self._emit_progress(
+            message=f"Analyzing pages for {label} ({page_total} page(s))",
+            filename=label,
+            page=0,
+            page_total=page_total,
         )
+
+        def _on_document_progress(event: dict):
+            name = event.get("event")
+            page = int(event.get("page_current") or 0)
+            total = int(event.get("page_total") or page_total)
+            page_label = event.get("page_label") or label
+            percent = (page / max(total, 1)) * 100.0
+
+            if name == "analyzing_page":
+                self._emit_progress(
+                    message=(
+                        "Analyzing pages, determining pages to OCR, "
+                        f"page {page} of {total} - {percent:.2f}%"
+                    ),
+                    filename=label,
+                    page=0,
+                    page_total=total,
+                )
+            elif name in ("ocr_page", "skip_ocr_page"):
+                verb = "Processing" if name == "ocr_page" else "Skipping OCR for"
+                self._emit_progress(
+                    message=f"{verb} pg {page} of {total} - {percent:.2f}% ({page_label})",
+                    filename=label,
+                    page=page,
+                    page_total=total,
+                )
+
+        outcome = ocr_document_to_pdf(
+            input_files=document["files"],
+            output_pdf_path=output_pdf_path,
+            document_name=document_name,
+            options=self._ocr_options(),
+            progress_callback=_on_document_progress,
+            should_cancel=lambda: self.force_cancel_requested,
+        )
+
+        # Whatever the outcome, this document's pages are behind us.
+        self._completed_pages += page_total
+        details = outcome.details
+        flagged = details.get("flagged_pages", [])
+
+        if outcome.status == SKIPPED:
+            for page in flagged:
+                reason = ", ".join(page.get("reasons", [])) or "flagged by precheck"
+                self.report_error(page.get("file", "page"), f"OCR quality flag: {reason}")
+            return outcome
+
+        if not outcome.succeeded:
+            return outcome
+
+        for warning in details.get("warnings", []):
+            self.results.note(warning)
+            self.update_status(warning)
+
+        for page in flagged:
+            reason = ", ".join(page.get("reasons", [])) or "flagged by quality precheck"
+            number = page.get("page_number")
+            page_label = page.get("file") or "page"
+            where = f"pg {number}: {page_label}" if number is not None else page_label
+            self.update_status(f"Skipped OCR text on {where} ({reason})")
+
+        # Pages are assessed whether or not the gate is on, so details lists
+        # them either way. Only record them when the gate actually withheld OCR
+        # text — otherwise a retry would offer to redo pages that already have
+        # a text layer.
+        if flagged and self.skip_messy:
+            self._record_flagged(document_name, label, flagged)
+
+        if self.save_pdfa and not details.get("used_pdfa") and not self._pdfa_warning_added:
+            warning = (
+                "PDF/A was unavailable or incompatible with selected options — "
+                "created standard searchable PDFs instead."
+            )
+            self.results.note(warning)
+            self.update_status(warning)
+            self._pdfa_warning_added = True
+
+        return outcome
 
     def run(self):
         """Execute OCR-to-PDF operation."""
         from modules.ocr_pdf.core import (
-            check_ocr_dependencies,
+            detect_ocrmypdf_module,
             group_ocr_input_files,
-            ocr_document_to_pdf,
             summarize_ocr_documents,
         )
 
         try:
-            self.update_status("Checking OCR dependencies...")
-            ok, error_msg, dependency_info = check_ocr_dependencies(
-                language=self.language,
-                tesseract_path=self.tesseract_path,
-                require_pdfa=self.save_pdfa,
-            )
-            if not ok:
-                self.update_status("OCR dependencies are missing")
-                self.results.record_failure("dependency", error_msg)
-                self.report_error("dependency", error_msg)
-                return
-            if error_msg:
-                self.results.note(error_msg)
-                self.update_status(error_msg)
+            # Not a gate. The route refuses a start when OCR cannot run at all;
+            # this is the one case where it can run but not as asked, so the
+            # job says so before it spends time on the first document.
+            if self.save_pdfa and not detect_ocrmypdf_module():
+                note = (
+                    "PDF/A output was requested, but OCRmyPDF is not installed. "
+                    "The toolkit can still create a standard searchable PDF on "
+                    "this machine."
+                )
+                self.results.note(note)
+                self.update_status(note)
 
             self.update_status("Scanning folder for OCR page images...")
             documents = group_ocr_input_files(self.input_folder)
-
-            if not documents:
-                self.update_status("No supported image files found")
-                return
+            if self.only_documents is not None:
+                documents = [d for d in documents if d["name"] in self.only_documents]
+                self.update_status(
+                    f"Re-running {len(documents)} flagged document(s) with the quality gate off"
+                )
 
             summary = summarize_ocr_documents(documents)
-            self.results.total = summary["document_count"]
+            self._total_pages = max(summary["page_count"], 0)
             self.results.extra["total_pages"] = summary["page_count"]
-            self.update_status(
-                "Found "
-                f"{summary['page_count']} page image(s) across "
-                f"{summary['document_count']} output PDF(s)"
-            )
-
-            if self.cancelled:
-                self.results.mark_cancelled()
-                self.update_status("Operation cancelled")
-                return
-
-            pdfa_warning_added = False
-            total_documents = len(documents)
-            total_pages = max(summary["page_count"], 0)
-            completed_pages = 0
-            for index, document in enumerate(documents, start=1):
-                if self.cancelled:
-                    self.results.mark_cancelled()
-                    self.update_status("Operation cancelled")
-                    break
-
-                document_name = document["name"]
-                output_pdf_path = self.output_folder / f"{document_name}.pdf"
-                document_pages = max(int(document.get("page_count", 0)), 1)
-
-                self._emit_ocr_progress(
-                    stage="document_start",
-                    message=(
-                        f"Analyzing pages for {output_pdf_path.name} "
-                        f"({document_pages} page(s))"
-                    ),
-                    current_pdf=index,
-                    total_pdfs=total_documents,
-                    current_page=0,
-                    total_pages_in_pdf=document_pages,
-                    completed_job_pages=completed_pages,
-                    total_job_pages=total_pages,
-                    filename=output_pdf_path.name,
-                )
+            if documents:
                 self.update_status(
-                    f"OCR PDF {index}/{total_documents}: {output_pdf_path.name} "
-                    f"({document_pages} page(s))"
+                    "Found "
+                    f"{summary['page_count']} page image(s) across "
+                    f"{summary['document_count']} output PDF(s)"
                 )
 
-                def _on_document_progress(event: dict):
-                    event_name = event.get("event")
-                    page_current = int(event.get("page_current") or 0)
-                    page_total = int(event.get("page_total") or document_pages)
-                    page_label = event.get("page_label") or output_pdf_path.name
-
-                    if event_name == "analyzing_page":
-                        message = (
-                            "Analyzing pages, determining pages to OCR, "
-                            f"page {page_current} of {page_total} - "
-                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}%"
-                        )
-                        self._emit_ocr_progress(
-                            stage="analyzing",
-                            message=message,
-                            current_pdf=index,
-                            total_pdfs=total_documents,
-                            current_page=0,
-                            total_pages_in_pdf=page_total,
-                            completed_job_pages=completed_pages,
-                            total_job_pages=total_pages,
-                            filename=output_pdf_path.name,
-                        )
-                        return
-
-                    if event_name == "ocr_page":
-                        message = (
-                            f"Processing pg {page_current} of {page_total} - "
-                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}% "
-                            f"({page_label})"
-                        )
-                        self._emit_ocr_progress(
-                            stage="processing",
-                            message=message,
-                            current_pdf=index,
-                            total_pdfs=total_documents,
-                            current_page=page_current,
-                            total_pages_in_pdf=page_total,
-                            completed_job_pages=completed_pages,
-                            total_job_pages=total_pages,
-                            filename=output_pdf_path.name,
-                        )
-                        return
-
-                    if event_name == "skip_ocr_page":
-                        message = (
-                            f"Skipping OCR for pg {page_current} of {page_total} - "
-                            f"{(page_current / max(page_total, 1)) * 100.0:.2f}% "
-                            f"({page_label})"
-                        )
-                        self._emit_ocr_progress(
-                            stage="processing",
-                            message=message,
-                            current_pdf=index,
-                            total_pdfs=total_documents,
-                            current_page=page_current,
-                            total_pages_in_pdf=page_total,
-                            completed_job_pages=completed_pages,
-                            total_job_pages=total_pages,
-                            filename=output_pdf_path.name,
-                        )
-
-                result = ocr_document_to_pdf(
-                    input_files=document["files"],
-                    output_pdf_path=output_pdf_path,
-                    document_name=document_name,
-                    options=self._ocr_options(),
-                    progress_callback=_on_document_progress,
-                    should_cancel=lambda: self.force_cancel_requested,
-                )
-
-                if result["status"] == "success":
-                    self.results.record_success(result["output_path"])
-                    details = result.get("details") or {}
-                    for warning in details.get("warnings", []):
-                        self.results.note(warning)
-                        self.update_status(warning)
-                    for flagged_page in details.get("flagged_pages", []):
-                        reason_text = ", ".join(flagged_page.get("reasons", [])) or "flagged by quality precheck"
-                        page_number = flagged_page.get("page_number")
-                        page_label = flagged_page.get("file") or "page"
-                        if page_number is not None:
-                            self.update_status(
-                                f"Skipped OCR text on pg {page_number}: {page_label} ({reason_text})"
-                            )
-                        else:
-                            self.update_status(
-                                f"Skipped OCR text on {page_label} ({reason_text})"
-                            )
-                    if self.save_pdfa and not result.get("used_pdfa") and not pdfa_warning_added:
-                        warning = (
-                            "PDF/A was unavailable or incompatible with selected options — "
-                            "created standard searchable PDFs instead."
-                        )
-                        self.results.note(warning)
-                        self.update_status(warning)
-                        pdfa_warning_added = True
-                elif result["status"] == "skipped":
-                    skip_reason = result.get("error") or "Skipped"
-                    self.results.record_skip(output_pdf_path.name, skip_reason)
-                    self.update_status(f"Skipped: {output_pdf_path.name} — {skip_reason}")
-                    details = result.get("details") or {}
-                    for page in details.get("flagged_pages", []):
-                        reason_text = ", ".join(page.get("reasons", [])) or "flagged by precheck"
-                        self.report_error(page.get("file", "page"), f"OCR quality flag: {reason_text}")
-                elif result["status"] == "cancelled":
-                    self.results.mark_cancelled()
-                    self.update_status("Operation cancelled by user")
-                    break
-                else:
-                    doc_error = result.get("error") or "OCR failed"
-                    self.results.record_failure(output_pdf_path.name, doc_error)
-                    self.report_error(output_pdf_path.name, doc_error)
-
-                completed_pages += document_pages
-                self._emit_ocr_progress(
-                    stage="document_done",
-                    message=(
-                        f"Job Progress - PDF {index} of {total_documents} - "
-                        f"{(completed_pages / max(total_pages, 1)) * 100.0:.2f}%"
-                    ),
-                    current_pdf=index,
-                    total_pdfs=total_documents,
-                    current_page=document_pages,
-                    total_pages_in_pdf=document_pages,
-                    completed_job_pages=completed_pages - document_pages,
-                    total_job_pages=total_pages,
-                    filename=output_pdf_path.name,
-                )
-
-            self.update_status(self.results.summary())
-
+            run_file_batch(
+                documents,
+                result=self.results,
+                process=self._ocr_one,
+                reporter=self,
+                gerund="OCR PDF",
+                empty_message="No supported image files found",
+                label=lambda document: f"{document['name']}.pdf",
+            )
         except Exception as e:
             self.update_status(f"Error: {str(e)}")
             self.report_error("operation", str(e))
@@ -723,9 +637,25 @@ class OcrPdfWorker(OperationWorker):
         """Get operation results."""
         return self.results.to_dict()
 
-
 class PdfConversionWorker(OperationWorker):
-    """Worker for PDF conversion operations."""
+    """Worker for PDF conversion operations.
+
+    Four operations, one loop. reduce_size and pdfa run over every PDF in a
+    folder or over one file; split_pdf and extract_pages take one file, which
+    the registry enforces before this worker is built, so here they are simply
+    a batch of one.
+    """
+
+    # verb for the summary, gerund for the per-item status line.
+    OPERATIONS = {
+        "reduce_size": ("Reduced", "Reducing"),
+        "pdfa": ("PDF/A Converted", "Converting to PDF/A"),
+        "split_pdf": ("Split", "Splitting"),
+        "extract_pages": ("Extracted", "Extracting pages"),
+    }
+
+    # Everything but extract_pages writes into one folder it is given.
+    WRITES_INTO_ONE_ROOT = ("reduce_size", "pdfa", "split_pdf")
 
     def __init__(
         self,
@@ -733,6 +663,7 @@ class PdfConversionWorker(OperationWorker):
         selection_mode: str,
         input_path: Path,
         operation: str,
+        output_root: Optional[Path] = None,
         reduce_size_enabled: bool = True,
         compression_profile_key: str = DEFAULT_PROFILE_KEY,
         split_output_type: str = "pdfs",
@@ -745,6 +676,10 @@ class PdfConversionWorker(OperationWorker):
         self.selection_mode = str(selection_mode or "file")
         self.input_path = Path(input_path)
         self.operation = str(operation or "reduce_size")
+        # Where this job writes. extract_pages leaves it unset because it
+        # writes beside the source, and the source folder is never a folder an
+        # undo may delete within.
+        self.output_root = Path(output_root) if output_root else None
         self.reduce_size_enabled = bool(reduce_size_enabled)
         self.compression_profile_key = str(compression_profile_key or DEFAULT_PROFILE_KEY)
         self.split_output_type = str(split_output_type or "pdfs")
@@ -752,15 +687,15 @@ class PdfConversionWorker(OperationWorker):
         self.remove_extracted_pages = bool(remove_extracted_pages)
         self.extract_removal_mode = str(extract_removal_mode or "safe")
         self.pdfa_profile_key = str(pdfa_profile_key or DEFAULT_PDFA_PROFILE_KEY)
-        self.results = JobResult(verb="Converted")
 
-    def _set_cancelled(self):
-        self.results.mark_cancelled()
-        self.update_status("Operation cancelled")
+        if self.operation in self.WRITES_INTO_ONE_ROOT and self.output_root is None:
+            raise ValueError(
+                f"{self.operation} writes into one folder and was given none. "
+                "utils/tool_registry.py decides where a job writes."
+            )
 
-    def _record_error(self, filename: str, error: str):
-        self.results.record_failure(filename, error)
-        self.report_error(filename, error)
+        verb, _gerund = self.OPERATIONS.get(self.operation, ("Converted", "Converting"))
+        self.results = JobResult(verb=verb)
 
     def _pdf_files(self) -> List[Path]:
         """Every PDF the selection covers, in stable order."""
@@ -772,174 +707,124 @@ class PdfConversionWorker(OperationWorker):
             key=lambda path: path.name.lower(),
         )
 
-    def _output_root(self, name: str) -> Path:
-        base = self.input_path if self.selection_mode == "folder" else self.input_path.parent
-        root = base / name
-        root.mkdir(parents=True, exist_ok=True)
-        return root
-
-    @staticmethod
-    def _outcome(status: str, error: Optional[str], output: Path, fallback: str) -> ItemOutcome:
-        """Map the (status, error, stats) shape every pdf_tools op returns."""
-        if status == "cancelled":
-            return ItemOutcome.abort()
-        if status != "success":
-            return ItemOutcome.fail(error or fallback)
-        return ItemOutcome.ok(output)
-
-    def _reduce_one(self, pdf_path: Path) -> ItemOutcome:
+    def _reduce_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import reduce_pdf_size
         import shutil
 
-        output_pdf_path = self._reduce_root / pdf_path.name
+        output_pdf_path = self.output_root / pdf_path.name
         if not self.reduce_size_enabled:
             shutil.copy2(pdf_path, output_pdf_path)
-            return ItemOutcome.ok(output_pdf_path)
+            return Outcome.ok(output_pdf_path)
 
-        status, error, _stats = reduce_pdf_size(
+        return reduce_pdf_size(
             input_pdf_path=pdf_path,
             output_pdf_path=output_pdf_path,
             reduce_size_enabled=True,
             compression_profile_key=self.compression_profile_key,
             should_cancel=lambda: self.cancelled,
         )
-        return self._outcome(status, error, output_pdf_path, "Reduce size failed")
 
-    def _pdfa_one(self, pdf_path: Path) -> ItemOutcome:
+    def _pdfa_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import convert_pdf_to_pdfa
 
-        output_pdf_path = self._pdfa_root / pdf_path.name
-        status, error, _stats = convert_pdf_to_pdfa(
+        return convert_pdf_to_pdfa(
             input_pdf_path=pdf_path,
-            output_pdf_path=output_pdf_path,
+            output_pdf_path=self.output_root / pdf_path.name,
             pdfa_profile_key=self.pdfa_profile_key,
             should_cancel=lambda: self.cancelled,
         )
-        return self._outcome(status, error, output_pdf_path, "PDF/A conversion failed")
 
-    def run(self):
-        """Execute selected PDF conversion operation."""
+    def _split_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import (
-            convert_pdf_to_pdfa,
-            extract_pdf_pages,
-            reduce_pdf_size,
             split_pdf_to_images,
             split_pdf_to_single_page_pdfs,
         )
-        import shutil
 
-        # One result type, but each operation describes itself differently.
-        self.results.verb = {
-            "reduce_size": "Reduced",
-            "pdfa": "PDF/A Converted",
-            "split_pdf": "Split",
-            "extract_pages": "Extracted",
-        }.get(self.operation, "Converted")
+        if self.split_output_type == "pdfs":
+            outcome = split_pdf_to_single_page_pdfs(
+                input_pdf_path=pdf_path,
+                output_folder=self.output_root,
+                should_cancel=lambda: self.cancelled,
+            )
+        else:
+            image_format = {
+                "jpeg": "JPEG",
+                "png": "PNG",
+                "tiff": "TIFF",
+            }.get(self.split_output_type, "JPEG")
+            outcome = split_pdf_to_images(
+                input_pdf_path=pdf_path,
+                output_folder=self.output_root,
+                image_format=image_format,
+                jpeg_quality=90,
+                dpi=200,
+                should_cancel=lambda: self.cancelled,
+            )
+
+        if not outcome.succeeded:
+            return outcome
+
+        count = int(outcome.details.get("output_count", 0))
+        self.update_status(f"✅ Created {count} output file(s)")
+        # The undo boundary is the folder, not the individual pages.
+        return Outcome.ok(self.output_root, **outcome.details)
+
+    def _extract_one(self, pdf_path: Path) -> Outcome:
+        from modules.pdf_tools.core import extract_pdf_pages
+
+        extracted = pdf_path.parent / f"{pdf_path.stem}_extracted.pdf"
+        remaining = pdf_path.parent / f"{pdf_path.stem}_remaining.pdf"
+        outcome = extract_pdf_pages(
+            input_pdf_path=pdf_path,
+            extracted_output_path=extracted,
+            page_spec=self.extract_page_spec,
+            remove_extracted_pages=self.remove_extracted_pages,
+            removal_mode=self.extract_removal_mode,
+            remaining_output_path=remaining,
+            should_cancel=lambda: self.cancelled,
+        )
+        if not outcome.succeeded:
+            return outcome
+
+        self.update_status(
+            f"✅ Extracted {outcome.details.get('extracted_pages', 0)} page(s)"
+        )
+        # One success, but it can write two files: the pages taken out, and
+        # what was left when the caller asked for the remainder too.
+        outputs = [extracted]
+        if outcome.details.get("remaining_output"):
+            outputs.append(Path(outcome.details["remaining_output"]))
+        return Outcome.ok(outputs, **outcome.details)
+
+    def run(self):
+        """Execute selected PDF conversion operation."""
+        processes = {
+            "reduce_size": self._reduce_one,
+            "pdfa": self._pdfa_one,
+            "split_pdf": self._split_one,
+            "extract_pages": self._extract_one,
+        }
 
         try:
-            if self.operation in ("reduce_size", "pdfa"):
-                if self.operation == "reduce_size":
-                    self._reduce_root = self._output_root("reduced-pdfs")
-                    process, gerund = self._reduce_one, "Reducing"
-                else:
-                    self._pdfa_root = self._output_root("pdfa-pdfs")
-                    process, gerund = self._pdfa_one, "Converting to PDF/A"
-
-                run_file_batch(
-                    self._pdf_files(),
-                    result=self.results,
-                    process=process,
-                    reporter=self,
-                    gerund=gerund,
-                    empty_message="No PDF files found",
-                )
+            process = processes.get(self.operation)
+            if process is None:
+                # The registry refuses an unknown operation before building a
+                # worker, so reaching this means the two disagree.
+                message = f"Unknown operation: {self.operation}"
+                self.results.record_failure("operation", message)
+                self.report_error("operation", message)
+                self.update_status(message)
                 return
 
-            if self.selection_mode != "file":
-                self._record_error("operation", "This operation requires one PDF file.")
-                self.update_status("Operation requires a single file selection")
-                return
-
-            self.results.total = 1
-            source_pdf = self.input_path
-
-            if self.operation == "split_pdf":
-                self.update_progress(1, 1, source_pdf.name)
-                self.update_status(f"Splitting: {source_pdf.name}")
-                if self.split_output_type == "pdfs":
-                    output_folder = source_pdf.parent / f"{source_pdf.stem}_split_pdfs"
-                    status, error, stats = split_pdf_to_single_page_pdfs(
-                        input_pdf_path=source_pdf,
-                        output_folder=output_folder,
-                        should_cancel=lambda: self.cancelled,
-                    )
-                else:
-                    output_folder = source_pdf.parent / f"{source_pdf.stem}_images"
-                    format_map = {
-                        "jpeg": "JPEG",
-                        "png": "PNG",
-                        "tiff": "TIFF",
-                    }
-                    status, error, stats = split_pdf_to_images(
-                        input_pdf_path=source_pdf,
-                        output_folder=output_folder,
-                        image_format=format_map.get(self.split_output_type, "JPEG"),
-                        jpeg_quality=90,
-                        dpi=200,
-                        should_cancel=lambda: self.cancelled,
-                    )
-
-                if status == "cancelled":
-                    self._set_cancelled()
-                    return
-                if status != "success":
-                    self._record_error(source_pdf.name, error or "Split failed")
-                    self.update_status(f"Error: {error or 'Split failed'}")
-                    return
-
-                self.results.record_success(output_folder)
-                output_count = int(stats.get("output_count", 0))
-                self.update_status(f"✅ Created {output_count} output file(s)")
-                return
-
-            if self.operation == "extract_pages":
-                if not self.extract_page_spec:
-                    self._record_error(source_pdf.name, "Page selection is required.")
-                    self.update_status("Page selection is required")
-                    return
-
-                self.update_progress(1, 1, source_pdf.name)
-                self.update_status(f"Extracting pages: {source_pdf.name}")
-                extracted_output = source_pdf.parent / f"{source_pdf.stem}_extracted.pdf"
-                remaining_output = source_pdf.parent / f"{source_pdf.stem}_remaining.pdf"
-                status, error, stats = extract_pdf_pages(
-                    input_pdf_path=source_pdf,
-                    extracted_output_path=extracted_output,
-                    page_spec=self.extract_page_spec,
-                    remove_extracted_pages=self.remove_extracted_pages,
-                    removal_mode=self.extract_removal_mode,
-                    remaining_output_path=remaining_output,
-                    should_cancel=lambda: self.cancelled,
-                )
-                if status == "cancelled":
-                    self._set_cancelled()
-                    return
-                if status != "success":
-                    self._record_error(source_pdf.name, error or "Extract pages failed")
-                    self.update_status(f"Error: {error or 'Extract pages failed'}")
-                    return
-
-                self.results.record_success(extracted_output)
-                if stats.get("remaining_output"):
-                    self.results.outputs.append(str(stats["remaining_output"]))
-                self.update_status(
-                    f"✅ Extracted {stats.get('extracted_pages', 0)} page(s)"
-                )
-                return
-
-            self._record_error("operation", f"Unknown operation: {self.operation}")
-            self.update_status(f"Unknown operation: {self.operation}")
-
+            _verb, gerund = self.OPERATIONS[self.operation]
+            run_file_batch(
+                self._pdf_files(),
+                result=self.results,
+                process=process,
+                reporter=self,
+                gerund=gerund,
+                empty_message="No PDF files found",
+            )
         except Exception as exc:
             self.update_status(f"Error: {exc}")
             self.report_error("operation", str(exc))

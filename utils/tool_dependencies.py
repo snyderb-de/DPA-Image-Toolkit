@@ -1,22 +1,21 @@
 """
-Tool-specific dependency checks for DPA Image Toolkit tools.
+What the five image tools need, as data.
+
+Each entry lists the importable modules the tool cannot work without. OCR and
+PDF conversion declare theirs in their own modules, because their dependencies
+are not all importable modules -- Tesseract is a binary on disk, and PDF
+conversion's requirements vary by operation. All three produce the same
+DependencySet; see utils/dependencies.py.
 """
 
 from __future__ import annotations
 
-import importlib.util
+from utils.dependencies import Dependency, DependencySet, module_available
 
 
 TOOL_DEPENDENCY_CONFIGS = {
     "auto_crop": {
         "display_name": "Auto Crop",
-        "heading": "Auto-crop readiness for this machine",
-        "support_lines": (
-            "✅ means the dependency is ready.",
-            "❌ means the tool cannot use that dependency right now.",
-            "Auto Crop needs the standard image-processing stack.",
-            "If a dependency is missing, contact support for installation on this machine.",
-        ),
         "dependencies": (
             {
                 "module": "PIL",
@@ -40,13 +39,6 @@ TOOL_DEPENDENCY_CONFIGS = {
     },
     "straighten_images": {
         "display_name": "Straighten Images",
-        "heading": "Straighten readiness for this machine",
-        "support_lines": (
-            "✅ means the dependency is ready.",
-            "❌ means the tool cannot use that dependency right now.",
-            "Straighten uses the same image-processing stack as Auto Crop.",
-            "If a dependency is missing, contact support for installation on this machine.",
-        ),
         "dependencies": (
             {
                 "module": "PIL",
@@ -70,13 +62,6 @@ TOOL_DEPENDENCY_CONFIGS = {
     },
     "merge_tiffs": {
         "display_name": "Merge TIFF Files",
-        "heading": "TIFF merge readiness for this machine",
-        "support_lines": (
-            "✅ means the dependency is ready.",
-            "❌ means the tool cannot use that dependency right now.",
-            "Merge TIFFs needs TIFF read/write support from Pillow.",
-            "If a dependency is missing, contact support for installation on this machine.",
-        ),
         "dependencies": (
             {
                 "module": "PIL",
@@ -88,13 +73,6 @@ TOOL_DEPENDENCY_CONFIGS = {
     },
     "split_tiffs": {
         "display_name": "Split Multi-Page TIFFs",
-        "heading": "TIFF split readiness for this machine",
-        "support_lines": (
-            "✅ means the dependency is ready.",
-            "❌ means the tool cannot use that dependency right now.",
-            "Split TIFFs needs TIFF frame support from Pillow.",
-            "If a dependency is missing, contact support for installation on this machine.",
-        ),
         "dependencies": (
             {
                 "module": "PIL",
@@ -106,13 +84,6 @@ TOOL_DEPENDENCY_CONFIGS = {
     },
     "add_border": {
         "display_name": "Add Border",
-        "heading": "Border tool readiness for this machine",
-        "support_lines": (
-            "✅ means the dependency is ready.",
-            "❌ means the tool cannot use that dependency right now.",
-            "Add Border needs the standard image save/load stack.",
-            "If a dependency is missing, contact support for installation on this machine.",
-        ),
         "dependencies": (
             {
                 "module": "PIL",
@@ -131,64 +102,19 @@ def _get_tool_config(tool_key: str) -> dict:
     return TOOL_DEPENDENCY_CONFIGS[tool_key]
 
 
-def _module_available(module_name: str) -> bool:
-    return importlib.util.find_spec(module_name) is not None
-
-
-def get_tool_dependency_panel_content(tool_key: str) -> dict:
-    config = _get_tool_config(tool_key)
-    return {
-        "display_name": config["display_name"],
-        "heading": config["heading"],
-        "support_lines": config["support_lines"],
-    }
-
-
-def get_tool_dependency_statuses(tool_key: str) -> list[dict]:
-    config = _get_tool_config(tool_key)
-    statuses = []
-
-    for dependency in config["dependencies"]:
-        ok = _module_available(dependency["module"])
-        statuses.append(
-            {
-                "label": dependency["label"],
-                "ok": ok,
-                "detail": dependency["detail"] if ok else f"Missing: {dependency['detail']}",
-            }
-        )
-
-    return statuses
-
-
-def check_tool_dependencies(tool_key: str) -> tuple[bool, str | None, dict]:
-    config = _get_tool_config(tool_key)
-    missing = []
-
-    for dependency in config["dependencies"]:
-        if not _module_available(dependency["module"]):
-            missing.append(dependency)
-
-    if not missing:
-        return True, None, {
-            "statuses": get_tool_dependency_statuses(tool_key),
-            "missing": [],
-        }
-
-    missing_labels = ", ".join(item["label"] for item in missing)
-    message = (
-        f"{config['display_name']} cannot start because required dependencies are missing: "
-        f"{missing_labels}."
+def _probe(item: dict) -> Dependency:
+    ok = module_available(item["module"])
+    return Dependency(
+        label=item["label"],
+        ok=ok,
+        detail=item["detail"] if ok else f"Missing: {item['detail']}",
     )
-    return False, message, {
-        "statuses": get_tool_dependency_statuses(tool_key),
-        "missing": missing,
-    }
 
 
-def build_dependency_warning_message(tool_name: str, message: str) -> str:
-    return (
-        f"{tool_name} cannot start yet.\n\n"
-        f"{message}\n\n"
-        "Please contact support for dependency installation on this machine."
+def tool_dependencies(tool_key: str) -> DependencySet:
+    """Probe what one of the five image tools needs."""
+    config = _get_tool_config(tool_key)
+    return DependencySet(
+        tool_name=config["display_name"],
+        dependencies=tuple(_probe(item) for item in config["dependencies"]),
     )

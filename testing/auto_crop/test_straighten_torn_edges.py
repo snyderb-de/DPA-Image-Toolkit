@@ -110,10 +110,9 @@ def save(image: Image.Image, folder: Path, name: str) -> Path:
 
 class TornEdgeStraightenTests(unittest.TestCase):
     def assert_detects(self, path: Path, expected: float, out: Path, note=""):
-        output, error, stats = straighten_image(path, out)
-        self.assertIsNone(error, f"{path.name}: {error}")
-        self.assertIsNotNone(output)
-        detected = stats.get("angle", 0.0)
+        outcome = straighten_image(path, out)
+        self.assertTrue(outcome.succeeded, f"{path.name}: {outcome.error}")
+        detected = outcome.details.get("angle", 0.0)
         self.assertAlmostEqual(
             detected, expected, delta=ANGLE_TOLERANCE,
             msg=f"{path.name}{note}: detected {detected:+.2f}, rotated {expected:+.2f}",
@@ -170,12 +169,11 @@ class TornEdgeStraightenTests(unittest.TestCase):
             page = skew(torn_page(260, seed=13, text_lines=0), 4.0)
             path = save(page, root, "blank_torn")
 
-            output, error, stats = straighten_image(path, root / "out")
+            outcome = straighten_image(path, root / "out")
 
-            self.assertIsNone(error)
-            self.assertIsNotNone(output)
-            self.assertAlmostEqual(stats.get("angle", 0.0), 0.0, delta=0.5)
-            with Image.open(path) as before, Image.open(output) as after:
+            self.assertTrue(outcome.succeeded, outcome.error)
+            self.assertAlmostEqual(outcome.details.get("angle", 0.0), 0.0, delta=0.5)
+            with Image.open(path) as before, Image.open(outcome.output) as after:
                 self.assertEqual(before.size, after.size)
 
     def test_page_dimensions_survive_a_torn_page(self):
@@ -184,9 +182,9 @@ class TornEdgeStraightenTests(unittest.TestCase):
             page = skew(torn_page(200, seed=21), 5.0)
             path = save(page, root, "torn_sized")
 
-            output, _error, _stats = straighten_image(path, root / "out")
+            outcome = straighten_image(path, root / "out")
 
-            with Image.open(path) as before, Image.open(output) as after:
+            with Image.open(path) as before, Image.open(outcome.output) as after:
                 self.assertEqual(before.size, after.size)
 
 
@@ -202,7 +200,7 @@ class TornEdgeStraightenBatchTests(unittest.TestCase):
             for index, (name, depth, angle) in enumerate(self.PAGES):
                 save(skew(torn_page(depth, seed=index + 30), angle), root, name)
 
-            worker = StraightenWorker(root, root / "straightened", root / "errored-files")
+            worker = StraightenWorker(root, root / "straightened")
             worker.set_progress_callback(lambda p: None)
             worker.set_status_callback(lambda m: None)
             worker.set_error_callback(lambda f, e: None)

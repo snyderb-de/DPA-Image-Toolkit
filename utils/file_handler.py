@@ -1,20 +1,12 @@
 """
 File handling utilities for DPA Image Toolkit.
 
-Provides folder picker, file validation, and error folder creation.
+Validates a folder's contents before a job starts, and creates the folder a
+job writes its failures into. The native folder and file pickers live in
+`web/app.py`, next to the routes that expose them.
 """
 
 from pathlib import Path
-
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-    _HAS_TK = True
-except ImportError:
-    tk = None
-    filedialog = None
-    _HAS_TK = False
-from .log_utils import log_message
 
 
 def _list_files_with_suffixes(folder_path, suffixes):
@@ -29,62 +21,6 @@ def _list_files_with_suffixes(folder_path, suffixes):
         ],
         key=lambda file_path: file_path.name.lower(),
     )
-
-
-def _resolve_initial_dir(initial_dir):
-    """Return a string path for a valid initial directory, else None."""
-    if not initial_dir:
-        return None
-    try:
-        path = Path(initial_dir).expanduser()
-    except Exception:
-        return None
-    return str(path) if path.is_dir() else None
-
-
-def pick_folder(title="Select Folder", initial_dir=None):
-    """
-    Open native folder picker dialog.
-
-    Returns:
-        Path: Selected folder path, or None if cancelled or tkinter unavailable.
-    """
-    if not _HAS_TK:
-        return None
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
-    kwargs = {"title": title}
-    resolved_initial_dir = _resolve_initial_dir(initial_dir)
-    if resolved_initial_dir:
-        kwargs["initialdir"] = resolved_initial_dir
-    folder = filedialog.askdirectory(**kwargs)
-    root.destroy()
-    return Path(folder) if folder else None
-
-
-def pick_files(title="Select Files", filetypes=None, initial_dir=None):
-    """
-    Open native multi-file picker dialog.
-
-    Returns:
-        list[Path]: Selected file paths, or [] if cancelled or tkinter unavailable.
-    """
-    if not _HAS_TK:
-        return []
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
-    kwargs = {
-        "title": title,
-        "filetypes": filetypes or [("All files", "*.*")],
-    }
-    resolved_initial_dir = _resolve_initial_dir(initial_dir)
-    if resolved_initial_dir:
-        kwargs["initialdir"] = resolved_initial_dir
-    files = filedialog.askopenfilenames(**kwargs)
-    root.destroy()
-    return [Path(f) for f in files] if files else []
 
 
 def validate_tif_files(folder_path):
@@ -146,99 +82,16 @@ def create_error_folder(base_folder):
     """
     Create errored-files/ subfolder if it doesn't exist.
 
+    Raises OSError if it cannot be created. A job that cannot record its
+    failures should refuse to start rather than run and drop them, and the
+    caller turns this into a message the user sees.
+
     Args:
         base_folder (Path): Base folder path
 
     Returns:
         Path: Path to errored-files folder
     """
-    base_folder = Path(base_folder)
-    error_folder = base_folder / "errored-files"
-
-    try:
-        error_folder.mkdir(exist_ok=True)
-        return error_folder
-    except Exception as e:
-        log_message(f"Failed to create error folder: {e}", "error")
-        return None
-
-
-def create_output_folder(base_folder, subfolder_name):
-    """
-    Create output subfolder if it doesn't exist.
-
-    Args:
-        base_folder (Path): Base folder path
-        subfolder_name (str): Name of subfolder to create (e.g., 'cropped', 'merged')
-
-    Returns:
-        Path: Path to output folder
-    """
-    base_folder = Path(base_folder)
-    output_folder = base_folder / subfolder_name
-
-    try:
-        output_folder.mkdir(exist_ok=True)
-        return output_folder
-    except Exception as e:
-        log_message(f"Failed to create {subfolder_name} folder: {e}", "error")
-        return None
-
-
-def file_exists(file_path):
-    """
-    Check if file exists.
-
-    Args:
-        file_path (Path|str): File path to check
-
-    Returns:
-        bool: True if file exists
-    """
-    return Path(file_path).is_file()
-
-
-def folder_exists(folder_path):
-    """
-    Check if folder exists.
-
-    Args:
-        folder_path (Path|str): Folder path to check
-
-    Returns:
-        bool: True if folder exists
-    """
-    return Path(folder_path).is_dir()
-
-
-def get_file_size(file_path):
-    """
-    Get file size in bytes.
-
-    Args:
-        file_path (Path|str): File path
-
-    Returns:
-        int: File size in bytes, or 0 if file doesn't exist
-    """
-    try:
-        return Path(file_path).stat().st_size
-    except Exception:
-        return 0
-
-
-def format_file_size(size_bytes):
-    """
-    Format file size for display.
-
-    Args:
-        size_bytes (int): Size in bytes
-
-    Returns:
-        str: Formatted size (e.g., "1.5 MB")
-    """
-    for unit in ("B", "KB", "MB", "GB"):
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+    error_folder = Path(base_folder) / "errored-files"
+    error_folder.mkdir(exist_ok=True)
+    return error_folder

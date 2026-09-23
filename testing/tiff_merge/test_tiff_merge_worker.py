@@ -37,9 +37,7 @@ def build_groups(root: Path, spec: dict) -> None:
 
 def run_worker(root: Path, on_progress=None, groups=None):
     detected, _ok, _warnings = validate_naming_convention(root)
-    worker = TiffMergeWorker(
-        root, root / "merged", root / "errored-files", groups or detected
-    )
+    worker = TiffMergeWorker(root, root / "merged", groups or detected)
     worker.set_progress_callback(on_progress or (lambda p: None))
     worker.set_status_callback(lambda m: None)
     worker.set_error_callback(lambda f, e: None)
@@ -146,9 +144,7 @@ class TiffMergeCancelTests(unittest.TestCase):
                     holder["worker"].cancel()
 
             detected, _ok, _warnings = validate_naming_convention(root)
-            worker = TiffMergeWorker(
-                root, root / "merged", root / "errored-files", detected
-            )
+            worker = TiffMergeWorker(root, root / "merged", detected)
             holder["worker"] = worker
             worker.set_progress_callback(on_progress)
             worker.set_status_callback(lambda m: None)
@@ -171,9 +167,7 @@ class TiffMergeCancelTests(unittest.TestCase):
             root = Path(temp_dir)
             build_groups(root, {"grpA_x": 2})
             detected, _ok, _warnings = validate_naming_convention(root)
-            worker = TiffMergeWorker(
-                root, root / "merged", root / "errored-files", detected
-            )
+            worker = TiffMergeWorker(root, root / "merged", detected)
 
             worker.cancel()
             self.assertTrue(worker.cancelled)

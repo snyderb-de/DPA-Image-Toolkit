@@ -38,7 +38,7 @@ class PdfExtractSafetyTests(unittest.TestCase):
             extracted_path = root / "extracted-pages" / "source_extract.pdf"
             self._make_pdf(source_path, pages=3)
 
-            status, error, stats = extract_pdf_pages(
+            outcome = extract_pdf_pages(
                 source_path,
                 extracted_path,
                 "1",
@@ -46,14 +46,16 @@ class PdfExtractSafetyTests(unittest.TestCase):
                 removal_mode="overwrite",
             )
 
-            self.assertEqual(status, "success", error)
+            self.assertTrue(outcome.succeeded, outcome.error)
             self.assertTrue(extracted_path.exists())
             self.assertTrue(source_path.exists())
-            self.assertNotEqual(stats["remaining_output"], str(source_path))
-            self.assertTrue(Path(stats["remaining_output"]).exists())
+            self.assertNotEqual(
+                outcome.details["remaining_output"], str(source_path)
+            )
+            self.assertTrue(Path(outcome.details["remaining_output"]).exists())
             self.assertEqual(len(PdfReader(str(source_path)).pages), 3)
             self.assertEqual(len(PdfReader(str(extracted_path)).pages), 1)
-            self.assertEqual(len(PdfReader(stats["remaining_output"]).pages), 2)
+            self.assertEqual(len(PdfReader(outcome.details["remaining_output"]).pages), 2)
 
 
 if __name__ == "__main__":

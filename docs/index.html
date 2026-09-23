@@ -159,6 +159,10 @@
     .todo-group { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--muted); margin: 12px 0 2px; }
     .todo-group:first-child { margin-top: 0; }
+    .tid-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.6rem; color: var(--muted); letter-spacing: 0.02em;
+    }
     .tbands { display: grid; gap: 6px; }
     .tband, .tnext {
       display: flex; align-items: center; gap: 8px;
@@ -351,7 +355,7 @@
     <article class="panel">
       <div class="ph">
         <h2>Active TODOs</h2>
-        <span class="pbadge">24 open</span>
+        <span class="pbadge">14 open</span>
       </div>
       <div class="pb">
         <p class="t-note" style="margin:0 0 12px">
@@ -362,7 +366,7 @@
         <div class="tbands">
           <div class="tband">
             <span class="pri p0">P0</span>
-            <span class="tband-n">1</span>
+            <span class="tband-n">0</span>
             <span class="tband-label">Blocks the next release</span>
           </div>
           <div class="tband">
@@ -372,7 +376,7 @@
           </div>
           <div class="tband">
             <span class="pri p2">P2</span>
-            <span class="tband-n">14</span>
+            <span class="tband-n">5</span>
             <span class="tband-label">Planned improvement</span>
           </div>
           <div class="tband">
@@ -384,20 +388,24 @@
         <p class="t-note" style="margin:14px 0 8px"><strong>Up next</strong></p>
         <div class="tnexts">
           <div class="tnext">
-            <span class="pri p0">P0</span><span class="win">W3</span><span class="eff">E1</span>
-            <span class="tnext-title">Smoke-test the released Windows EXE</span>
-          </div>
-          <div class="tnext">
             <span class="pri p1">P1</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">Validate on Windows 10 / Windows 11</span>
+            <span class="tid-code">P1-W3-E1-002</span>
           </div>
           <div class="tnext">
             <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
             <span class="tnext-title">OCR: tune the messy-scan heuristic</span>
+            <span class="tid-code">P2-W3-E1-003</span>
           </div>
           <div class="tnext">
-            <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E1</span>
-            <span class="tnext-title">OCR: manual override for quality-flagged pages</span>
+            <span class="pri p2">P2</span><span class="win">W3</span><span class="eff">E2</span>
+            <span class="tnext-title">Auto Crop: batch preview mode</span>
+            <span class="tid-code">P2-W3-E2-007</span>
+          </div>
+          <div class="tnext">
+            <span class="pri p2">P2</span><span class="win">W2</span><span class="eff">E2</span>
+            <span class="tnext-title">Page reordering and extraction from existing multi-page TIFFs</span>
+            <span class="tid-code">P2-W2-E2-011</span>
           </div>
         </div>
       </div>
@@ -483,10 +491,10 @@
             <div class="tc-icon">⇵</div>
             <div>
               <div class="tc-name">Split TIFFs</div>
-              <div class="tc-sub">Extracts each page of a multi-page TIFF into individual single-page files. Single-page TIFFs are skipped.</div>
+              <div class="tc-sub">Extracts each page of a multi-page TIFF into individual single-page files, or pulls out a chosen set of pages as one document. Single-page TIFFs are skipped when splitting.</div>
             </div>
           </div>
-          <div class="tc-io"><strong>In:</strong> TIFF files or folder &nbsp;·&nbsp; <strong>Out:</strong> <code>extracted-pages/</code></div>
+          <div class="tc-io"><strong>In:</strong> TIFF files or folder &nbsp;·&nbsp; <strong>Out:</strong> <code>extracted-pages/</code> &nbsp;·&nbsp; <strong>Pages:</strong> <code>1-3</code>, <code>3,1,2</code>, <code>4-2</code></div>
         </div>
 
         <div class="tool-card">
@@ -536,10 +544,19 @@
     <article class="panel">
       <div class="ph">
         <h2>Recently Completed</h2>
-        <span class="pbadge">38 items</span>
+        <span class="pbadge">47 items</span>
       </div>
       <div class="pb">
         <div class="done-list">
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-047</span><span class="dtext">TIFF merge compression choices — deflate, LZW, PackBits, JPEG or none, with labels that say which are larger and which alters the image</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-046</span><span class="dtext">dpi_per_file now preserves per-page DPI — it had always been collected and discarded</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-045</span><span class="dtext">Background sensitivity slider for Auto Crop — the white threshold existed but nothing ever passed one</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-044</span><span class="dtext">SmartScreen code-signing researched against primary sources; ADR 0002 records signing at the share</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-043</span><span class="dtext">Undo support — a finished job can remove what it wrote; only recorded paths, only inside that job's output folder, never a source</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-042</span><span class="dtext">TIFF merge streams to disk — peak memory flat at ~97 MB instead of growing with page count; a 200-page merge went from ~4.4 GB to 98 MB</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-041</span><span class="dtext">Faster folder selection — last five folders per tool as one-click chips, plus a pasted-path field. Drag-and-drop rejected: pywebview exposes no drop event and a browser drop carries no filesystem path</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-040</span><span class="dtext">OCR manual override — a finished job records which documents the quality gate withheld text from, and a button re-runs just those with the gate off</span></div>
+          <div class="done-item"><span class="dcheck">✓</span><span class="did">D-039</span><span class="dtext">v1.1.10 released and smoke-tested on Windows — launches from a clean profile, all seven tools open, no <code>_internal/</code> folder needed</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-038</span><span class="dtext">Dashboard refreshed — TODO detail collapsed to band counts read from <code>TODO.md</code>, the all-shipped Roadmap removed, Open Decisions pruned to the one still open</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-037</span><span class="dtext">OCR interface shrunk — 17 exports for 5 used; <code>OcrOptions</code> takes <code>ocr_document_to_pdf</code> from 13 parameters to 6, and two dead folder entry points removed</span></div>
           <div class="done-item"><span class="dcheck">✓</span><span class="did">D-036</span><span class="dtext">Inert customtkinter exclude dropped from the PyInstaller spec</span></div>

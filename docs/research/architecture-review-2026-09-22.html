@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Architecture review for dpa-image-toolkit</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .seam { stroke-dasharray: 4 4; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+  .mod { border: 1.5px solid #64748b; border-radius: 6px; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; background: #fff; }
+  .mod.thin { border-style: dashed; color: #94a3b8; }
+  .mod.leak { border-color: #dc2626; color: #dc2626; }
+  .band { border-left: 4px solid #94a3b8; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; background: #fff; }
+  .band.thick { border-left-color: #0f172a; background: #0f172a; color: #f8fafc; font-size: 12px; }
+  .mass { display:flex; flex-direction:column; align-items:stretch; width: 120px; }
+  .mass .iface { background:#fde68a; border:1px solid #d97706; font-size:10px; text-align:center; padding:2px; }
+  .mass .impl { background:#cbd5e1; border:1px solid #64748b; font-size:10px; text-align:center; padding:2px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 9999px; font-weight: 600; letter-spacing: .04em; }
+  .mermaid { font-size: 12px; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+<header class="space-y-3">
+  <h1 class="font-serif text-3xl">Architecture review · dpa-image-toolkit</h1>
+  <p class="text-sm text-slate-500">2026-09-22 · branch feat/tool-improvements · scoped to hot spots from git log: <span class="font-mono">utils/worker.py, web/app.py, modules/ocr_pdf/core.py, modules/tiff_combine/*, utils/tool_registry.py</span></p>
+  <div class="flex flex-wrap gap-4 text-xs text-slate-600 pt-2">
+    <span><span class="inline-block w-5 h-3 border border-slate-500 align-middle mr-1"></span>module</span>
+    <span><span class="inline-block w-5 h-0 border-t border-dashed border-slate-500 align-middle mr-1"></span>seam</span>
+    <span><span class="inline-block w-5 h-0 border-t-2 border-red-600 align-middle mr-1"></span>leak</span>
+    <span><span class="inline-block w-5 h-3 bg-slate-900 align-middle mr-1"></span>deep module</span>
+    <span><span class="inline-block w-5 h-3 bg-amber-200 border border-amber-600 align-middle mr-1"></span>interface mass</span>
+    <span><span class="inline-block w-5 h-3 bg-slate-300 border border-slate-500 align-middle mr-1"></span>implementation mass</span>
+  </div>
+  <p class="text-xs text-slate-500">No <span class="font-mono">CONTEXT.md</span> exists. Domain nouns below come from the code: <b>tool</b>, <b>ToolSpec</b>, <b>Prepared / Started</b>, <b>worker</b>, <b>job</b>, <b>batch loop</b>, <b>ItemOutcome</b>, <b>JobResult</b>, <b>undo</b>, <b>document</b> (OCR page group), <b>group</b> (TIFF merge).</p>
+</header>
+
+<section id="map" class="space-y-3">
+  <h2 class="font-serif text-xl">The seams today</h2>
+  <div class="rounded-lg border border-slate-200 bg-white p-4">
+<pre class="mermaid">
+flowchart LR
+  APP[web/app.py routes] --> REG[tool_registry ToolSpec]
+  APP --> RUN[JobRunner]
+  REG -->|Started.worker| APP
+  APP -.->|"data dict: folder/path/error_folder/output_folder"| RUN
+  RUN -.->|"getattr(worker,'results')<br/>job.data['error_folder']"| W
+  REG --> W[worker.py 7 classes]
+  W --> B[batch.run_file_batch / run_group_batch]
+  W -->|"_x_one translates 6 envelopes"| M[modules/*/core]
+  APP -->|undo_outputs| U[undo]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+  class RUN,W leak
+  class B,U,M deep
+</pre>
+  </div>
+  <p class="text-sm text-slate-600">Deep already: <span class="font-mono">batch.py</span>, <span class="font-mono">undo.py</span>, <span class="font-mono">job_result.py</span>, <span class="font-mono">tiff_combine/*</span>. Tested through their interface with fakes. The friction sits above them: the seven workers, the job dict, the module return envelopes.</p>
+</section>
+
+<section id="candidates" class="space-y-10">
+
+<!-- C1 -->
+<article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">1 · Put the OCR PDF worker on the shared batch loop</h2>
+    <div class="flex gap-2"><span class="badge bg-emerald-100 text-emerald-800">Strong</span><span class="badge bg-slate-100 text-slate-700">in-process</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">utils/worker.py:448-796 · utils/tool_registry.py (_check_ocr_pdf) · modules/ocr_pdf/core.py:1206 · web/static/app.js:454-469</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500">Before · OcrPdfWorker.run, 240 lines</div>
+      <div class="band">dependency gate (again; route already refused)</div>
+      <div class="band">scan + summarize documents</div>
+      <div class="band leak" style="border-left-color:#dc2626">hand-rolled cancel / record / summary loop</div>
+      <div class="band leak" style="border-left-color:#dc2626">_emit_ocr_progress · 14 keys, UI reads 6</div>
+      <div class="band">flagged-document bookkeeping</div>
+      <div class="band">PDF/A fallback warning</div>
+      <div class="band">ocr_document_to_pdf(...)</div>
+      <div class="text-xs text-slate-500 pt-1">Six other workers already delegate the loop to <span class="font-mono">run_file_batch</span>. This one re-implements it, so cancel and containment semantics for OCR live in a second place.</div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500">After</div>
+      <div class="band thick">run_file_batch(documents, process=_ocr_one, reporter=self)</div>
+      <div class="ml-6 space-y-1 opacity-70">
+        <div class="band">_ocr_one(document) → ItemOutcome</div>
+        <div class="band">flagged pages → results.extra (side effect, like _crop_one)</div>
+        <div class="band">progress: the 6 keys the UI reads</div>
+      </div>
+      <div class="text-xs text-slate-500 pt-1">Gate deleted from the worker. Page-weighted progress becomes the worker's own callback, not a second loop.</div>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> The OCR worker is shallow twice over: it repeats the batch loop and repeats the registry's dependency gate, so tests must patch <span class="font-mono">check_ocr_dependencies</span> just to reach the loop.</p>
+  <p class="text-sm"><b>Solution.</b> Write <span class="font-mono">_ocr_one</span> returning <span class="font-mono">ItemOutcome</span>, run it through <span class="font-mono">run_file_batch</span>, drop the in-worker gate and the unread progress keys.</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>locality: OCR cancel/summary use the tested loop</li>
+    <li>delete ~150 lines and one duplicate gate</li>
+    <li>two test patches vanish</li>
+    <li>interface shrinks: 6 progress keys, not 14</li>
+  </ul>
+</article>
+
+<!-- C2 -->
+<article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">2 · Finish the PDF conversion worker</h2>
+    <div class="flex gap-2"><span class="badge bg-emerald-100 text-emerald-800">Strong</span><span class="badge bg-slate-100 text-slate-700">in-process</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">utils/worker.py:798-1020 · utils/tool_registry.py (_prepare_pdf_conversion, _start_pdf_conversion)</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 bg-white p-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500 px-2 pt-1">Before</div>
+<pre class="mermaid">
+flowchart TD
+  R[run] --> V{operation?}
+  V -->|reduce / pdfa| L[run_file_batch]
+  V -->|split / extract| S["selection_mode != 'file' ?<br/>validation at run time, in a thread"]
+  S --> H1[split: cancelled / failed / success by hand]
+  S --> H2[extract: cancelled / failed / success by hand]
+  R -.->|hidden state| X["self._reduce_root / _pdfa_root<br/>set in run, read by _reduce_one"]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class S,H1,H2,X leak
+</pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500 px-2 pt-1">After</div>
+<pre class="mermaid">
+flowchart TD
+  P[registry _start_pdf_conversion<br/>rejects bad mode/operation with ToolError] --> W
+  W["run: table {operation: (process, gerund, verb, output_root)}"] --> L[run_file_batch]
+  L --> A[_reduce_one]
+  L --> B[_pdfa_one]
+  L --> C[_split_one]
+  L --> D[_extract_one]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+  class W,L deep
+</pre>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> Half the worker sits on the loop and half re-implements it; request validation happens inside the thread; output roots are hidden state; <span class="font-mono">Started.output_folder</span> is unset so PDF jobs cannot be undone.</p>
+  <p class="text-sm"><b>Solution.</b> Every operation becomes a <span class="font-mono">_x_one</span>; <span class="font-mono">run</span> is one table and one loop call; the single-file and page-spec checks move to the registry start.</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>locality: one loop, four processes</li>
+    <li>undo becomes possible for reduce / pdfa</li>
+    <li>untested pdfa / split / extract paths covered by loop tests</li>
+    <li>delete ~80 lines, two helpers</li>
+  </ul>
+</article>
+
+<!-- C3 -->
+<article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">3 · Give the job runner a typed job record</h2>
+    <div class="flex gap-2"><span class="badge bg-amber-100 text-amber-800">Worth exploring</span><span class="badge bg-slate-100 text-slate-700">in-process</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">utils/job_runner.py:107-162 · utils/tool_registry.py:59-78 (Prepared, Started) · web/app.py:342-348, 376-383, 393-413, 495</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 bg-white p-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500 px-2 pt-1">Before · the dict round trip</div>
+<pre class="mermaid">
+sequenceDiagram
+  participant Reg as registry
+  participant App as app.py
+  participant Run as JobRunner
+  Reg->>App: Started(worker, error_folder, output_folder)
+  App->>Run: update_data(error_folder=str)
+  App->>Run: update_data(output_folder=str)
+  App->>Run: start(worker)
+  Run->>Run: job.data["error_folder"] (key it never wrote)
+  Run->>Run: getattr(worker, "results")
+  App->>Run: get_data()["output_folder"], ["folder"] or ["path"]
+  App->>App: undo boundary rebuilt from 3 keys
+</pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500 px-2 pt-1">After</div>
+<pre class="mermaid">
+sequenceDiagram
+  participant Reg as registry
+  participant App as app.py
+  participant Run as JobRunner
+  Reg->>App: Started(worker, input, output_folder, error_folder)
+  App->>Run: start(tool_id, started)
+  App->>Run: job(tool_id) → typed
+  Run->>Run: writes report to job.error_folder
+  App->>App: undo(job.outputs, job.output_folder, job.input)
+</pre>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> Typed <span class="font-mono">Started</span> fields are flattened into a string dict and dug out again by key in three files; the runner has learned worker attributes and registry keys, and the undo safety boundary is assembled ad hoc.</p>
+  <p class="text-sm"><b>Solution.</b> The runner stores the <span class="font-mono">Started</span> record; routes and the error report read typed fields. <span class="font-mono">Prepared.data</span> stays as the prepare-to-start stash only.</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>locality: "what undo may delete" defined once</li>
+    <li>runner stops probing worker internals</li>
+    <li>web tests stop seeding the dict by hand</li>
+    <li>leverage: one record, four readers</li>
+  </ul>
+</article>
+
+<!-- C4 -->
+<article id="c4" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">4 · Collapse the seven workers' scaffolding</h2>
+    <div class="flex gap-2"><span class="badge bg-amber-100 text-amber-800">Worth exploring</span><span class="badge bg-emerald-100 text-emerald-800">Strong: cancel + error_folder cuts</span><span class="badge bg-slate-100 text-slate-700">in-process</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">utils/worker.py (all) · utils/job_runner.py:164-178 · testing/shared/test_worker_results_contract.py:47</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">Before · mass per worker (×7)</div>
+      <div class="flex gap-3 items-end">
+        <div class="mass"><div class="iface" style="height:26px">__init__ (unique kwargs)</div><div class="iface" style="height:18px">run</div><div class="iface" style="height:18px">get_results</div><div class="iface" style="height:18px">cancel(force?)</div><div class="impl" style="height:34px">_x_one</div></div>
+        <div class="text-xs text-slate-500 max-w-xs">Interface as tall as implementation. <span class="font-mono">run</span> = try / loop / except, ×7. <span class="font-mono">get_results</span> ×7. Two-stage <span class="font-mono">cancel</span> on 3 of 7, so the runner catches <span class="font-mono">TypeError</span> to cope. <span class="font-mono">error_folder</span> accepted by 4 constructors, used by none.</div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">After</div>
+      <div class="flex gap-3 items-end">
+        <div class="mass"><div class="iface" style="height:18px">__init__</div><div class="impl deep" style="height:96px;color:#f8fafc">OperationWorker: run, get_results, cancel(force), results</div></div>
+        <div class="mass"><div class="iface" style="height:14px">_run_batch</div><div class="impl" style="height:34px">_x_one</div></div>
+        <div class="text-xs text-slate-500 max-w-xs">Deletion test passes: delete the class bodies and only <span class="font-mono">_x_one</span> plus the loop parameters reappear. Base module absorbs the rest.</div>
+      </div>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> Each worker hand-writes the same <span class="font-mono">run</span>, <span class="font-mono">get_results</span>, <span class="font-mono">cancel</span>; the runner compensates for the inconsistency at its own seam.</p>
+  <p class="text-sm"><b>Solution.</b> Smallest cut first: <span class="font-mono">cancel(force=False)</span> and the unused <span class="font-mono">error_folder</span> parameter go to the base. Then, after 1 and 2, the base owns <span class="font-mono">run</span> and <span class="font-mono">get_results</span> and each subclass supplies <span class="font-mono">_run_batch</span>.</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>delete runner's TypeError catch and its test</li>
+    <li>results contract test drops <span class="font-mono">cls.__new__</span></li>
+    <li>interface shrinks; base absorbs 7×3 methods</li>
+  </ul>
+</article>
+
+<!-- C5 -->
+<article id="c5" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">5 · One outcome type at the module seam</h2>
+    <div class="flex gap-2"><span class="badge bg-amber-100 text-amber-800">Worth exploring</span><span class="badge bg-slate-100 text-slate-700">in-process</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">modules/auto_cropping/core.py · image_border/core.py · tiff_combine/core.py, pages.py · tiff_split/core.py · pdf_tools/core.py · ocr_pdf/core.py · utils/worker.py every _x_one · utils/batch.py ItemOutcome</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500">Before · six envelopes, four cancel encodings</div>
+      <div class="font-mono text-xs space-y-1 text-slate-700">
+        <div>crop_image → <span class="text-red-600">(path, msg, status)</span></div>
+        <div>straighten / add_border → <span class="text-red-600">(path, err, stats)</span></div>
+        <div>merge_tiff_group → <span class="text-red-600">(bool, path, [{file, error, cancelled?}])</span></div>
+        <div>split_tiff_file → <span class="text-red-600">(bool, [paths], err, stats{skipped, cancelled})</span></div>
+        <div>pdf_tools.* → <span class="text-red-600">("success"|"failed"|"cancelled", err, stats)</span></div>
+        <div>ocr_document_to_pdf → <span class="text-red-600">{status, output_path, error, details}</span></div>
+      </div>
+      <div class="text-xs text-slate-500">Every <span class="font-mono">_x_one</span> exists to translate one of these into <span class="font-mono">ItemOutcome</span>. <span class="font-mono">_merge_one</span> carries a comment explaining which cancel flag is authoritative.</div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500">After</div>
+      <div class="band thick">Outcome: status ∈ {success, skipped, failed, cancelled} · outputs · error · details</div>
+      <div class="text-xs text-slate-500">Lives where modules can import it without depending on the loop. Each <span class="font-mono">_x_one</span> becomes argument plumbing. Cancellation is one word in one type.</div>
+      <div class="rounded-md bg-amber-50 border border-amber-300 p-2 text-xs text-amber-900">ADR 0004: touches only <span class="font-mono">merge_tiff_group</span>'s return shape, not the streaming write or the pixel / mode / DPI guarantees. Separately, ADR 0004's "dpi_per_file writes first-page DPI" paragraph is already stale since commit 9cd7c08.</div>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> The module seam has six interfaces for one idea, so the knowledge of how each module says "cancelled" leaks into the workers.</p>
+  <p class="text-sm"><b>Solution.</b> Modules return one outcome type; delete <span class="font-mono">PdfConversionWorker._outcome</span> and the per-worker flag scans. Cost: module tests assert on the current tuples and would change.</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>locality: cancellation defined once</li>
+    <li>leverage: one type, seven modules, seven workers</li>
+    <li>delete _outcome and three flag branches</li>
+  </ul>
+</article>
+
+<!-- C6 -->
+<article id="c6" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">6 · One dependency model instead of three</h2>
+    <div class="flex gap-2"><span class="badge bg-amber-100 text-amber-800">Worth exploring</span><span class="badge bg-slate-100 text-slate-700">local-substitutable</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">utils/tool_dependencies.py · modules/ocr_pdf/core.py:253-401 · modules/pdf_tools/core.py:51-144 · utils/tool_registry.py (ToolSpec.statuses / check)</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">Before</div>
+      <div class="flex flex-wrap gap-2">
+        <div class="mod">tool_dependencies table (5 tools)</div>
+        <div class="mod">ocr check + statuses (hand-written)</div>
+        <div class="mod">pdf check + statuses (hand-written)</div>
+        <div class="mod thin">_module_available ×3</div>
+        <div class="mod thin">Tk panel prose, 0 callers</div>
+        <div class="mod thin">_statuses_by_key / _check_by_key</div>
+      </div>
+      <div class="text-xs text-slate-500 mt-3">Same probe written three ways. PDF computes its four <span class="font-mono">needs_*</span> booleans twice; OCR parses the language string twice.</div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">After</div>
+      <div class="band thick">Dependency(label, probe, detail) · statuses() maps probes · check() derived from statuses()</div>
+      <div class="text-xs text-slate-500 mt-3">Tesseract and language are probes that shell out. <span class="font-mono">ToolSpec.statuses</span> / <span class="font-mono">check</span> collapse to one field. Tests patch one probe, not <span class="font-mono">_module_available</span> in three places.</div>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> Three implementations of "is it importable, say so for the UI," and dead Tk panel text kept alive only by its tests.</p>
+  <p class="text-sm"><b>Solution.</b> Each tool declares its dependencies as data; the gate is derived, not hand-written. Preserves ADR 0001's "every tool has a check."</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>delete panel prose, two _module_available, two lambda factories</li>
+    <li>locality: gate and status agree by construction</li>
+    <li>tests hit one probe seam</li>
+  </ul>
+</article>
+
+<!-- C7 -->
+<article id="c7" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">7 · Delete the dead half of file_handler; keep one picker</h2>
+    <div class="flex gap-2"><span class="badge bg-emerald-100 text-emerald-800">Strong</span><span class="badge bg-slate-100 text-slate-700">ports &amp; adapters</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">utils/file_handler.py · utils/log_utils.py · web/app.py:129-154 · utils/batch.py:23,69 · modules/tiff_combine/core.py:23 · naming.py:21</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">Before</div>
+      <div class="flex flex-wrap gap-2">
+        <div class="mod">validate_image_files / validate_tif_files</div>
+        <div class="mod">create_error_folder</div>
+        <div class="mod thin">pick_folder / pick_files</div>
+        <div class="mod leak">app._pick_folder / _pick_files (copy)</div>
+        <div class="mod thin">create_output_folder</div>
+        <div class="mod thin">file_exists / folder_exists</div>
+        <div class="mod thin">get_file_size / format_file_size</div>
+        <div class="mod thin">log_utils (111 lines, 2 callers)</div>
+      </div>
+      <div class="text-xs text-slate-500 mt-3">Dashed = zero production callers. Image extensions listed twice; <span class="font-mono">_list_tif_files</span> defined twice.</div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">After</div>
+      <div class="flex flex-wrap gap-2">
+        <div class="mod deep">batch.find_image_files / find_tif_files</div>
+        <div class="mod">create_error_folder</div>
+        <div class="mod">one picker</div>
+      </div>
+      <div class="rounded-md bg-amber-50 border border-amber-300 p-2 text-xs text-amber-900 mt-3">ADR 0001 says <span class="font-mono">web/app.py</span> calls <span class="font-mono">file_handler</span> for pickers. It no longer does. Whichever picker survives, update that bullet.</div>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> Deletion test: remove <span class="font-mono">file_handler.py</span> and only the two validators and the error-folder helper reappear, in a handful of registry lines.</p>
+  <p class="text-sm"><b>Solution.</b> Registry prepare uses the batch finders; one picker implementation; <span class="font-mono">log_utils</span> goes or its two callers raise.</p>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li>delete ~250 lines with no callers</li>
+    <li>one extension list, one tif lister</li>
+    <li>ADR 0001 consequence made true again</li>
+  </ul>
+</article>
+
+<!-- C8 -->
+<article id="c8" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <h2 class="font-serif text-2xl">8 · Three profile tables, one shape</h2>
+    <div class="flex gap-2"><span class="badge bg-slate-200 text-slate-700">Speculative</span><span class="badge bg-slate-100 text-slate-700">in-process</span></div>
+  </div>
+  <p class="font-mono text-sm text-slate-600">modules/tiff_combine/compression.py · modules/pdf_tools/compression_profiles.py · modules/pdf_tools/core.py:16-48 · web/app.py:268-294</p>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500">Before</div>
+      <div class="band">merge compression: keys / labels / label / key_from_label · route → list of labels</div>
+      <div class="band">pdf compression profiles: same four · route → dict of labels</div>
+      <div class="band">pdfa profiles: same four · route → default label + key</div>
+      <div class="text-xs text-slate-500">Two <span class="font-mono">key_from_label</span> helpers imported in <span class="font-mono">app.py</span>, never called.</div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-500">After</div>
+      <div class="band thick">ProfileTable(entries, default) · one route shape</div>
+      <div class="text-xs text-slate-500">Low churn today. Fold only when one of the three next changes.</div>
+    </div>
+  </div>
+  <p class="text-sm"><b>Problem.</b> Same interface written three times with three JSON shapes.</p>
+  <p class="text-sm"><b>Solution.</b> One table type, one route shape. Not urgent.</p>
+</article>
+
+</section>
+
+<section id="test-notes" class="rounded-xl border border-slate-200 bg-stone-100 p-6 space-y-2">
+  <h2 class="font-serif text-xl">Test surface notes</h2>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li><span class="font-mono">test_auto_crop.py:239</span> patches <span class="font-mono">crop_image</span> to return a 2-tuple; <span class="font-mono">_crop_one</span> unpacks three. Passes only because the loop's containment counts the <span class="font-mono">ValueError</span> as a failure. It tests the guard, not the crop-failed path.</li>
+    <li>Untested through any interface: PDF pdfa / split / extract worker paths, <span class="font-mono">TiffSplitWorker</span> dispatch, <span class="font-mono">AddBorderWorker</span>, routes <span class="font-mono">undo / stream / cancel / reset / recent</span>.</li>
+    <li>Dead code kept alive by tests: <span class="font-mono">get_merge_stats</span>, <span class="font-mono">get_output_pdf_path</span>, <span class="font-mono">find_ocr_input_files</span>, Tk panel prose in <span class="font-mono">tool_dependencies.py</span>.</li>
+  </ul>
+</section>
+
+<section id="top-recommendation" class="rounded-xl deep p-8 space-y-3">
+  <div class="text-xs uppercase tracking-wider text-slate-400">Top recommendation</div>
+  <h2 class="font-serif text-2xl"><a href="#c1" class="underline decoration-slate-500">1 · Put the OCR PDF worker on the shared batch loop</a>, then <a href="#c2" class="underline decoration-slate-500">2</a></h2>
+  <p class="text-sm text-slate-200">OCR is the hottest module in the log and the only worker still carrying its own loop and its own gate. Moving it onto <span class="font-mono">run_file_batch</span> removes the most duplicated behaviour for the least interface change, unblocks candidate 4 (every worker then fits one base), and drops two test patches. Candidate 2 is the same move for the last half-converted worker and makes PDF jobs undoable.</p>
+</section>
+
+</main>
+</body>
+</html>

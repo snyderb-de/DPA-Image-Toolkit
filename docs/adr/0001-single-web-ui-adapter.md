@@ -8,7 +8,7 @@ Keeping both UIs and re-syncing them was the alternative. We rejected it because
 
 ## Consequences
 
-- **Tkinter is still required at runtime, and that is not a leftover.** `utils/file_handler.py` uses `tkinter.filedialog` for the native folder and file pickers, and `web/app.py` calls into it. A checkout still needs a working Python/Tk. Only *customtkinter* is gone.
+- **Tkinter is still required at runtime, and that is not a leftover.** `web/app.py` uses `tkinter.filedialog` for the native folder and file pickers, behind `/api/pick-folder` and `/api/pick-files`. A checkout still needs a working Python/Tk. Only *customtkinter* is gone. (This bullet originally named `utils/file_handler.py` as the picker's home. The web UI grew its own copies and the originals went unused, so they were deleted on 2026-09-22 and the pickers now live next to the routes that expose them.)
 - The dependency gate the Tk panels had, the web UI now has too. `utils/tool_registry.py` gives every tool a `check`, and `POST /api/<tool_id>/start` refuses before building a worker. Prior to this the shipped UI had no gate at all.
 - Tool ids now have one vocabulary (`merge_tiffs`, `split_tiffs`), owned by `utils/tool_registry.py`. The alias map that used to translate them inside `_get_tool_config` is gone.
 - `packaging/dpa-toolkit.spec` keeps `excludes=["customtkinter"]` as an inert guard even though nothing depends on customtkinter any more.

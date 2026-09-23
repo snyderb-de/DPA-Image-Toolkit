@@ -48,6 +48,7 @@ from modules.pdf_tools.core import (
     get_pdfa_profile_label,
     get_pdfa_profile_labels,
 )
+from utils import recent_folders, undo
 from utils.job_runner import JobRunner
 from utils.tool_registry import TOOL_IDS, ToolError, get_spec
 
@@ -125,6 +126,22 @@ def _update_settings_payload(settings: dict | None = None) -> dict:
     }
 
 
+def _resolve_initial_dir(initial_dir: str | None) -> str | None:
+    """Return a usable directory to open the picker in, else None.
+
+    A remembered folder may be typed with a ~ or may have been removed since
+    it was recorded, so anything that is not a real directory is dropped and
+    the picker opens wherever the platform defaults to.
+    """
+    if not initial_dir:
+        return None
+    try:
+        path = Path(initial_dir).expanduser()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return str(path) if path.is_dir() else None
+
+
 def _pick_folder(title: str = "Select Folder", initial_dir: str | None = None) -> str | None:
     if not _HAS_TK:
         return None
@@ -132,8 +149,9 @@ def _pick_folder(title: str = "Select Folder", initial_dir: str | None = None) -
     root.withdraw()
     root.attributes("-topmost", True)
     kwargs: dict = {"title": title}
-    if initial_dir and Path(initial_dir).is_dir():
-        kwargs["initialdir"] = initial_dir
+    resolved_initial_dir = _resolve_initial_dir(initial_dir)
+    if resolved_initial_dir:
+        kwargs["initialdir"] = resolved_initial_dir
     result = filedialog.askdirectory(**kwargs)
     root.destroy()
     return str(Path(result)) if result else None
@@ -146,8 +164,9 @@ def _pick_files(title: str, filetypes: list, initial_dir: str | None = None) -> 
     root.withdraw()
     root.attributes("-topmost", True)
     kwargs: dict = {"title": title, "filetypes": [tuple(ft) for ft in filetypes]}
-    if initial_dir and Path(initial_dir).is_dir():
-        kwargs["initialdir"] = initial_dir
+    resolved_initial_dir = _resolve_initial_dir(initial_dir)
+    if resolved_initial_dir:
+        kwargs["initialdir"] = resolved_initial_dir
     result = filedialog.askopenfilenames(**kwargs)
     root.destroy()
     return [str(Path(p)) for p in result] if result else []
@@ -264,6 +283,17 @@ def open_update_location():
     return jsonify({"ok": True, "path": str(folder)})
 
 
+@app.route("/api/merge-compression")
+def merge_compression():
+    from modules.tiff_combine import compression as merge_compression_profiles
+
+    return jsonify({
+        "keys": merge_compression_profiles.get_keys(),
+        "labels": merge_compression_profiles.get_labels(),
+        "default": merge_compression_profiles.DEFAULT_COMPRESSION,
+    })
+
+
 @app.route("/api/compression-profiles")
 def compression_profiles():
     return jsonify({
@@ -328,6 +358,12 @@ def tool_prepare(tool_id):
         return jsonify({"ok": False, "error": str(exc)})
 
     runner.replace_data(tool_id, prepared.data)
+    # Folder tools send "folder"; PDF conversion sends "path", which may be a
+    # single file — record its parent so the list stays a list of folders.
+    chosen = prepared.data.get("folder") or prepared.data.get("path")
+    if chosen:
+        candidate = Path(chosen)
+        recent_folders.record(tool_id, candidate if candidate.is_dir() else candidate.parent)
     return jsonify({"ok": True, **prepared.payload})
 
 
@@ -355,10 +391,63 @@ def tool_start(tool_id):
     except ToolError as exc:
         return jsonify({"ok": False, "error": str(exc)})
 
-    if started.error_folder is not None:
-        runner.update_data(tool_id, error_folder=str(started.error_folder))
-    runner.start(tool_id, started.worker, report_name=spec.display_name)
+    runner.start(
+        tool_id,
+        started.worker,
+        report_name=spec.display_name,
+        input_folder=started.input_folder,
+        output_folder=started.output_folder,
+        error_folder=started.error_folder,
+    )
     return jsonify({"ok": True})
+
+
+@app.route("/api/<tool_id>/undo", methods=["POST"])
+def tool_undo(tool_id):
+    """Remove what the finished job wrote. Sources are never touched."""
+    if not runner.knows(tool_id):
+        return jsonify({"ok": False, "error": "Unknown tool"}), 404
+
+    state = runner.state(tool_id)
+    if state["state"] == "running":
+        return jsonify({"ok": False, "error": "The job is still running."})
+
+    job = runner.job(tool_id)
+    if job is None or job.output_folder is None:
+        return jsonify({
+            "ok": False,
+            "error": "This job did not record a single output folder, so it cannot be undone.",
+        })
+
+    outputs = (state["results"] or {}).get("outputs") or []
+    if not outputs:
+        return jsonify({"ok": False, "error": "This job wrote nothing to undo."})
+
+    report = undo.undo_outputs(
+        outputs,
+        output_root=job.output_folder,
+        input_folder=job.input_folder,
+    )
+    payload = report.to_dict()
+    payload["ok"] = report.ok
+    if not report.ok:
+        payload["error"] = f"{len(report.refused)} item(s) were refused."
+    return jsonify(payload)
+
+
+@app.route("/api/<tool_id>/recent", methods=["GET"])
+def tool_recent(tool_id):
+    if not runner.knows(tool_id):
+        return jsonify({"error": "Unknown tool"}), 404
+    return jsonify({"folders": recent_folders.list_recent(tool_id)})
+
+
+@app.route("/api/<tool_id>/recent/forget", methods=["POST"])
+def tool_recent_forget(tool_id):
+    if not runner.knows(tool_id):
+        return jsonify({"error": "Unknown tool"}), 404
+    body = request.get_json(force=True) or {}
+    return jsonify({"folders": recent_folders.forget(tool_id, body.get("folder", ""))})
 
 
 @app.route("/api/<tool_id>/state")
@@ -419,11 +508,11 @@ def tool_open_errors(tool_id):
     if not runner.knows(tool_id):
         return jsonify({"ok": False, "error": "Unknown tool"}), 404
 
-    error_folder = runner.get_data(tool_id).get("error_folder")
-    if not error_folder:
+    job = runner.job(tool_id)
+    if job is None or job.error_folder is None:
         return jsonify({"ok": False, "error": "No error folder is available for this job yet."})
 
-    path = Path(error_folder)
+    path = job.error_folder
     if not path.exists() or not path.is_dir():
         return jsonify({"ok": False, "error": f"Error folder does not exist: {path}"})
 

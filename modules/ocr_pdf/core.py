@@ -25,6 +25,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from utils.dependencies import Dependency, DependencySet, module_available
+from utils.outcome import Outcome
+
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import optimize_pdf_writer
 
@@ -199,14 +202,14 @@ def detect_ocrmypdf_module() -> bool:
     """
     Check whether OCRmyPDF is importable in the current Python environment.
     """
-    return importlib.util.find_spec("ocrmypdf") is not None
+    return module_available("ocrmypdf")
 
 
 def detect_pypdf_module() -> bool:
     """
     Check whether pypdf is importable in the current Python environment.
     """
-    return importlib.util.find_spec("pypdf") is not None
+    return module_available("pypdf")
 
 
 def list_tesseract_languages(
@@ -250,131 +253,57 @@ def list_tesseract_languages(
     return lines
 
 
-def check_ocr_dependencies(
+def _requested_languages(language: str) -> list[str]:
+    """The language codes asked for. "eng+deu" is two."""
+    return [part.strip() for part in str(language).split("+") if part.strip()]
+
+
+def ocr_dependencies(
     language: str = "eng",
     tesseract_path: Optional[str | Path] = None,
     require_pdfa: bool = True,
-) -> tuple[bool, Optional[str], dict]:
-    """
-    Validate OCR dependencies for the toolkit.
+) -> DependencySet:
+    """Probe what OCR to PDF needs.
 
-    Tesseract is required for the searchable-PDF workflow. OCRmyPDF is optional
-    and is only needed when PDF/A output is requested and available.
+    Not every dependency is an importable module: Tesseract is a binary found
+    on PATH or in the standard Windows location, and a language pack is a file
+    Tesseract itself reports. Each carries the message shown when it is the
+    reason a job cannot start, because "Tesseract OCR is missing" is not enough
+    to act on without saying where the toolkit looked.
+
+    OCRmyPDF is optional. Without it the toolkit still produces a searchable
+    PDF, just not PDF/A, so it never blocks a start.
     """
     resolved_tesseract = detect_tesseract_path(tesseract_path)
-    if not resolved_tesseract:
-        return (
-            False,
-            (
+    installed = list_tesseract_languages(resolved_tesseract) if resolved_tesseract else []
+    requested = _requested_languages(language) or ["eng"]
+    missing_languages = [
+        code for code in requested if installed and code not in installed
+    ]
+
+    installed_preview = ", ".join(installed[:12])
+    if len(installed) > 12:
+        installed_preview += ", ..."
+
+    dependencies = [
+        Dependency(
+            label="Tesseract OCR",
+            ok=bool(resolved_tesseract),
+            detail=(
+                str(resolved_tesseract) if resolved_tesseract
+                else "Required for searchable PDF output"
+            ),
+            blocks=(
                 "Tesseract OCR was not found. Install Tesseract and ensure "
                 "'tesseract' is available on PATH, or install it in the "
                 "standard Windows Tesseract-OCR location."
             ),
-            {
-                "tesseract_path": None,
-                "languages": [],
-                "ocrmypdf_available": detect_ocrmypdf_module(),
-                "pypdf_available": detect_pypdf_module(),
-            },
-        )
-
-    languages = list_tesseract_languages(resolved_tesseract)
-    requested_languages = [
-        part.strip()
-        for part in str(language).split("+")
-        if part.strip()
-    ]
-    if languages and requested_languages:
-        missing = [code for code in requested_languages if code not in languages]
-        if missing:
-            installed_preview = ", ".join(languages[:12])
-            if len(languages) > 12:
-                installed_preview += ", ..."
-            return (
-                False,
-                (
-                    f"Tesseract is installed, but language '{'+'.join(missing)}' "
-                    f"is not available. Installed languages: {installed_preview}"
-                ),
-                {
-                    "tesseract_path": resolved_tesseract,
-                    "languages": languages,
-                    "ocrmypdf_available": detect_ocrmypdf_module(),
-                    "pypdf_available": detect_pypdf_module(),
-                },
-            )
-
-    if not detect_pypdf_module():
-        return (
-            False,
-            (
-                "The Python package 'pypdf' is not installed. Install the toolkit "
-                "requirements before running OCR to PDF."
-            ),
-            {
-                "tesseract_path": resolved_tesseract,
-                "languages": languages,
-                "ocrmypdf_available": detect_ocrmypdf_module(),
-                "pypdf_available": False,
-            },
-        )
-
-    return (
-        True,
-        (
-            "PDF/A output was requested, but OCRmyPDF is not installed. "
-            "The toolkit can still create a standard searchable PDF on this machine."
-            if require_pdfa and not detect_ocrmypdf_module()
-            else None
         ),
-        {
-            "tesseract_path": resolved_tesseract,
-            "languages": languages,
-            "ocrmypdf_available": detect_ocrmypdf_module(),
-            "pypdf_available": True,
-            "require_pdfa": require_pdfa,
-        },
-    )
-
-
-def get_ocr_dependency_statuses(
-    language: str = "eng",
-    tesseract_path: Optional[str | Path] = None,
-    require_pdfa: bool = True,
-) -> list[dict]:
-    """
-    Return dependency status entries for the OCR panel.
-    """
-    resolved_tesseract = detect_tesseract_path(tesseract_path)
-    pypdf_available = detect_pypdf_module()
-    ocrmypdf_available = detect_ocrmypdf_module()
-    installed_languages = list_tesseract_languages(resolved_tesseract) if resolved_tesseract else []
-    requested_languages = [
-        part.strip()
-        for part in str(language).split("+")
-        if part.strip()
-    ] or ["eng"]
-    missing_languages = [
-        code for code in requested_languages
-        if installed_languages and code not in installed_languages
-    ]
-
-    statuses = [
-        {
-            "label": "Tesseract OCR",
-            "ok": bool(resolved_tesseract),
-            "detail": str(resolved_tesseract) if resolved_tesseract else "Required for searchable PDF output",
-        },
-        {
-            "label": "pypdf",
-            "ok": pypdf_available,
-            "detail": "Required to merge OCR page PDFs into one document",
-        },
-        {
-            "label": "OCR Language",
-            "ok": bool(resolved_tesseract) and not missing_languages,
-            "detail": (
-                f"Language ready: {'+'.join(requested_languages)}"
+        Dependency(
+            label="OCR Language",
+            ok=bool(resolved_tesseract) and not missing_languages,
+            detail=(
+                f"Language ready: {'+'.join(requested)}"
                 if resolved_tesseract and not missing_languages
                 else (
                     f"Missing language pack: {'+'.join(missing_languages)}"
@@ -382,23 +311,39 @@ def get_ocr_dependency_statuses(
                     else "Requires Tesseract first"
                 )
             ),
-        },
+            blocks=(
+                f"Tesseract is installed, but language '{'+'.join(missing_languages)}' "
+                f"is not available. Installed languages: {installed_preview}"
+                if missing_languages else None
+            ),
+        ),
+        Dependency(
+            label="pypdf",
+            ok=detect_pypdf_module(),
+            detail="Required to merge OCR page PDFs into one document",
+            blocks=(
+                "The Python package 'pypdf' is not installed. Install the toolkit "
+                "requirements before running OCR to PDF."
+            ),
+        ),
     ]
 
     if require_pdfa:
-        statuses.append(
-            {
-                "label": "OCRmyPDF",
-                "ok": ocrmypdf_available,
-                "detail": (
+        ocrmypdf_available = detect_ocrmypdf_module()
+        dependencies.append(
+            Dependency(
+                label="OCRmyPDF",
+                ok=ocrmypdf_available,
+                detail=(
                     "Optional archival backend for PDF/A"
                     if ocrmypdf_available
                     else "Missing: PDF/A fallback unavailable on this machine"
                 ),
-            }
+                required=False,
+            )
         )
 
-    return statuses
+    return DependencySet(tool_name="OCR to PDF", dependencies=tuple(dependencies))
 
 
 def find_ocr_input_files(
@@ -797,14 +742,14 @@ def _run_ocrmypdf(
     metadata: Optional[dict] = None,
     save_pdfa: bool = True,
     ocr_page_numbers: Optional[list[int]] = None,
-) -> tuple[str, Optional[str]]:
+) -> Outcome:
     """
     Run OCRmyPDF on the prepared document PDF.
     """
     try:
         import ocrmypdf
     except Exception as exc:
-        return "failed", f"OCRmyPDF import failed: {exc}"
+        return Outcome.fail(f"OCRmyPDF import failed: {exc}")
 
     output_type = "auto" if save_pdfa else "pdf"
     language_codes = [
@@ -842,16 +787,16 @@ def _run_ocrmypdf(
             **kwargs,
         )
     except Exception as exc:
-        return "failed", f"OCRmyPDF failed: {exc}"
+        return Outcome.fail(f"OCRmyPDF failed: {exc}")
 
     result_code = int(result) if result is not None else 0
     if result_code != 0:
-        return "failed", f"OCRmyPDF returned exit code {result_code}"
+        return Outcome.fail(f"OCRmyPDF returned exit code {result_code}")
 
     if not Path(output_pdf_path).exists():
-        return "failed", "OCRmyPDF completed but no PDF output was created."
+        return Outcome.fail("OCRmyPDF completed but no PDF output was created.")
 
-    return "success", None
+    return Outcome.ok()
 
 
 def _run_tesseract_page_pdf(
@@ -973,17 +918,17 @@ def merge_page_pdfs(
         if pdf_metadata:
             writer.add_metadata(pdf_metadata)
 
-        status, error, _stats = optimize_pdf_writer(
+        optimised = optimize_pdf_writer(
             writer,
             reduce_size_enabled=reduce_size_enabled,
             compression_profile_key=compression_profile_key,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
         )
-        if status == "cancelled":
+        if optimised.was_cancelled:
             return False, "Operation cancelled by user."
-        if status != "success":
-            return False, error or "PDF optimization failed."
+        if not optimised.succeeded:
+            return False, optimised.error or "PDF optimization failed."
 
         with open(output_pdf_path, "wb") as target:
             writer.write(target)
@@ -1078,7 +1023,7 @@ def _run_tesseract_document_workflow(
     reduce_size_enabled: bool = True,
     compression_profile_key: str = DEFAULT_PROFILE_KEY,
     skip_ocr_page_indexes: Optional[set[int]] = None,
-) -> tuple[str, Optional[str]]:
+) -> Outcome:
     """
     Create a document PDF by OCRing each page image with Tesseract and then
     merging the resulting page PDFs into one searchable PDF.
@@ -1091,7 +1036,7 @@ def _run_tesseract_document_workflow(
         skip_ocr_indexes = {int(idx) for idx in (skip_ocr_page_indexes or set()) if int(idx) >= 0}
         for index, page in enumerate(input_pages, start=1):
             if should_cancel and should_cancel():
-                return "cancelled", "Operation cancelled by user."
+                return Outcome.abort()
 
             if progress_callback:
                 progress_callback(
@@ -1109,7 +1054,7 @@ def _run_tesseract_document_workflow(
                 page_index=index,
             )
             if image_error:
-                return "failed", image_error
+                return Outcome.fail(image_error)
 
             page_pdf = temp_dir_path / f"page_{index:04d}.pdf"
             page_zero_index = index - 1
@@ -1137,12 +1082,12 @@ def _run_tesseract_document_workflow(
                 )
             if not ok:
                 if should_cancel and should_cancel():
-                    return "cancelled", "Operation cancelled by user."
-                return "failed", f"{page['display_name']}: {error}"
+                    return Outcome.abort()
+                return Outcome.fail(f"{page['display_name']}: {error}")
             page_pdfs.append(page_pdf)
 
         if should_cancel and should_cancel():
-            return "cancelled", "Operation cancelled by user."
+            return Outcome.abort()
 
         ok, error = merge_page_pdfs(
             page_pdfs=page_pdfs,
@@ -1155,10 +1100,10 @@ def _run_tesseract_document_workflow(
         )
         if not ok:
             if should_cancel and should_cancel():
-                return "cancelled", "Operation cancelled by user."
-            return "failed", error
+                return Outcome.abort()
+            return Outcome.fail(error)
 
-    return "success", None
+    return Outcome.ok()
 
 
 def _build_document_metadata(
@@ -1210,9 +1155,14 @@ def ocr_document_to_pdf(
     options: Optional[OcrOptions] = None,
     progress_callback: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> dict:
+) -> Outcome:
     """
     OCR one ordered document file set into one searchable PDF.
+
+    A success carries the written path. `details` carries the readiness
+    assessment -- the page count, the average score, and which pages the quality
+    gate flagged -- together with whether PDF/A was actually used, which the
+    caller needs because PDF/A can be asked for and quietly not achieved.
     """
     options = options or OcrOptions()
     language = options.language
@@ -1228,42 +1178,23 @@ def ocr_document_to_pdf(
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not input_files:
-        return {
-            "status": "failed",
-            "output_path": output_pdf_path,
-            "error": "No input files provided.",
-            "details": None,
-        }
+        return Outcome.fail("No input files provided.")
 
     input_pages = _build_input_page_manifest(input_files)
     if not input_pages:
-        return {
-            "status": "failed",
-            "output_path": output_pdf_path,
-            "error": "No input pages found.",
-            "details": None,
-        }
+        return Outcome.fail("No input pages found.")
 
     if should_cancel and should_cancel():
-        return {
-            "status": "cancelled",
-            "output_path": output_pdf_path,
-            "error": "Operation cancelled by user.",
-            "details": None,
-        }
+        return Outcome.abort()
 
     if skip_existing and output_pdf_path.exists():
-        return {
-            "status": "skipped",
-            "output_path": output_pdf_path,
-            "error": "Output PDF already exists",
-            "details": {
-                "page_count": len(input_pages),
-                "average_score": 0.0,
-                "flagged_pages": [],
-                "should_skip": False,
-            },
-        }
+        return Outcome.skip(
+            "Output PDF already exists",
+            page_count=len(input_pages),
+            average_score=0.0,
+            flagged_pages=[],
+            should_skip=False,
+        )
 
     readiness = assess_document_ocr_readiness(
         input_files,
@@ -1271,12 +1202,7 @@ def ocr_document_to_pdf(
         should_cancel=should_cancel,
     )
     if readiness.get("cancelled"):
-        return {
-            "status": "cancelled",
-            "output_path": output_pdf_path,
-            "error": "Operation cancelled by user.",
-            "details": readiness,
-        }
+        return Outcome.abort(**readiness)
 
     flagged_page_indexes = set()
     if skip_messy:
@@ -1322,26 +1248,14 @@ def ocr_document_to_pdf(
 
     if used_pdfa:
         if should_cancel and should_cancel():
-            return {
-                "status": "cancelled",
-                "output_path": output_pdf_path,
-                "error": "Operation cancelled by user.",
-                "details": readiness,
-                "used_pdfa": used_pdfa,
-            }
+            return Outcome.abort(**readiness, used_pdfa=used_pdfa)
         with tempfile.TemporaryDirectory(prefix="dpa-ocr-") as temp_dir:
             temp_input_pdf = Path(temp_dir) / "input_document.pdf"
             success, error = build_input_pdf_from_images(input_files, temp_input_pdf)
             if not success:
-                return {
-                    "status": "failed",
-                    "output_path": output_pdf_path,
-                    "error": error,
-                    "details": readiness,
-                    "used_pdfa": used_pdfa,
-                }
+                return Outcome.fail(error, **readiness, used_pdfa=used_pdfa)
 
-            status, error = _run_ocrmypdf(
+            written = _run_ocrmypdf(
                 input_pdf_path=temp_input_pdf,
                 output_pdf_path=output_pdf_path,
                 language=language,
@@ -1350,7 +1264,7 @@ def ocr_document_to_pdf(
                 ocr_page_numbers=ocr_page_numbers if flagged_page_indexes else None,
             )
     else:
-        status, error = _run_tesseract_document_workflow(
+        written = _run_tesseract_document_workflow(
             input_files=input_files,
             output_pdf_path=output_pdf_path,
             language=language,
@@ -1363,12 +1277,11 @@ def ocr_document_to_pdf(
             skip_ocr_page_indexes=flagged_page_indexes if skip_messy else None,
         )
 
-    return {
-        "status": status,
-        "output_path": output_pdf_path,
-        "error": error,
-        "details": readiness,
-        "used_pdfa": used_pdfa,
-    }
+    details = {**readiness, "used_pdfa": used_pdfa}
+    if written.was_cancelled:
+        return Outcome.abort(**details)
+    if not written.succeeded:
+        return Outcome.fail(written.error or "OCR failed", **details)
+    return Outcome.ok(output_pdf_path, **details)
 
 

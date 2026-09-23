@@ -10,22 +10,47 @@ from __future__ import annotations
 
 import queue
 import threading
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Optional
 
 from utils.job_result import JobResult, write_error_report
 
 MAX_QUEUE_EVENTS = 500
 
 
+@dataclass(frozen=True)
+class Job:
+    """A running or finished job, and the folders it uses.
+
+    Recorded when the job starts, so the answers do not have to be pieced
+    together afterwards:
+
+    - `output_folder` is the only folder an undo may delete within, and
+      `input_folder` the one it must refuse. A job that names no output folder
+      cannot be undone, which is the safe default.
+    - `error_folder` is where the failure report is written, and where the
+      Open Errors button leads.
+    - `report_name` names the tool in that report.
+
+    A worker is expected to carry its outcome on a `results` attribute. One
+    that does not simply gets no report written.
+    """
+
+    worker: object
+    report_name: Optional[str] = None
+    input_folder: Optional[Path] = None
+    output_folder: Optional[Path] = None
+    error_folder: Optional[Path] = None
+
+
 def _idle_job() -> dict:
     return {
-        "worker": None,
+        "job": None,
         "state": "idle",
         "queues": [],
         "results": None,
         "data": {},
-        "report_name": None,
         # Set once the job reaches a terminal state and its results are
         # published. Joining the worker thread is not enough: the monitor
         # thread still has to record the outcome.
@@ -43,7 +68,10 @@ class JobRunner:
     def knows(self, tool_id: str) -> bool:
         return tool_id in self._jobs
 
-    # ── Job data (survives between prepare and start) ──────────────────────
+    # ── Prepare data (survives between prepare and start) ──────────────────
+    #
+    # A stash for that hand-off only. Once a job starts, what it is doing is a
+    # Job, not a dict of strings.
 
     def get_data(self, tool_id: str) -> dict:
         with self._lock:
@@ -53,11 +81,12 @@ class JobRunner:
         with self._lock:
             self._jobs[tool_id]["data"] = dict(data)
 
-    def update_data(self, tool_id: str, **updates) -> None:
+    # ── The job ───────────────────────────────────────────────────────────
+
+    def job(self, tool_id: str) -> Optional[Job]:
+        """The most recent job for this tool, or None if it has not run."""
         with self._lock:
-            merged = dict(self._jobs[tool_id]["data"])
-            merged.update(updates)
-            self._jobs[tool_id]["data"] = merged
+            return self._jobs[tool_id]["job"]
 
     # ── State ─────────────────────────────────────────────────────────────
 
@@ -104,11 +133,20 @@ class JobRunner:
 
     # ── Running ───────────────────────────────────────────────────────────
 
-    def start(self, tool_id: str, worker, report_name: Optional[str] = None) -> None:
+    def start(
+        self,
+        tool_id: str,
+        worker,
+        *,
+        report_name: Optional[str] = None,
+        input_folder: Optional[Path] = None,
+        output_folder: Optional[Path] = None,
+        error_folder: Optional[Path] = None,
+    ) -> None:
         """Wire callbacks, run the worker, and publish its events.
 
-        `report_name` names the tool in the error report written when the job
-        finishes with failures.
+        The folders are recorded as one Job. See that class for what each is
+        for.
         """
         worker.set_progress_callback(
             lambda progress: self._push(tool_id, {"type": "progress", **progress})
@@ -123,11 +161,16 @@ class JobRunner:
         )
 
         with self._lock:
-            self._jobs[tool_id]["worker"] = worker
+            self._jobs[tool_id]["job"] = Job(
+                worker=worker,
+                report_name=report_name,
+                input_folder=Path(input_folder) if input_folder else None,
+                output_folder=Path(output_folder) if output_folder else None,
+                error_folder=Path(error_folder) if error_folder else None,
+            )
             self._jobs[tool_id]["state"] = "running"
             self._jobs[tool_id]["results"] = None
             self._jobs[tool_id]["finished"] = threading.Event()
-            self._jobs[tool_id]["report_name"] = report_name
 
         worker.start()
         threading.Thread(
@@ -151,30 +194,19 @@ class JobRunner:
 
     def _write_error_report(self, tool_id: str, worker) -> None:
         """Leave a plain-text report beside the failed files, if any."""
-        result = getattr(worker, "results", None)
-        if not isinstance(result, JobResult):
+        job = self.job(tool_id)
+        if job is None or job.error_folder is None:
             return
-        with self._lock:
-            job = self._jobs[tool_id]
-            error_folder = job["data"].get("error_folder")
-            name = job.get("report_name") or tool_id
-        if error_folder:
-            write_error_report(result, Path(error_folder), name)
+        result = getattr(worker, "results", None)
+        if isinstance(result, JobResult):
+            write_error_report(result, job.error_folder, job.report_name or tool_id)
 
     def cancel(self, tool_id: str, force: bool = False) -> bool:
         """Ask the running worker to stop. Returns False if nothing is running."""
-        with self._lock:
-            worker = self._jobs[tool_id]["worker"]
-        if worker is None or not worker.is_alive():
+        job = self.job(tool_id)
+        if job is None or not job.worker.is_alive():
             return False
-        if force:
-            try:
-                worker.cancel(force=True)
-                return True
-            except TypeError:
-                # Workers without a two-stage cancel take no arguments.
-                pass
-        worker.cancel()
+        job.worker.cancel(force=force)
         return True
 
     def wait(self, tool_id: str, timeout: Optional[float] = None) -> bool:
@@ -184,8 +216,8 @@ class JobRunner:
         monitor has recorded the outcome, so the job can still read as running.
         """
         with self._lock:
-            job = self._jobs[tool_id]
-            worker, finished = job["worker"], job["finished"]
-        if worker is None:
+            entry = self._jobs[tool_id]
+            job, finished = entry["job"], entry["finished"]
+        if job is None:
             return True
         return finished.wait(timeout)

@@ -7,5 +7,7 @@ opencv-python>=4.8.0,<6
 numpy>=1.24.0,<3
 pypdf>=5.0.0,<7
 pypdfium2>=4.30.0,<6
+tifffile>=2024.1.30,<2027
+imagecodecs>=2024.1.1,<2028
 flask>=3.0.0,<4
 pywebview>=4.4.0,<7
