@@ -137,9 +137,7 @@ class CompressionOutputTests(unittest.TestCase):
 
 class WorkerCarriesTheChoiceTests(unittest.TestCase):
     def run_worker(self, root: Path, groups: dict, key: str):
-        worker = TiffMergeWorker(
-            root, root / "merged", root / "errored-files", groups, compression=key
-        )
+        worker = TiffMergeWorker(root, root / "merged", groups, compression=key)
         worker.set_progress_callback(lambda p: None)
         worker.set_status_callback(lambda m: None)
         worker.set_error_callback(lambda f, e: None)
@@ -167,7 +165,7 @@ class WorkerCarriesTheChoiceTests(unittest.TestCase):
 
     def test_the_default_is_used_when_nothing_is_asked_for(self):
         root = Path(tempfile.mkdtemp())
-        worker = TiffMergeWorker(root, root / "merged", root / "errors", {})
+        worker = TiffMergeWorker(root, root / "merged", {})
         self.assertEqual(worker.compression, compression.DEFAULT_COMPRESSION)
 
 

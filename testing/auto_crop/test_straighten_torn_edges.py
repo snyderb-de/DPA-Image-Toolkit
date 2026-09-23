@@ -202,7 +202,7 @@ class TornEdgeStraightenBatchTests(unittest.TestCase):
             for index, (name, depth, angle) in enumerate(self.PAGES):
                 save(skew(torn_page(depth, seed=index + 30), angle), root, name)
 
-            worker = StraightenWorker(root, root / "straightened", root / "errored-files")
+            worker = StraightenWorker(root, root / "straightened")
             worker.set_progress_callback(lambda p: None)
             worker.set_status_callback(lambda m: None)
             worker.set_error_callback(lambda f, e: None)

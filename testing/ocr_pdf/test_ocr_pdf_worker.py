@@ -39,9 +39,9 @@ def make_page(path: Path, text: str = "The quick brown fox") -> Path:
     return path
 
 
-def run_worker(folder: Path, output: Path, errors: Path, **kwargs):
+def run_worker(folder: Path, output: Path, **kwargs):
     worker = OcrPdfWorker(
-        input_folder=folder, output_folder=output, error_folder=errors,
+        input_folder=folder, output_folder=output,
         language="eng", save_pdfa=False, skip_messy=False,
         reduce_size_enabled=False, **kwargs,
     )
@@ -65,7 +65,7 @@ class OcrWorkerGateTests(unittest.TestCase):
 
             with patch("modules.ocr_pdf.core.check_ocr_dependencies",
                        return_value=(False, "Tesseract OCR was not found.", {})):
-                results, _ = run_worker(root, output, root / "errored-files")
+                results, _ = run_worker(root, output)
 
             self.assertEqual(results["success"], 0)
             self.assertEqual([e["file"] for e in results["errors"]], ["dependency"])
@@ -74,7 +74,7 @@ class OcrWorkerGateTests(unittest.TestCase):
     def test_an_empty_folder_produces_no_documents(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            results, _ = run_worker(root, root / "PDFs", root / "errored-files")
+            results, _ = run_worker(root, root / "PDFs")
 
             self.assertEqual(results["total"], 0)
             self.assertEqual(results["success"], 0)
@@ -86,8 +86,7 @@ class OcrWorkerGateTests(unittest.TestCase):
                 make_page(root / f"doc_{i:04d}.tif")
 
             worker = OcrPdfWorker(
-                input_folder=root, output_folder=root / "PDFs",
-                error_folder=root / "errored-files", language="eng",
+                input_folder=root, output_folder=root / "PDFs", language="eng",
                 save_pdfa=False, skip_messy=False, reduce_size_enabled=False,
             )
             worker.set_progress_callback(lambda p: None)
@@ -119,7 +118,7 @@ class OcrWorkerBatchTests(unittest.TestCase):
             make_page(root / "memo_0001.tif")
             output = root / "PDFs"
 
-            results, events = run_worker(root, output, root / "errored-files")
+            results, events = run_worker(root, output)
 
             self.assertEqual(results["total"], 2, "two groups expected")
             self.assertEqual(results["success"], 2)
@@ -137,7 +136,7 @@ class OcrWorkerBatchTests(unittest.TestCase):
             make_page(root / "report_0001.tif")
             make_page(root / "report_0002.tif")
 
-            results, _ = run_worker(root, root / "PDFs", root / "errored-files")
+            results, _ = run_worker(root, root / "PDFs")
 
             self.assertEqual(results["success"], 1)
             self.assertIn("OCR'd: 1", results["summary"])
@@ -148,11 +147,11 @@ class OcrWorkerBatchTests(unittest.TestCase):
             make_page(root / "doc_0001.tif")
             output = root / "PDFs"
 
-            first, _ = run_worker(root, output, root / "errored-files",
+            first, _ = run_worker(root, output,
                                   skip_existing=True)
             self.assertEqual(first["success"], 1)
 
-            second, _ = run_worker(root, output, root / "errored-files",
+            second, _ = run_worker(root, output,
                                    skip_existing=True)
             self.assertEqual(second["success"], 0)
             self.assertEqual(second["skipped"], 1)
@@ -165,7 +164,7 @@ class OcrWorkerBatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_page(root / "doc_0001.tif")
-            results, _ = run_worker(root, root / "PDFs", root / "errored-files")
+            results, _ = run_worker(root, root / "PDFs")
             json.dumps(results)
 
 

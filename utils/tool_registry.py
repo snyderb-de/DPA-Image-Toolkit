@@ -174,7 +174,7 @@ def _start_auto_crop(body: dict, data: dict) -> Started:
     output = _make_output(folder, "cropped")
     return Started(
         worker=AutoCropWorker(
-            folder, output, errors,
+            folder, output,
             straighten=bool(body.get("straighten", False)),
             white_threshold=_white_threshold(body),
         ),
@@ -190,7 +190,7 @@ def _start_straighten(_body: dict, data: dict) -> Started:
     errors = _make_error_folder(folder, "straighten")
     output = _make_output(folder, "straightened")
     return Started(
-        worker=StraightenWorker(folder, output, errors),
+        worker=StraightenWorker(folder, output),
         error_folder=errors,
         output_folder=output,
     )
@@ -241,7 +241,7 @@ def _start_merge_tiffs(body: dict, data: dict) -> Started:
     output = _make_output(folder, "merged")
     return Started(
         worker=TiffMergeWorker(
-            folder, output, errors, groups,
+            folder, output, groups,
             compression=str(body.get("compression") or MERGE_DEFAULT_COMPRESSION),
         ),
         error_folder=errors,
@@ -359,7 +359,6 @@ def _start_ocr_pdf(body: dict, data: dict) -> Started:
         worker=OcrPdfWorker(
             input_folder=folder,
             output_folder=output,
-            error_folder=errors,
             language="eng",
             skip_existing=bool(body.get("skip_existing", True)),
             save_pdfa=True,

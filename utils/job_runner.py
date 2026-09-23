@@ -167,14 +167,7 @@ class JobRunner:
             worker = self._jobs[tool_id]["worker"]
         if worker is None or not worker.is_alive():
             return False
-        if force:
-            try:
-                worker.cancel(force=True)
-                return True
-            except TypeError:
-                # Workers without a two-stage cancel take no arguments.
-                pass
-        worker.cancel()
+        worker.cancel(force=force)
         return True
 
     def wait(self, tool_id: str, timeout: Optional[float] = None) -> bool:

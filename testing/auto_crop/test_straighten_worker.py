@@ -55,7 +55,7 @@ def stage_fixtures(root: Path) -> list[Path]:
 
 
 def run_worker(folder: Path, on_progress=None):
-    worker = StraightenWorker(folder, folder / "straightened", folder / "errored-files")
+    worker = StraightenWorker(folder, folder / "straightened")
     worker.set_progress_callback(on_progress or (lambda p: None))
     worker.set_status_callback(lambda m: None)
     worker.set_error_callback(lambda f, e: None)
@@ -136,9 +136,7 @@ class StraightenBatchTests(unittest.TestCase):
             root = Path(temp_dir)
             stage_fixtures(root)
 
-            worker = StraightenWorker(
-                root, root / "straightened", root / "errored-files"
-            )
+            worker = StraightenWorker(root, root / "straightened")
             # Cancel deterministically once the third page starts.
             worker.set_progress_callback(
                 lambda p: worker.cancel() if p["current"] == 3 else None

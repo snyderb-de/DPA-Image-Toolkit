@@ -33,6 +33,7 @@ class OperationWorker(threading.Thread):
         """
         super().__init__(daemon=True, name=name)
         self.cancelled = False
+        self.force_cancel_requested = False
         self.progress_callback: Optional[Callable] = None
         self.status_callback: Optional[Callable] = None
         self.error_callback: Optional[Callable] = None
@@ -49,9 +50,20 @@ class OperationWorker(threading.Thread):
         """Set callback for error notifications."""
         self.error_callback = callback
 
-    def cancel(self):
-        """Request cancellation."""
+    def cancel(self, force: bool = False):
+        """
+        Request cancellation.
+
+        The first request is graceful: the worker stops at the next item
+        boundary and keeps what it has already written. A force request also
+        sets `force_cancel_requested`, which a worker that can stop part way
+        through one item passes to the module doing the work. A worker with
+        nothing to interrupt mid-item simply never reads it, so force is
+        always safe to send.
+        """
         self.cancelled = True
+        if force:
+            self.force_cancel_requested = True
 
     def update_progress(self, current: int, total: int, filename: str = ""):
         """
@@ -100,7 +112,6 @@ class AutoCropWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
         straighten: bool = False,
         white_threshold: int = DEFAULT_WHITE_THRESHOLD,
     ):
@@ -110,13 +121,11 @@ class AutoCropWorker(OperationWorker):
         Args:
             input_folder (Path): Folder with images to crop
             output_folder (Path): Folder for cropped images
-            error_folder (Path): Folder for failed images
         """
         super().__init__(name="AutoCropWorker")
 
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.straighten = straighten
         # Ceiling on what counts as background. crop_image may choose a lower
         # value for a given page; it never goes above this.
@@ -172,12 +181,10 @@ class StraightenWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
     ):
         super().__init__(name="StraightenWorker")
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.results = JobResult(verb="Straightened", extra={"angles": []})
 
     def _straighten_one(self, image_file: Path) -> ItemOutcome:
@@ -224,7 +231,6 @@ class TiffMergeWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
         groups: dict,
         compression: str = MERGE_DEFAULT_COMPRESSION,
     ):
@@ -234,19 +240,16 @@ class TiffMergeWorker(OperationWorker):
         Args:
             input_folder (Path): Folder with TIFF files
             output_folder (Path): Folder for merged TIFFs
-            error_folder (Path): Folder for failed files
             groups (dict): Groups detected by naming validation
         """
         super().__init__(name="TiffMergeWorker")
 
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.groups = groups
         self.compression = compression
 
         self.results = JobResult(verb="Merged")
-        self.force_cancel_requested = False
 
     def _merge_one(self, group_name: str) -> GroupOutcome:
         """Merge one TIFF group."""
@@ -273,17 +276,6 @@ class TiffMergeWorker(OperationWorker):
             (error.get("file", group_name), error.get("error", "Unknown error"))
             for error in errors
         )
-
-    def cancel(self, force: bool = False):
-        """
-        Request cancellation.
-
-        First request stops scheduling new groups and lets active merges finish.
-        A force request attempts to stop active merges mid-group.
-        """
-        self.cancelled = True
-        if force:
-            self.force_cancel_requested = True
 
     def run(self):
         """Execute TIFF merge operation."""
@@ -327,18 +319,6 @@ class TiffSplitWorker(OperationWorker):
         self.compression = compression
         verb = "Split" if operation == "split" else "Extracted"
         self.results = JobResult(verb=verb, total=len(self.input_files))
-        self.force_cancel_requested = False
-
-    def cancel(self, force: bool = False):
-        """
-        Request cancellation.
-
-        First request stops after the current TIFF file.
-        A force request attempts to stop mid-file.
-        """
-        self.cancelled = True
-        if force:
-            self.force_cancel_requested = True
 
     def _select_pages_one(self, file_path: Path) -> ItemOutcome:
         """Write the chosen pages of one source into a single document."""
@@ -452,7 +432,6 @@ class OcrPdfWorker(OperationWorker):
         self,
         input_folder: Path,
         output_folder: Path,
-        error_folder: Path,
         language: str = "eng",
         skip_existing: bool = True,
         save_pdfa: bool = True,
@@ -466,7 +445,6 @@ class OcrPdfWorker(OperationWorker):
         super().__init__(name="OcrPdfWorker")
         self.input_folder = Path(input_folder)
         self.output_folder = Path(output_folder)
-        self.error_folder = Path(error_folder)
         self.language = language
         self.skip_existing = skip_existing
         self.save_pdfa = save_pdfa
@@ -478,19 +456,7 @@ class OcrPdfWorker(OperationWorker):
         # When set, only these documents are processed. Used to re-run the
         # documents a previous job flagged, without redoing the whole folder.
         self.only_documents = set(only_documents) if only_documents else None
-        self.force_cancel_requested = False
         self.results = JobResult(verb="OCR'd", extra={"total_pages": 0, "flagged_documents": []})
-
-    def cancel(self, force: bool = False):
-        """
-        Request cancellation.
-
-        First request performs a graceful stop after the current document.
-        A force request attempts to stop mid-document.
-        """
-        self.cancelled = True
-        if force:
-            self.force_cancel_requested = True
 
     def _ocr_options(self):
         """The OCR settings for this run, as one value."""

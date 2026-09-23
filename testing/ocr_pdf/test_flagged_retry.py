@@ -52,7 +52,6 @@ def run(folder: Path, **kwargs):
     worker = OcrPdfWorker(
         input_folder=folder,
         output_folder=folder / "PDFs",
-        error_folder=folder / "errored-files",
         language="eng", save_pdfa=False, reduce_size_enabled=False,
         **kwargs,
     )

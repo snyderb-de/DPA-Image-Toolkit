@@ -21,12 +21,11 @@ from utils.job_runner import JobRunner
 class FakeWorker(threading.Thread):
     """Stands in for an OperationWorker without touching any image library."""
 
-    def __init__(self, emit_error=False, accepts_force=False):
+    def __init__(self, emit_error=False):
         super().__init__(daemon=True)
         self.cancelled = False
         self.force_cancelled = False
         self.emit_error = emit_error
-        self.accepts_force = accepts_force
         self.release = threading.Event()
         self.started = threading.Event()
         self.progress_callback = None
@@ -42,13 +41,11 @@ class FakeWorker(threading.Thread):
     def set_error_callback(self, callback):
         self.error_callback = callback
 
-    def cancel(self, *args, **kwargs):
-        """Real workers differ: some accept force=True, some take no arguments."""
-        if args or kwargs.get("force"):
-            if not self.accepts_force:
-                raise TypeError("cancel() takes 1 positional argument but 2 were given")
-            self.force_cancelled = True
+    def cancel(self, force: bool = False):
+        """Matches OperationWorker.cancel: every worker accepts force."""
         self.cancelled = True
+        if force:
+            self.force_cancelled = True
         self.release.set()
 
     def run(self):
@@ -138,19 +135,18 @@ class JobRunnerTests(unittest.TestCase):
         self.runner.wait("auto_crop", timeout=5)
         self.assertTrue(worker.cancelled)
 
-    def test_force_cancel_falls_back_when_worker_takes_no_force(self):
-        """Not every worker has a two-stage cancel; force must not raise."""
-        worker = FakeWorker(accepts_force=False)
+    def test_a_graceful_cancel_does_not_force(self):
+        worker = FakeWorker()
         self.runner.start("auto_crop", worker)
         self.assertTrue(worker.started.wait(timeout=5))
 
-        self.assertTrue(self.runner.cancel("auto_crop", force=True))
+        self.assertTrue(self.runner.cancel("auto_crop"))
         self.runner.wait("auto_crop", timeout=5)
         self.assertTrue(worker.cancelled)
         self.assertFalse(worker.force_cancelled)
 
-    def test_force_cancel_reaches_workers_that_support_it(self):
-        worker = FakeWorker(accepts_force=True)
+    def test_force_cancel_reaches_the_worker(self):
+        worker = FakeWorker()
         self.runner.start("auto_crop", worker)
         self.assertTrue(worker.started.wait(timeout=5))
 

@@ -124,9 +124,7 @@ class WorkerCarriesTheThresholdTests(unittest.TestCase):
             for i in range(1, 4):
                 faint_margin_page(root / f"p_{i:04d}.tif")
 
-            worker = AutoCropWorker(
-                root, root / "cropped", root / "errored-files", white_threshold=200
-            )
+            worker = AutoCropWorker(root, root / "cropped", white_threshold=200)
             worker.set_progress_callback(lambda p: None)
             worker.set_status_callback(lambda m: None)
             worker.set_error_callback(lambda f, e: None)
@@ -142,7 +140,7 @@ class WorkerCarriesTheThresholdTests(unittest.TestCase):
     def test_the_default_matches_the_core(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            worker = AutoCropWorker(root, root / "cropped", root / "errors")
+            worker = AutoCropWorker(root, root / "cropped")
             self.assertEqual(worker.white_threshold, DEFAULT_WHITE_THRESHOLD)
 
 

@@ -235,7 +235,7 @@ class AutoCropCoreTests(unittest.TestCase):
             error_dir = root / "errored-files"
             source_path.write_bytes(b"not an image")
 
-            worker = AutoCropWorker(root, output_dir, error_dir)
+            worker = AutoCropWorker(root, output_dir)
             # crop_image returns (output_path, error_message, status). Returning
             # a shorter tuple here would raise inside the worker and be recorded
             # as a failure by the batch loop's exception guard, so the test would
