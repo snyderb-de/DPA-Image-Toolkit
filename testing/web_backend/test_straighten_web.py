@@ -16,7 +16,7 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from web.app import app
+from web.app import _request_token, app
 
 
 def _make_skewed_document(path: Path):
@@ -45,6 +45,7 @@ def _make_skewed_document(path: Path):
 class StraightenWebTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+        self.client.environ_base["HTTP_X_DPA_REQUEST_TOKEN"] = _request_token
         self.client.post("/api/straighten_images/reset", json={})
 
     def tearDown(self):

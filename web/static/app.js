@@ -3,6 +3,15 @@
 // ── State ─────────────────────────────────────────────────────────────────
 
 const TOOLS = ['auto_crop', 'straighten_images', 'merge_tiffs', 'split_tiffs', 'add_border', 'ocr_pdf', 'pdf_conversion'];
+const REQUEST_TOKEN = (() => {
+  const supplied = new URLSearchParams(window.location.hash.slice(1)).get('request_token');
+  try {
+    if (supplied) sessionStorage.setItem('dpa-request-token', supplied);
+    return supplied || sessionStorage.getItem('dpa-request-token') || '';
+  } catch (_) {
+    return supplied || '';
+  }
+})();
 
 const state = {};
 TOOLS.forEach(id => {
@@ -60,7 +69,7 @@ function applyTheme(t, save) {
     fetch('/api/settings', {
       method: 'POST',
       body: JSON.stringify({ appearance_mode: t }),
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-DPA-Request-Token': REQUEST_TOKEN },
     });
   }
 }
@@ -687,7 +696,7 @@ async function api(url, body) {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-DPA-Request-Token': REQUEST_TOKEN },
       body: JSON.stringify(body || {}),
     });
     return res.json();

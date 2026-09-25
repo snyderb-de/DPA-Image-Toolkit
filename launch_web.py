@@ -20,6 +20,13 @@ from pathlib import Path
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
+from web.request_token import REQUEST_TOKEN
+
+
+def browser_url(port: int) -> str:
+    """Deliver the API capability through a URL fragment, not an HTTP response."""
+    return f"http://127.0.0.1:{port}/#request_token={REQUEST_TOKEN}"
+
 
 def find_free_port(start: int = 5001, end: int = 5099) -> int:
     for port in range(start, end):
@@ -57,19 +64,20 @@ def main() -> None:
     args = parser.parse_args()
 
     port = args.port if args.port else find_free_port()
-    url  = f"http://127.0.0.1:{port}"
+    base_url = f"http://127.0.0.1:{port}"
+    url = browser_url(port)
 
     # Start Flask in background thread
     flask_thread = threading.Thread(target=start_flask, args=(port,), daemon=True)
     flask_thread.start()
 
-    print(f"Starting DPA Image Toolkit on {url} …", flush=True)
+    print(f"Starting DPA Image Toolkit on {base_url} …", flush=True)
 
     if not wait_for_flask(port):
         print("ERROR: Flask did not start in time.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Ready — opening {url}", flush=True)
+    print(f"Ready — opening {base_url}", flush=True)
 
     if args.browser:
         webbrowser.open(url)

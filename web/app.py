@@ -8,6 +8,7 @@ Progress is streamed to the browser via Server-Sent Events (SSE).
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import queue
 import subprocess
@@ -35,6 +36,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from utils import app_settings, app_version, update_checker
+from web.request_token import REQUEST_TOKEN
 from modules.pdf_tools.compression_profiles import (
     DEFAULT_PROFILE_KEY,
     get_profile_key_from_label,
@@ -60,6 +62,24 @@ _lock = threading.Lock()
 runner = JobRunner(TOOL_IDS)
 
 app = Flask(__name__, template_folder=str(_web_dir / "templates"), static_folder=str(_web_dir / "static"))
+_request_token = REQUEST_TOKEN
+
+
+@app.before_request
+def _authorize_local_request():
+    # Reject hostile DNS names that resolve to loopback before serving the token.
+    if request.host.split(":", 1)[0].lower() not in {"127.0.0.1", "localhost"}:
+        return jsonify({"ok": False, "error": "Invalid host"}), 403
+    if request.method != "POST" or not request.path.startswith("/api/"):
+        return None
+    if request.headers.get("Origin") not in (None, request.host_url.rstrip("/")):
+        return jsonify({"ok": False, "error": "Invalid origin"}), 403
+    supplied = request.headers.get("X-DPA-Request-Token", "")
+    if not hmac.compare_digest(supplied, _request_token):
+        return jsonify({"ok": False, "error": "Invalid request token"}), 403
+    if not request.is_json:
+        return jsonify({"ok": False, "error": "JSON request required"}), 415
+    return None
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────
@@ -157,7 +177,11 @@ def _pick_files(title: str, filetypes: list, initial_dir: str | None = None) -> 
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    response = app.make_response(render_template("index.html"))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
 
 
 @app.route("/manual")
@@ -205,7 +229,9 @@ def post_update_settings():
 def check_updates():
     body = request.get_json(force=True) or {}
     source_path = str(body.get(UPDATE_SOURCE_KEY) or "").strip() or _update_source_from_settings()
-    result = update_checker.check_for_update(source_path)
+    result = update_checker.check_for_update(
+        source_path, trusted_executable=_current_executable_path()
+    )
     prepared = update_checker.StagedUpdate.from_check_result(
         result, _current_executable_path()
     )

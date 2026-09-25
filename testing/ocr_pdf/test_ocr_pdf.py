@@ -104,6 +104,67 @@ class OcrPdfCoreTests(unittest.TestCase):
             self.assertTrue(documents[2]["is_grouped"])
             self.assertFalse(documents[3]["is_grouped"])
 
+    def test_same_stem_standalone_images_fail_before_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _make_image(root / "scan.jpg", size=(20, 20))
+            _make_image(root / "scan.png", size=(20, 20))
+            with self.assertRaisesRegex(ValueError, "same PDF"):
+                group_ocr_input_files(root)
+
+    def test_oversized_page_is_rejected_before_ocr(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "scan.png"
+            _make_image(source, size=(10, 10))
+            with patch("utils.image_limits.MAX_PAGE_PIXELS", 50):
+                result = ocr_document_to_pdf(
+                    [source], root / "scan.pdf", "scan",
+                    options=OcrOptions(save_pdfa=False),
+                )
+            self.assertEqual(result["status"], "failed")
+            self.assertIn("pixel processing limit", result["error"])
+            self.assertFalse((root / "scan.pdf").exists())
+
+    def test_cumulative_page_budget_rejects_pdf_build(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first, second = root / "a.png", root / "b.png"
+            _make_image(first, size=(10, 10))
+            _make_image(second, size=(10, 10))
+            with patch("modules.ocr_pdf.core.MAX_DOCUMENT_PIXELS", 150):
+                success, error = build_input_pdf_from_images([first, second], root / "out.pdf")
+            self.assertFalse(success)
+            self.assertIn("Document exceeds", error)
+            self.assertFalse((root / "out.pdf").exists())
+
+    def test_pdf_builder_rechecks_changed_page_before_retaining_it(self):
+        from modules.ocr_pdf import core as ocr_core
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first, second = root / "a.png", root / "b.png"
+            _make_image(first, size=(10, 10))
+            _make_image(second, size=(10, 10))
+            original_loader = ocr_core._load_manifest_page_rgb
+
+            def replace_second_after_manifest(page, remaining_pixels):
+                if page["source_path"] == first:
+                    _make_image(second, size=(20, 20))
+                return original_loader(page, remaining_pixels)
+
+            with patch("modules.ocr_pdf.core.MAX_DOCUMENT_PIXELS", 300):
+                with patch(
+                    "modules.ocr_pdf.core._load_manifest_page_rgb",
+                    side_effect=replace_second_after_manifest,
+                ):
+                    success, error = build_input_pdf_from_images(
+                        [first, second], root / "out.pdf"
+                    )
+            self.assertFalse(success)
+            self.assertIn("Document exceeds", error)
+            self.assertFalse((root / "out.pdf").exists())
+
     def test_assess_ocr_readiness_marks_blank_pages_as_skip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             image_path = Path(temp_dir) / "blank.png"

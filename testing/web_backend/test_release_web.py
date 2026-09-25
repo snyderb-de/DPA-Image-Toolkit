@@ -16,12 +16,58 @@ if str(APP_ROOT) not in sys.path:
 
 from utils.tool_registry import get_spec
 from utils.update_checker import StagedUpdate
-from web.app import _lock, app, runner
+from web.app import _lock, _request_token, app, runner
 
 
 class WebReleaseTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+        self.client.environ_base["HTTP_X_DPA_REQUEST_TOKEN"] = _request_token
+
+    def test_api_rejects_cross_origin_and_tokenless_posts(self):
+        unauthenticated = app.test_client()
+        for headers, content_type in (
+            ({}, "text/plain"),
+            ({"Origin": "https://evil.example"}, "text/plain"),
+            ({"X-DPA-Request-Token": "wrong"}, "application/json"),
+        ):
+            response = unauthenticated.post(
+                "/api/settings", data='{"appearance_mode":"light"}',
+                headers=headers, content_type=content_type,
+            )
+            self.assertEqual(response.status_code, 403)
+
+        response = self.client.post(
+            "/api/settings", data='{"appearance_mode":"light"}',
+            content_type="text/plain",
+        )
+        self.assertEqual(response.status_code, 415)
+        response = self.client.get("/", headers={"Host": "evil.example"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_page_does_not_disclose_request_token_to_local_http_clients(self):
+        from launch_web import REQUEST_TOKEN as launcher_token, browser_url
+
+        self.assertEqual(launcher_token, _request_token)
+        self.assertEqual(
+            browser_url(5012), f"http://127.0.0.1:5012/#request_token={_request_token}"
+        )
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(_request_token, response.get_data(as_text=True))
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+
+    def test_same_origin_token_allows_json_posts(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.dict(os.environ, {
+                "DPA_IMAGE_TOOLKIT_SETTINGS": str(Path(temp_dir) / "settings.json")
+            }):
+                response = self.client.post(
+                    "/api/settings", json={"appearance_mode": "light"},
+                    headers={"Origin": "http://localhost"},
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
 
     def test_dependency_endpoints_cover_ocr_and_pdf_tools(self):
         for tool_id in ("ocr_pdf", "pdf_conversion"):
@@ -150,7 +196,7 @@ class WebReleaseTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.get_json()["ok"])
-            checker.assert_called_once_with(update_path)
+            checker.assert_called_once_with(update_path, trusted_executable=None)
 
     def test_update_apply_api_uses_prepared_staged_update(self):
         with patch("web.app.update_checker.apply_staged_update", return_value=None) as applier:

@@ -44,8 +44,11 @@ def split_tiff_file(
                     "reason": "single-page TIFF",
                 }
 
+            # Include the source extension so every accepted source has its
+            # own destination, even if the input folder changes during a batch.
+            output_stem = file_path.name
             if output_folder is None:
-                output_folder = file_path.parent / f"{file_path.stem}_pages"
+                output_folder = file_path.parent / f"{output_stem}_pages"
 
             output_folder = Path(output_folder)
             output_folder.mkdir(parents=True, exist_ok=True)
@@ -64,7 +67,7 @@ def split_tiff_file(
                 frame = img.copy()
                 dpi = preserve_dpi(img, file_path)
 
-                output_path = output_folder / f"{file_path.stem}_{page_index + 1:03d}.tif"
+                output_path = output_folder / f"{output_stem}_{page_index + 1:03d}.tif"
                 save_kwargs = {
                     "compression": "tiff_deflate",
                 }

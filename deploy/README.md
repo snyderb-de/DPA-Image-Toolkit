@@ -44,11 +44,13 @@ X:\Apps
 Z:\Apps\image-toolkit.exe
 ```
 
-Release builds stamp the EXE with Windows version metadata from the Git tag.
-The app compares the candidate EXE's `ProductVersion` or `FileVersion` against
-the running EXE. It stages the newer EXE locally and verifies the staged
-SHA-256 before restart. Signing can happen after download; the version metadata
-remains the update signal.
+Tag releases must be Authenticode signed after version stamping. Configure
+`DPA_SIGNING_PFX_BASE64` and `DPA_SIGNING_PFX_PASSWORD` as GitHub Actions
+secrets before pushing a release tag. The updater requires a valid signature
+from the same certificate as the installed EXE, rechecks the staged bytes
+before replacement, and uses SHA-256 to detect staging changes. An unsigned
+installation or a signing-certificate rotation requires a manual install of
+the new signed EXE.
 
 ## Data Safety Rule
 

@@ -19,6 +19,8 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+from utils import image_limits
+
 
 # Default parameters
 DEFAULT_MIN_SIZE = (50, 50)
@@ -34,6 +36,14 @@ DEFAULT_PADDING_PERCENT = 0.025
 DEFAULT_PADDING_MIN = 15
 DEFAULT_PADDING_MAX = 100
 DEFAULT_DOMINANT_CONTOUR_RATIO = 0.10
+
+
+def _decode_checked_image(path: Path):
+    encoded, dpi = image_limits.read_checked_image_file(path)
+    image = cv2.imdecode(np.frombuffer(encoded, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if image is not None and image.shape[0] * image.shape[1] > image_limits.MAX_PAGE_PIXELS:
+        raise ValueError(f"Decoded image exceeds the processing pixel limit: {path}")
+    return image, dpi
 
 
 def _get_meaningful_contours(contours, min_size, max_contours):
@@ -161,16 +171,9 @@ def straighten_image(
     output_folder = Path(output_folder)
 
     try:
-        image = cv2.imread(str(image_path))
+        image, dpi_metadata = _decode_checked_image(image_path)
         if image is None:
             return None, f"Failed to read image: {image_path.name}", {}
-
-        dpi_metadata = None
-        try:
-            with Image.open(image_path) as pil_image:
-                dpi_metadata = pil_image.info.get("dpi")
-        except Exception:
-            pass
 
         corrected_image, angle = _deskew_image(image)
 
@@ -226,19 +229,10 @@ def crop_image(
     output_folder = Path(output_folder)
 
     try:
-        # Read image
-        image = cv2.imread(str(image_path))
+        # Validate and decode the same bytes so a changed source cannot bypass the limit.
+        image, dpi_metadata = _decode_checked_image(image_path)
         if image is None:
             return None, f"Failed to read image: {image_path.name}", CROP_FAILED
-
-        # Extract DPI metadata using Pillow
-        dpi_metadata = None
-        try:
-            pil_image = Image.open(image_path)
-            dpi_metadata = pil_image.info.get('dpi')
-            pil_image.close()
-        except Exception:
-            pass  # DPI extraction failed, continue without it
 
         if straighten:
             image, _skew_angle = _deskew_image(image)
@@ -338,7 +332,7 @@ def get_crop_stats(image_path):
     image_path = Path(image_path)
 
     try:
-        image = cv2.imread(str(image_path))
+        image, _dpi = _decode_checked_image(image_path)
         if image is None:
             return {"success": False, "error": "Failed to read image"}
 

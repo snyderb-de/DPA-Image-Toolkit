@@ -61,6 +61,8 @@ Extracts each page of a multi-page TIFF into its own single-page TIFF.
 - File mode output: sibling `<original_name>_pages/`
 - Folder mode output: `selected_folder/extracted-pages/`
 - Single-page TIFFs are skipped
+- Page names include the full source filename, such as
+  `scan.tif_001.tif`, so same-stem `.tif` and `.tiff` files remain separate.
 
 ### Add Border
 
@@ -82,6 +84,12 @@ Converts a folder of scan images into searchable PDFs by grouping files that sha
   - skip existing output PDF
   - when quality precheck is enabled, flagged pages stay in the output PDF but are included without OCR text
   - valid single files are still processed as one-page PDFs
+- Distinct documents that would write the same PDF name are rejected before
+  processing.
+- Each page is limited to 40 million decoded pixels; one OCR document is
+  limited to 300 pages and 80 million decoded pixels in total.
+- Crop and straighten inputs are limited to 40 million pixels and 128 MiB of
+  encoded image data, validated from the same bytes used for processing.
 
 ### PDF Conversion
 
@@ -210,11 +218,14 @@ X:\Apps
 Z:\Apps\image-toolkit.exe
 ```
 
-The checker only accepts a bundled `image-toolkit.exe` whose Windows
-metadata identifies `ProductName` as `DPA Image Toolkit` and whose
-`ProductVersion` or `FileVersion` is newer than the running app. Release builds
-stamp that metadata from the Git tag. When an update is available, the app
-stages a local copy and verifies the staged SHA-256 before restart.
+The checker requires a newer bundled `image-toolkit.exe` with matching
+product metadata and a valid Authenticode signature from the same certificate
+as the installed EXE. It checks the staged bytes and repeats signature and
+SHA-256 checks immediately before replacement. An unsigned installed EXE
+cannot update itself; install the first signed release manually. Tag releases
+require GitHub secrets `DPA_SIGNING_PFX_BASE64` and
+`DPA_SIGNING_PFX_PASSWORD`; certificate rotation requires a manual install
+of a release signed with the new certificate.
 
 ## Repo Layout
 

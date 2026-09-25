@@ -93,6 +93,46 @@ class AutoCropCoreTests(unittest.TestCase):
         self.assertGreaterEqual(len(list(self.single_object_dir.glob("*.jpg"))), 20)
         self.assertGreaterEqual(len(list(self.multi_object_dir.glob("*.jpg"))), 8)
 
+    def test_oversized_image_is_rejected_before_opencv_decode(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "large.png"
+            Image.new("RGB", (10, 10), "white").save(source)
+            with patch("utils.image_limits.MAX_PAGE_PIXELS", 50):
+                with patch("modules.auto_cropping.core.cv2.imdecode") as decoder:
+                    crop = crop_image(source, root / "cropped")
+                    straightened = straighten_image(source, root / "straightened")
+                    stats = get_crop_stats(source)
+            decoder.assert_not_called()
+            self.assertEqual(crop[2], CROP_FAILED)
+            self.assertIn("pixel processing limit", crop[1])
+            self.assertIsNone(straightened[0])
+            self.assertIn("pixel processing limit", straightened[1])
+            self.assertFalse(stats["success"])
+            self.assertIn("pixel processing limit", stats["error"])
+
+    def test_decode_uses_the_validated_bytes_after_path_changes(self):
+        from utils import image_limits
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "source.png"
+            Image.new("RGB", (10, 10), "white").save(source)
+            original_reader = image_limits.read_checked_image_file
+
+            def swap_after_read(path):
+                encoded, dpi = original_reader(path)
+                Image.new("RGB", (20, 20), "white").save(path)
+                return encoded, dpi
+
+            with patch("utils.image_limits.MAX_PAGE_PIXELS", 150):
+                with patch(
+                    "utils.image_limits.read_checked_image_file",
+                    side_effect=swap_after_read,
+                ):
+                    stats = get_crop_stats(source)
+            self.assertTrue(stats["success"])
+            self.assertEqual(stats["image_size"], (10, 10))
+
     def test_get_crop_stats_reports_ready_image(self):
         sample = self.single_object_dir / "test_01_rectangle_255_0_0.jpg"
         stats = get_crop_stats(sample)
