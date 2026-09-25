@@ -53,7 +53,7 @@ feed each other.
 - [ ] **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
 - [ ] **W3 · E1** — **OCR: manual override for quality-flagged pages** — a way to force OCR on scans the quality gate skipped. Today there is no way through except reprocessing outside the toolkit.
 - [ ] **W3 · E1** — **Drag-and-drop folder support** — every job starts with a folder pick today.
-- [ ] **W2 · E0** — **Configure release signing** — obtain a trusted code-signing certificate and set `DPA_SIGNING_PFX_BASE64` and `DPA_SIGNING_PFX_PASSWORD` before the next tag release. Unsigned installations need a manual first signed update.
+- [ ] **W2 · E0** — **Verify workplace-signed update rollout** — install the first signed EXE manually, then verify that a later EXE signed with the same certificate passes the Windows update check.
 - [ ] **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
 - [ ] **W3 · E2** — **TIFF Merge: memory-safe streaming** for very large batches (200+ pages), which currently have to be split up by hand.
 - [ ] **W3 · E2** — **Undo support** — move output back, restore originals. A wrong run means manual cleanup today.

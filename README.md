@@ -173,7 +173,7 @@ The guaranteed local path is Tesseract-based searchable PDF generation.
 
 ## EXE Release Build
 
-The supported deploy artifact is the PyInstaller Windows one-file EXE produced by GitHub Actions.
+The supported deploy artifact is the workplace-signed PyInstaller Windows one-file EXE built by GitHub Actions.
 
 Tag-based release flow:
 
@@ -182,11 +182,15 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-The release workflow uploads one file:
+The release workflow uploads one unsigned build file for workplace signing:
 
 ```text
 image-toolkit.exe
 ```
+
+Sign this EXE at work after version stamping and before distributing it or
+placing it on the configured update share. The GitHub release asset is the
+unsigned input to that signing step, not the deployable update.
 
 The release should not include a required `_internal/` folder. If it does, that
 build used PyInstaller `onedir` mode instead of the supported one-file release
@@ -222,10 +226,10 @@ The checker requires a newer bundled `image-toolkit.exe` with matching
 product metadata and a valid Authenticode signature from the same certificate
 as the installed EXE. It checks the staged bytes and repeats signature and
 SHA-256 checks immediately before replacement. An unsigned installed EXE
-cannot update itself; install the first signed release manually. Tag releases
-require GitHub secrets `DPA_SIGNING_PFX_BASE64` and
-`DPA_SIGNING_PFX_PASSWORD`; certificate rotation requires a manual install
-of a release signed with the new certificate.
+cannot update itself; install the first workplace-signed release manually.
+Sign subsequent updates with the same certificate as the installed EXE.
+Certificate rotation also requires a manual install of a release signed with
+the new certificate. GitHub Actions needs no signing credentials.
 
 ## Repo Layout
 

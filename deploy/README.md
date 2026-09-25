@@ -1,9 +1,9 @@
 # EXE Deployment
 
-The supported deploy artifact is the PyInstaller Windows one-file EXE produced by the
-`Release` GitHub Actions workflow.
+The `Release` GitHub Actions workflow produces an unsigned PyInstaller Windows
+one-file EXE. The supported deploy artifact is that EXE after workplace signing.
 
-Use the EXE release for normal deployment:
+Use the workplace-signed EXE for normal deployment:
 
 ```text
 image-toolkit.exe
@@ -44,11 +44,11 @@ X:\Apps
 Z:\Apps\image-toolkit.exe
 ```
 
-Tag releases must be Authenticode signed after version stamping. Configure
-`DPA_SIGNING_PFX_BASE64` and `DPA_SIGNING_PFX_PASSWORD` as GitHub Actions
-secrets before pushing a release tag. The updater requires a valid signature
-from the same certificate as the installed EXE, rechecks the staged bytes
-before replacement, and uses SHA-256 to detect staging changes. An unsigned
+Sign the GitHub Actions EXE at work after its version metadata is stamped
+and before deployment to the update share. No signing key or password is
+needed in GitHub Actions. The updater requires a valid signature from the same
+certificate as the installed EXE, rechecks the staged bytes before
+replacement, and uses SHA-256 to detect staging changes. An unsigned
 installation or a signing-certificate rotation requires a manual install of
 the new signed EXE.
 
