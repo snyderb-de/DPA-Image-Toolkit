@@ -16,6 +16,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from utils.tool_registry import get_spec
+from utils.job_result import JobResult
 from utils.update_checker import StagedUpdate
 from web.app import _lock, app, runner
 
@@ -27,6 +28,9 @@ class _NoopWorker(threading.Thread):
         super().__init__(daemon=True)
         self.cancelled = False
         self.outputs = [str(path) for path in outputs]
+        self.results = JobResult()
+        for path in self.outputs:
+            self.results.record_success(path)
 
     def set_progress_callback(self, callback):
         pass
@@ -41,7 +45,7 @@ class _NoopWorker(threading.Thread):
         self.cancelled = True
 
     def get_results(self):
-        return {"success": len(self.outputs), "failed": 0, "outputs": self.outputs}
+        return self.results.to_dict()
 
 
 class WebReleaseTests(unittest.TestCase):
@@ -150,6 +154,32 @@ class WebReleaseTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertIn("cannot be undone", payload["error"])
             self.assertTrue(stray.exists())
+        runner.reset("auto_crop")
+
+    def test_undo_refuses_modified_outputs_and_consumes_deleted_records(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output = root / "cropped"
+            output.mkdir()
+            written = output / "page.tif"
+            written.write_bytes(b"job output")
+            runner.reset("auto_crop")
+            runner.start("auto_crop", _NoopWorker([written]), input_folder=root, output_folder=output)
+            self.assertTrue(runner.wait("auto_crop", timeout=5))
+            written.write_bytes(b"corrected output")
+            payload = self.client.post("/api/auto_crop/undo", json={}).get_json()
+            self.assertFalse(payload["ok"])
+            self.assertEqual(written.read_bytes(), b"corrected output")
+
+            runner.reset("auto_crop")
+            runner.start("auto_crop", _NoopWorker([written]), input_folder=root, output_folder=output)
+            self.assertTrue(runner.wait("auto_crop", timeout=5))
+            self.assertTrue(self.client.post("/api/auto_crop/undo", json={}).get_json()["ok"])
+            output.mkdir(exist_ok=True)
+            written.write_bytes(b"new file after undo")
+            payload = self.client.post("/api/auto_crop/undo", json={}).get_json()
+            self.assertFalse(payload["ok"])
+            self.assertEqual(written.read_bytes(), b"new file after undo")
         runner.reset("auto_crop")
 
     def test_settings_api_writes_to_user_appdata(self):

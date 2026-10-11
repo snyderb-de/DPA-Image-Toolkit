@@ -48,7 +48,7 @@ from modules.pdf_tools.core import (
     get_pdfa_profile_label,
     get_pdfa_profile_labels,
 )
-from utils import recent_folders, undo
+from utils import recent_folders
 from utils.job_runner import JobRunner
 from utils.tool_registry import TOOL_IDS, ToolError, get_spec
 
@@ -408,26 +408,10 @@ def tool_undo(tool_id):
     if not runner.knows(tool_id):
         return jsonify({"ok": False, "error": "Unknown tool"}), 404
 
-    state = runner.state(tool_id)
-    if state["state"] == "running":
-        return jsonify({"ok": False, "error": "The job is still running."})
-
-    job = runner.job(tool_id)
-    if job is None or job.output_folder is None:
-        return jsonify({
-            "ok": False,
-            "error": "This job did not record a single output folder, so it cannot be undone.",
-        })
-
-    outputs = (state["results"] or {}).get("outputs") or []
-    if not outputs:
-        return jsonify({"ok": False, "error": "This job wrote nothing to undo."})
-
-    report = undo.undo_outputs(
-        outputs,
-        output_root=job.output_folder,
-        input_folder=job.input_folder,
-    )
+    try:
+        report = runner.undo(tool_id)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)})
     payload = report.to_dict()
     payload["ok"] = report.ok
     if not report.ok:

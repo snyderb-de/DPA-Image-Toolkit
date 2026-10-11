@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from utils.job_result import JobResult, write_error_report
+from utils.undo import undo_outputs
 
 MAX_QUEUE_EVENTS = 500
 
@@ -50,6 +51,8 @@ def _idle_job() -> dict:
         "state": "idle",
         "queues": [],
         "results": None,
+        "undo_paths": [],
+        "undo_identities": {},
         "data": {},
         # Set once the job reaches a terminal state and its results are
         # published. Joining the worker thread is not enough: the monitor
@@ -106,6 +109,27 @@ class JobRunner:
                 return False
             self._jobs[tool_id] = _idle_job()
             return True
+
+    def undo(self, tool_id: str):
+        """Serialize undo with lifecycle changes, and consume removed records."""
+        with self._lock:
+            entry = self._jobs[tool_id]
+            if entry["state"] == "running":
+                raise ValueError("The job is still running.")
+            job = entry["job"]
+            if job is None or job.output_folder is None:
+                raise ValueError("This job did not record a single output folder, so it cannot be undone.")
+            if not entry["undo_paths"]:
+                raise ValueError("This job wrote nothing left to undo.")
+            report = undo_outputs(
+                entry["undo_paths"], job.output_folder, job.input_folder,
+                identities=entry["undo_identities"],
+            )
+            consumed = set(report.removed + report.missing + report.folders_removed)
+            entry["undo_paths"] = [p for p in entry["undo_paths"] if p not in consumed]
+            for path in consumed:
+                entry["undo_identities"].pop(path, None)
+            return report
 
     # ── Event fan-out ─────────────────────────────────────────────────────
 
@@ -170,6 +194,8 @@ class JobRunner:
             )
             self._jobs[tool_id]["state"] = "running"
             self._jobs[tool_id]["results"] = None
+            self._jobs[tool_id]["undo_paths"] = []
+            self._jobs[tool_id]["undo_identities"] = {}
             self._jobs[tool_id]["finished"] = threading.Event()
 
         worker.start()
@@ -187,6 +213,11 @@ class JobRunner:
         with self._lock:
             self._jobs[tool_id]["state"] = "done"
             self._jobs[tool_id]["results"] = results
+            self._jobs[tool_id]["undo_paths"] = list(results.get("outputs") or [])
+            result = getattr(worker, "results", None)
+            self._jobs[tool_id]["undo_identities"] = (
+                dict(result.output_identities) if isinstance(result, JobResult) else {}
+            )
             finished = self._jobs[tool_id]["finished"]
         self._push(tool_id, {"type": "done", "results": results})
         self._push(tool_id, None)

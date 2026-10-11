@@ -24,6 +24,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import tifffile
 from PIL import Image
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +57,47 @@ def merged_pages(path) -> int:
 
 
 class StreamingMergeTests(unittest.TestCase):
+    def test_multipage_inputs_keep_frame_order_modes_and_dpi(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            frames = [np.full((12, 10), 20, np.uint8),
+                      np.full((12, 10, 3), (180, 40, 10), np.uint8),
+                      np.full((12, 10), 80, np.uint8)]
+            dpi = [(150, 200), (600, 300), (72, 96)]
+            # Create files backwards to exercise sequence sorting as well.
+            for name, indexes in (("doc_002.tif", [2]), ("doc_001.tif", [0, 1])):
+                with tifffile.TiffWriter(root / name) as writer:
+                    for index in indexes:
+                        writer.write(frames[index], resolution=dpi[index],
+                                     photometric="rgb" if index == 1 else "minisblack")
+            for per_page in (True, False):
+                with self.subTest(per_page=per_page):
+                    outcome = merge_tiff_group("doc", root, root / "merged",
+                                               dpi_per_file=per_page)
+                    self.assertTrue(outcome.succeeded, outcome.errors)
+                    with Image.open(outcome.output) as merged:
+                        self.assertEqual(merged.n_frames, 3)
+                        for index, pixels in enumerate(frames):
+                            merged.seek(index)
+                            self.assertEqual(merged.mode, "RGB")
+                            expected = pixels if pixels.ndim == 3 else np.repeat(pixels[..., None], 3, axis=2)
+                            np.testing.assert_array_equal(np.asarray(merged), expected)
+                            self.assertEqual(merged.info["dpi"], dpi[index] if per_page else dpi[0])
+
+    def test_cancellation_between_frames_of_one_input(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with tifffile.TiffWriter(root / "doc_001.tif") as writer:
+                for value in (10, 20, 30):
+                    writer.write(np.full((100, 100), value, np.uint8))
+            output = root / "merged" / "doc.tif"
+            outcome = merge_tiff_group(
+                "doc", root, output.parent,
+                should_cancel=lambda: output.exists() and output.stat().st_size > 100,
+            )
+            self.assertTrue(outcome.was_cancelled)
+            self.assertFalse(output.exists())
+
     def test_every_page_is_written(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -275,21 +317,40 @@ class MemoryStaysFlatTests(unittest.TestCase):
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         if sys.platform != "darwin":
             peak *= 1024          # Linux reports KB, macOS bytes
-        print(f"{outcome.succeeded}|{peak / 1048576:.0f}")
+        from PIL import Image
+        with Image.open(outcome.output) as merged:
+            count = merged.n_frames
+        print(f"{outcome.succeeded}|{peak / 1048576:.0f}|{count}")
     """)
 
-    def peak_for(self, pages: int) -> float:
+    def peak_for(self, pages: int, multipage: bool = False) -> float:
         root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        build_group(root, pages)
+        if multipage:
+            with tifffile.TiffWriter(root / "doc_0001.tif") as writer:
+                for index in range(pages):
+                    pixels = np.random.default_rng(index).integers(
+                        0, 255, (PAGE_H, PAGE_W, 3), dtype=np.uint8
+                    )
+                    writer.write(pixels, photometric="rgb")
+        else:
+            build_group(root, pages)
         result = subprocess.run(
             [sys.executable, "-c", self.SCRIPT, str(APP_ROOT), str(root)],
             capture_output=True, text=True, timeout=600,
         )
         self.assertEqual(result.returncode, 0, result.stderr[-2000:])
-        ok, peak = result.stdout.strip().split("|")
+        ok, peak, count = result.stdout.strip().split("|")
         self.assertEqual(ok, "True")
+        self.assertEqual(int(count), pages)
         return float(peak)
+
+    @unittest.skipUnless(sys.platform in ("darwin", "linux"), "needs getrusage")
+    def test_multipage_input_memory_stays_flat(self):
+        few = self.peak_for(8, multipage=True)
+        many = self.peak_for(48, multipage=True)
+        self.assertLess(many, few * 1.6,
+                        f"multipage merge peak grew from {few:.0f} to {many:.0f} MB")
 
     @unittest.skipUnless(sys.platform in ("darwin", "linux"), "needs getrusage")
     def test_peak_does_not_grow_with_the_page_count(self):

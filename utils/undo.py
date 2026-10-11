@@ -18,8 +18,39 @@ This deletes files, so it is deliberately narrow:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Mapping, Optional
+
+
+@dataclass(frozen=True)
+class OutputIdentity:
+    resolved_path: str
+    stat: tuple
+    sha256: str
+
+
+def capture_output_identity(path: str | Path) -> Optional[OutputIdentity]:
+    """Snapshot a regular output file; unreadable or changing files fail closed."""
+    path = Path(path)
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        before = path.stat()
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        after = path.stat()
+        if _stat_identity(before) != _stat_identity(after):
+            return None
+        return OutputIdentity(str(path.resolve()), _stat_identity(after), digest.hexdigest())
+    except (OSError, ValueError):
+        return None
+
+
+def _stat_identity(stat) -> tuple:
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
 
 
 @dataclass
@@ -58,11 +89,14 @@ def undo_outputs(
     output_root: str | Path,
     input_folder: Optional[str | Path] = None,
     prune_empty: bool = True,
+    *,
+    identities: Optional[Mapping[str, Optional[OutputIdentity]]] = None,
 ) -> UndoReport:
     """Remove the files a job wrote, refusing anything outside `output_root`.
 
     `input_folder` is refused as a root even if it was somehow passed, so an
     undo can never delete the scans it was run against.
+    Files without a matching identity captured when written are refused.
     """
     report = UndoReport()
     root = Path(output_root)
@@ -106,6 +140,14 @@ def undo_outputs(
             report.missing.append(str(candidate))
             continue
 
+        expected = (identities or {}).get(str(candidate))
+        if expected is None or capture_output_identity(candidate) != expected:
+            report.refused.append({
+                "path": str(candidate),
+                "reason": "output changed or its identity could not be verified",
+            })
+            continue
+
         try:
             candidate.unlink()
             report.removed.append(str(candidate))
@@ -125,10 +167,13 @@ def _prune_empty(root: Path, report: UndoReport) -> None:
     """
     if not root.exists() or not root.is_dir():
         return
-    for folder in sorted(
-        (p for p in root.rglob("*") if p.is_dir()),
-        key=lambda p: len(p.parts), reverse=True,
-    ):
+    folders = set()
+    for removed in report.removed + report.folders_removed:
+        parent = Path(removed).parent
+        while parent != root and _is_within(parent, root):
+            folders.add(parent)
+            parent = parent.parent
+    for folder in sorted(folders, key=lambda p: len(p.parts), reverse=True):
         try:
             if not any(folder.iterdir()):
                 folder.rmdir()

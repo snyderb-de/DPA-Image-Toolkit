@@ -24,6 +24,7 @@ import subprocess
 import sys
 import textwrap
 import unittest
+import tempfile
 from pathlib import Path
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -60,7 +61,7 @@ PROBE = textwrap.dedent("""
 """)
 
 # Stands in for the frozen EXE, which holds only what the spec bundles.
-FROZEN = textwrap.dedent("""
+FROZEN_GUARD = textwrap.dedent("""
     import sys
     hidden = set(sys.argv[2].split(",")) if sys.argv[2] else set()
 
@@ -71,7 +72,8 @@ FROZEN = textwrap.dedent("""
             return None
 
     sys.meta_path.insert(0, OnlyBundled())
-""") + PROBE
+""")
+FROZEN = FROZEN_GUARD + PROBE
 
 
 def spec_hiddenimports() -> list:
@@ -95,6 +97,27 @@ def run(script: str, *args: str) -> subprocess.CompletedProcess:
 
 
 class FrozenCodecTests(unittest.TestCase):
+    def test_fax_compressed_page_selection_decodes_inside_the_bundle(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "fax.tif"
+            output = Path(temp_dir) / "selected.tif"
+            Image.new("1", (16, 16), 1).save(source, compression="group4")
+            script = FROZEN_GUARD + textwrap.dedent("""
+                from modules.tiff_combine.pages import select_pages
+                from PIL import Image
+                outcome = select_pages(sys.argv[1], sys.argv[3], '1,1')
+                assert outcome.succeeded, outcome.error
+                with Image.open(outcome.output) as image:
+                    assert image.n_frames == 2
+                    for index in range(2):
+                        image.seek(index)
+                        assert image.convert('L').getpixel((0, 0)) == 255
+            """)
+            hidden = [n for n in spec_hiddenimports() if n.startswith("imagecodecs")]
+            result = run(script, str(source), ",".join(hidden), str(output))
+            self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+
     def setUp(self):
         self.hidden = [n for n in spec_hiddenimports() if n.startswith("imagecodecs")]
 

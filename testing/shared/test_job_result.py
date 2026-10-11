@@ -19,6 +19,23 @@ from utils.job_result import JobError, JobResult, SkipReason, write_error_report
 
 
 class JobResultTests(unittest.TestCase):
+    def test_output_identity_is_captured_at_success_not_when_results_are_read(self):
+        from utils.undo import undo_outputs
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "page.tif"
+            output.write_bytes(b"job output")
+            result = JobResult()
+            result.record_success(output)
+            output.write_bytes(b"correction while other pages are running")
+            result.record_success()
+            result.to_dict()
+            report = undo_outputs(
+                result.outputs, Path(temp_dir), identities=result.output_identities,
+            )
+            self.assertFalse(report.ok)
+            self.assertTrue(output.exists())
+
     def test_a_fresh_result_is_empty(self):
         r = JobResult(verb="Cropped")
         self.assertEqual((r.total, r.success, r.failed, r.skipped), (0, 0, 0, 0))

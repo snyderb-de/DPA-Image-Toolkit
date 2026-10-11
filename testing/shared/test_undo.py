@@ -19,12 +19,22 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from utils.undo import undo_outputs
+from utils.undo import capture_output_identity, undo_outputs as _undo_outputs
+
+
+def undo_outputs(outputs, output_root, input_folder=None):
+    outputs = list(outputs)
+    return _undo_outputs(
+        outputs, output_root, input_folder,
+        identities={str(p): capture_output_identity(p) for p in outputs},
+    )
 
 
 class UndoTests(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp())
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
         self.source = self.root / "scans"
         self.output = self.root / "scans" / "cropped"
         self.source.mkdir(parents=True)
@@ -134,6 +144,37 @@ class UndoTests(unittest.TestCase):
         self.assertEqual(payload["removed_count"], 4)
         for key in ("removed", "missing", "refused", "folders_removed"):
             self.assertIn(key, payload)
+
+    def test_a_modified_output_is_refused(self):
+        written = self.write(self.output, "p1.tif")
+        identities = {str(written): capture_output_identity(written)}
+        written.write_bytes(b"human correction")
+        report = _undo_outputs([written], self.output, self.source, identities=identities)
+        self.assertFalse(report.ok)
+        self.assertEqual(written.read_bytes(), b"human correction")
+
+    def test_a_replacement_with_identical_content_is_refused(self):
+        written = self.write(self.output, "p1.tif")
+        identities = {str(written): capture_output_identity(written)}
+        replacement = self.write(self.output, "replacement.tif")
+        replacement.replace(written)
+        report = _undo_outputs([written], self.output, self.source, identities=identities)
+        self.assertFalse(report.ok)
+        self.assertTrue(written.exists())
+
+    def test_unverified_outputs_are_refused(self):
+        written = self.write(self.output, "p1.tif")
+        report = _undo_outputs([written], self.output, self.source)
+        self.assertFalse(report.ok)
+        self.assertTrue(written.exists())
+
+    def test_unrelated_empty_folders_are_not_pruned(self):
+        written = self.write(self.output, "p1.tif")
+        unrelated = self.output / "human-created-folder"
+        unrelated.mkdir()
+        report = undo_outputs([written], self.output, self.source)
+        self.assertTrue(report.ok)
+        self.assertTrue(unrelated.exists())
 
 
 if __name__ == "__main__":

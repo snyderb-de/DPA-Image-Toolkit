@@ -23,7 +23,6 @@ import numpy as np
 import tifffile
 
 from utils.outcome import Outcome
-from PIL import Image
 
 from .compression import DEFAULT_COMPRESSION, resolve as resolve_compression
 
@@ -76,8 +75,45 @@ def parse_page_order(page_spec: str, total_pages: int) -> List[int]:
 
 
 def count_pages(source: str | Path) -> int:
-    with Image.open(source) as image:
-        return getattr(image, "n_frames", 1)
+    with tifffile.TiffFile(source) as document:
+        return len(document.pages)
+
+
+def _page_pixels(page):
+    """Decode native samples, rejecting color spaces we cannot round-trip."""
+    photometric = page.photometric
+    if photometric not in (0, 1, 2, 3, 5):
+        raise ValueError(f"Unsupported TIFF photometric: {photometric!s}")
+    if photometric == 5 and (
+        page.samplesperpixel != 4 or page.tags.get("InkSet", None) is not None
+        and page.tags["InkSet"].value != 1
+    ):
+        raise ValueError("Unsupported separated TIFF: only CMYK is supported")
+
+    pixels = page.asarray()
+    options = dict(photometric=photometric, planarconfig=page.planarconfig,
+                   extrasamples=page.extrasamples)
+    if photometric == 3:
+        if page.colormap is None or page.samplesperpixel != 1:
+            raise ValueError("Unsupported TIFF palette")
+        colors = page.colormap
+        # Standard eight-bit palettes are stored as sixteen-bit values * 257.
+        # Keep genuinely sixteen-bit palette entries at their full precision.
+        if np.all(colors % 257 == 0):
+            colors = (colors // 257).astype(np.uint8)
+        pixels = np.moveaxis(colors[:, pixels], 0, -1)
+        options = dict(photometric="rgb")
+    return pixels, options
+
+
+def _page_dpi(page):
+    x = page.tags.get("XResolution")
+    y = page.tags.get("YResolution")
+    unit = page.tags.get("ResolutionUnit")
+    if x is None or y is None or unit is None or unit.value not in (2, 3):
+        return (300, 300)
+    scale = 2.54 if unit.value == 3 else 1
+    return tuple(scale * tag.value[0] / tag.value[1] for tag in (x, y))
 
 
 def select_pages(
@@ -99,6 +135,10 @@ def select_pages(
         return bool(should_cancel and should_cancel())
 
     try:
+        if source.resolve() == output_path.resolve() or (
+            output_path.exists() and source.samefile(output_path)
+        ):
+            return Outcome.fail("The output must not overwrite the source TIFF.")
         total = count_pages(source)
     except Exception as exc:
         return Outcome.fail(f"Could not read {source.name}: {exc}")
@@ -118,22 +158,22 @@ def select_pages(
     was_cancelled = False
 
     try:
-        with Image.open(source) as image, tifffile.TiffWriter(output_path) as writer:
+        with tifffile.TiffFile(source) as document, tifffile.TiffWriter(output_path) as writer:
             for index in order:
                 if cancelled():
                     was_cancelled = True
                     break
 
-                image.seek(index)
-                frame = image.convert("RGB" if image.mode in ("RGB", "RGBA") else "L")
-                dpi = frame.info.get("dpi") or image.info.get("dpi") or (300, 300)
+                page = document.pages[index]
+                pixels, options = _page_pixels(page)
                 writer.write(
-                    np.asarray(frame),
-                    photometric="rgb" if frame.mode == "RGB" else "minisblack",
+                    pixels,
+                    **options,
                     compression=codec,
-                    resolution=tuple(dpi),
+                    resolution=_page_dpi(page),
                 )
                 written += 1
+                del pixels
     except Exception as exc:
         output_path.unlink(missing_ok=True)
         return Outcome.fail(

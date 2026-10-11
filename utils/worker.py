@@ -766,8 +766,7 @@ class PdfConversionWorker(OperationWorker):
 
         count = int(outcome.details.get("output_count", 0))
         self.update_status(f"✅ Created {count} output file(s)")
-        # The undo boundary is the folder, not the individual pages.
-        return Outcome.ok(self.output_root, **outcome.details)
+        return outcome
 
     def _extract_one(self, pdf_path: Path) -> Outcome:
         from modules.pdf_tools.core import extract_pdf_pages

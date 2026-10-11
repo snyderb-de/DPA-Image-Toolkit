@@ -137,18 +137,33 @@ function renderRecent(toolId, folders) {
   const row = document.getElementById(`recent-${toolId}`);
   if (!row) return;
   row.hidden = folders.length === 0;
-  if (!folders.length) { row.innerHTML = ''; return; }
+  row.replaceChildren();
+  if (!folders.length) return;
 
-  const chips = folders.map(path => {
-    const label = path.split(/[\\/]/).filter(Boolean).pop() || path;
-    const safe = path.replace(/'/g, "\\'");
-    return `<span class="recent-chip" title="${path}" onclick="useRecent('${toolId}','${safe}')">
-              <span class="chip-path">${label}</span>
-              <span class="chip-forget" title="Forget this folder"
-                    onclick="forgetRecent(event,'${toolId}','${safe}')">&times;</span>
-            </span>`;
-  }).join('');
-  row.innerHTML = `<span class="recent-label">Recent</span>${chips}`;
+  const label = document.createElement('span');
+  label.className = 'recent-label';
+  label.textContent = 'Recent';
+  row.appendChild(label);
+
+  folders.forEach(path => {
+    const chip = document.createElement('span');
+    chip.className = 'recent-chip';
+    chip.title = path;
+    chip.addEventListener('click', () => useRecent(toolId, path));
+
+    const chipPath = document.createElement('span');
+    chipPath.className = 'chip-path';
+    chipPath.textContent = path.split(/[\\/]/).filter(Boolean).pop() || path;
+    chip.appendChild(chipPath);
+
+    const forget = document.createElement('span');
+    forget.className = 'chip-forget';
+    forget.title = 'Forget this folder';
+    forget.textContent = '\u00d7';
+    forget.addEventListener('click', event => forgetRecent(event, toolId, path));
+    chip.appendChild(forget);
+    row.appendChild(chip);
+  });
 }
 
 async function pickFolder(toolId) {

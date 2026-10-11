@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import tifffile
 from PIL import Image
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -137,6 +138,123 @@ class SelectPagesTests(unittest.TestCase):
 
     def test_it_counts_the_pages(self):
         self.assertEqual(count_pages(self.source), 5)
+
+    def test_color_precision_and_alpha_survive_reordering(self):
+        palette = Image.new("P", (2, 2), 1)
+        palette.putpalette([0, 0, 0, 255, 0, 0] + [0] * 762)
+        cases = [
+            ("palette", palette, np.full((2, 2, 3), (255, 0, 0), np.uint8), "RGB"),
+            ("cmyk", Image.new("CMYK", (2, 2), (10, 80, 160, 30)),
+             np.full((2, 2, 4), (10, 80, 160, 30), np.uint8), "CMYK"),
+            ("uint16", Image.fromarray(np.array([[0, 1000], [32000, 65535]], np.uint16)),
+             np.array([[0, 1000], [32000, 65535]], np.uint16), "I;16"),
+            ("rgba", Image.new("RGBA", (2, 2), (40, 80, 120, 64)),
+             np.full((2, 2, 4), (40, 80, 120, 64), np.uint8), "RGBA"),
+        ]
+        for name, frame, expected, mode in cases:
+            with self.subTest(name=name):
+                source = self.root / f"{name}.tif"
+                frame.save(source, save_all=True, append_images=[frame], dpi=(150, 200))
+                outcome = select_pages(source, self.root / f"{name}_out.tif", "2,1,2")
+                self.assertTrue(outcome.succeeded, outcome.error)
+                with Image.open(outcome.output) as selected:
+                    self.assertEqual(selected.n_frames, 3)
+                    for index in range(3):
+                        selected.seek(index)
+                        self.assertEqual(selected.mode, mode)
+                        np.testing.assert_array_equal(np.asarray(selected), expected)
+                        self.assertEqual(selected.info["dpi"], (150, 200))
+                with tifffile.TiffFile(outcome.output) as selected:
+                    if name == "cmyk":
+                        self.assertEqual(selected.pages[0].photometric, 5)
+                    if name == "rgba":
+                        self.assertEqual(selected.pages[0].extrasamples, (2,))
+
+    def test_high_bit_rgb_is_not_downsampled(self):
+        pixels = np.array([[[1000, 32000, 65535], [4000, 2000, 1]]], np.uint16)
+        source = self.root / "rgb16.tif"
+        tifffile.imwrite(source, pixels, photometric="rgb")
+        outcome = select_pages(source, self.root / "rgb16_out.tif", "1,1")
+        self.assertTrue(outcome.succeeded, outcome.error)
+        with tifffile.TiffFile(outcome.output) as selected:
+            for page in selected.pages:
+                self.assertEqual(page.dtype, pixels.dtype)
+                np.testing.assert_array_equal(page.asarray(), pixels)
+
+    def test_native_samples_and_tags_survive(self):
+        cases = [
+            ("bilevel", np.array([[True, False], [False, True]]), "miniswhite", {}),
+            ("signed", np.array([[-1000, 2000], [3000, -4000]], np.int32), "minisblack", {}),
+            ("float", np.array([[0.25, 1.5], [-2.0, 65536]], np.float32), "minisblack", {}),
+            ("bigendian", np.array([[1000, 65535], [32000, 0]], dtype=">u2"), "minisblack", {}),
+            ("planar", np.arange(24, dtype=np.uint16).reshape(3, 2, 4), "rgb", {"planarconfig": "separate"}),
+            ("alpha", np.full((2, 2, 4), (10, 20, 30, 64), np.uint8), "rgb", {"extrasamples": "assocalpha"}),
+        ]
+        for name, pixels, photometric, options in cases:
+            with self.subTest(name=name):
+                source = self.root / f"native_{name}.tif"
+                tifffile.imwrite(source, pixels, photometric=photometric,
+                                 resolution=(100, 200), resolutionunit="centimeter", **options)
+                outcome = select_pages(source, self.root / "native_out.tif", "1,1")
+                self.assertTrue(outcome.succeeded, outcome.error)
+                with tifffile.TiffFile(source) as original, tifffile.TiffFile(outcome.output) as selected:
+                    for page in selected.pages:
+                        np.testing.assert_array_equal(page.asarray(), pixels)
+                        self.assertEqual(page.dtype.kind, pixels.dtype.kind)
+                        self.assertEqual(page.dtype.itemsize, pixels.dtype.itemsize)
+                        self.assertEqual(page.photometric, original.pages[0].photometric)
+                        self.assertEqual(page.planarconfig, original.pages[0].planarconfig)
+                        self.assertEqual(page.extrasamples, original.pages[0].extrasamples)
+                        self.assertAlmostEqual(page.tags["XResolution"].value[0] / page.tags["XResolution"].value[1], 254)
+                        self.assertAlmostEqual(page.tags["YResolution"].value[0] / page.tags["YResolution"].value[1], 508)
+
+    def test_source_aliases_are_refused_without_changing_source(self):
+        before = self.source.read_bytes()
+        hardlink = self.root / "hardlink.tif"
+        hardlink.hardlink_to(self.source)
+        aliases = [self.source, hardlink]
+        symlink = self.root / "symlink.tif"
+        try:
+            symlink.symlink_to(self.source)
+        except (OSError, NotImplementedError):
+            # Windows may require Developer Mode or elevated privileges.
+            pass
+        else:
+            aliases.append(symlink)
+        for output in aliases:
+            with self.subTest(output=output):
+                outcome = select_pages(self.source, output, "1")
+                self.assertEqual(outcome.status, FAILED)
+                self.assertIn("source", outcome.error.lower())
+                self.assertEqual(self.source.read_bytes(), before)
+                self.assertTrue(output.exists())
+
+    def test_unsupported_photometric_is_explicitly_refused(self):
+        source = self.root / "lab.tif"
+        tifffile.imwrite(source, np.zeros((2, 2, 3), np.uint8), photometric="cielab")
+        output = self.root / "lab_out.tif"
+        outcome = select_pages(source, output, "1")
+        self.assertEqual(outcome.status, FAILED)
+        self.assertIn("unsupported", outcome.error.lower())
+        self.assertFalse(output.exists())
+
+    def test_compressed_inputs_preserve_decoded_samples(self):
+        for codec in ("group3", "group4", "tiff_lzw", "packbits", "tiff_adobe_deflate", "jpeg"):
+            with self.subTest(codec=codec):
+                source = self.root / f"compressed_{codec}.tif"
+                image = Image.new("1" if codec.startswith("group") else "RGB", (64, 64), 1)
+                image.paste(0, (4, 4, 40, 40))
+                image.save(source, compression=codec, dpi=(150, 200))
+                with Image.open(source) as decoded:
+                    expected = np.asarray(decoded)
+                outcome = select_pages(source, self.root / "decoded_out.tif", "1,1")
+                self.assertTrue(outcome.succeeded, outcome.error)
+                with Image.open(outcome.output) as selected:
+                    self.assertEqual(selected.n_frames, 2)
+                    for index in range(2):
+                        selected.seek(index)
+                        np.testing.assert_array_equal(np.asarray(selected), expected)
+                        self.assertEqual(selected.info["dpi"], (150, 200))
 
     def test_a_range_is_extracted_in_order(self):
         outcome = self.select("2-4")

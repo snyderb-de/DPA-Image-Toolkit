@@ -83,14 +83,8 @@ def merge_tiff_group(
             for filename in sort_group_files([f.name for f in group_files], group_name)
         ]
 
-        # Open and validate files
-        images = []
-        dpi_list = []
-        target_mode = None
-
-        # Two cheap passes then one streaming write. Opening a TIFF reads its
-        # header only — PIL decodes lazily — so the first pass costs nothing but
-        # a file handle, and no page is ever decoded until it is written.
+        # Inspect every frame header before choosing the document's mode.
+        # PIL decodes lazily, so no pixels are retained during this pass.
         #
         # Pages used to be decoded and held in a list, then handed to
         # Image.save(append_images=...) all at once, so peak memory grew with
@@ -98,7 +92,6 @@ def merge_tiff_group(
         # not complete at all. Writing one page at a time keeps it flat.
         target_mode = None
         first_dpi = None
-        page_dpi = {}
         readable_files = []
 
         for file_path in group_files:
@@ -106,15 +99,18 @@ def merge_tiff_group(
                 return Outcome.abort(errors=tuple(error_list))
             try:
                 with Image.open(file_path) as img:
-                    if img.mode in ("RGB", "RGBA"):
-                        target_mode = "RGB"
-                    elif target_mode != "RGB":
-                        target_mode = "L"
-                    dpi = preserve_dpi(img, file_path)
-                    page_dpi[file_path] = dpi
-                    if first_dpi is None:
-                        first_dpi = dpi
-                readable_files.append(file_path)
+                    frame_count = img.n_frames
+                    for index in range(frame_count):
+                        if _cancelled():
+                            return Outcome.abort(errors=tuple(error_list))
+                        img.seek(index)
+                        if img.mode in ("RGB", "RGBA"):
+                            target_mode = "RGB"
+                        elif target_mode != "RGB":
+                            target_mode = "L"
+                        if first_dpi is None:
+                            first_dpi = preserve_dpi(img, file_path)
+                readable_files.append((file_path, frame_count))
             except Exception as e:
                 error_list.append((file_path.name, f"Failed to open: {str(e)}"))
                 continue
@@ -142,31 +138,43 @@ def merge_tiff_group(
         was_cancelled = False
         try:
             with tifffile.TiffWriter(output_path) as writer:
-                for file_path in readable_files:
+                for file_path, frame_count in readable_files:
                     if _cancelled():
                         was_cancelled = True
                         break
                     try:
                         with Image.open(file_path) as img:
-                            if img.mode != target_mode:
-                                img = convert_image_mode(img, target_mode)
-                            page = np.asarray(img)
-                    except Exception as e:
-                        error_list.append((file_path.name, f"Failed to convert: {str(e)}"))
-                        continue
+                            for index in range(frame_count):
+                                if _cancelled():
+                                    was_cancelled = True
+                                    break
+                                try:
+                                    img.seek(index)
+                                    resolution = preserve_dpi(img, file_path) if dpi_per_file else first_dpi
+                                    frame = convert_image_mode(img, target_mode)
+                                    try:
+                                        page = np.asarray(frame)
+                                    finally:
+                                        if frame is not img:
+                                            frame.close()
+                                except Exception as e:
+                                    error_list.append((file_path.name, f"Failed to convert frame {index + 1}: {str(e)}"))
+                                    continue
 
-                    # dpi_per_file used to be collected and then discarded —
-                    # every page was written with the first page's value. It now
-                    # means what it says, and False still writes one DPI for the
-                    # whole document.
-                    resolution = page_dpi.get(file_path, first_dpi) if dpi_per_file else first_dpi
-                    writer.write(
-                        page,
-                        photometric=photometric,
-                        compression=codec,
-                        resolution=resolution or first_dpi,
-                    )
-                    written += 1
+                                writer.write(
+                                    page,
+                                    photometric=photometric,
+                                    compression=codec,
+                                    resolution=resolution,
+                                )
+                                written += 1
+                                del page
+                    except Exception as e:
+                        # Writer failures must fail the document, not silently
+                        # skip pages after a possibly incomplete write.
+                        raise RuntimeError(f"{file_path.name}: {e}") from e
+                    if was_cancelled:
+                        break
         except Exception as e:
             return Outcome.fail_each(
                 error_list + [(output_filename, f"Failed to save TIFF: {str(e)}")]

@@ -185,6 +185,32 @@ class ReduceSizeBatchTests(unittest.TestCase):
 
 
 class SplitTests(unittest.TestCase):
+    def test_pdf_and_image_splits_can_be_undone_without_touching_other_files(self):
+        from utils.job_runner import JobRunner
+
+        for output_type in ("pdfs", "png"):
+            with self.subTest(output_type=output_type), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                source = make_pdf(root / "roll.pdf", pages=3)
+                original = source.read_bytes()
+                output = root / "split"
+                output.mkdir()
+                unrelated = output / "notes.txt"
+                unrelated.write_text("keep", encoding="utf-8")
+                worker = PdfConversionWorker(
+                    selection_mode="file", input_path=source, operation="split_pdf",
+                    output_root=output, split_output_type=output_type,
+                )
+                jobs = JobRunner(["pdf_conversion"])
+                jobs.start("pdf_conversion", worker, input_folder=source, output_folder=output)
+                self.assertTrue(jobs.wait("pdf_conversion", timeout=30))
+                self.assertEqual(len(jobs.state("pdf_conversion")["results"]["outputs"]), 3)
+                report = jobs.undo("pdf_conversion")
+                self.assertTrue(report.ok, report.refused)
+                self.assertEqual(len(report.removed), 3)
+                self.assertEqual(list(output.iterdir()), [unrelated])
+                self.assertEqual(source.read_bytes(), original)
+
     def test_a_split_writes_one_pdf_per_page_into_the_given_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -38,6 +38,8 @@ a = Analysis(
         "imagecodecs._shared_cython",
         "imagecodecs._imcd",
         "imagecodecs._jpeg8",
+        # Native page selection also decodes common fax-compressed scan TIFFs.
+        "imagecodecs._ccitt",
         "imagecodecs._deflate",
         "imagecodecs._zlib",
         "tifffile",
