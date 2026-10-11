@@ -16,14 +16,13 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from utils.batch import (
-    GroupOutcome,
-    ItemOutcome,
     choose_worker_count,
     find_image_files,
     run_file_batch,
     run_group_batch,
 )
 from utils.job_result import JobResult
+from utils.outcome import Outcome
 
 
 class FakeReporter:
@@ -58,7 +57,7 @@ class RunFileBatchTests(unittest.TestCase):
     def test_empty_input_reports_and_stops(self):
         reporter = FakeReporter()
         result = run_file_batch(
-            [], result=JobResult(verb="Cropped"), process=lambda p: ItemOutcome.ok(),
+            [], result=JobResult(verb="Cropped"), process=lambda p: Outcome.ok(),
             reporter=reporter, gerund="Cropping",
         )
         self.assertEqual(result.total, 0)
@@ -67,7 +66,7 @@ class RunFileBatchTests(unittest.TestCase):
     def test_empty_message_is_overridable(self):
         reporter = FakeReporter()
         run_file_batch(
-            [], result=JobResult(), process=lambda p: ItemOutcome.ok(),
+            [], result=JobResult(), process=lambda p: Outcome.ok(),
             reporter=reporter, gerund="Splitting",
             empty_message="No TIFF files selected",
         )
@@ -76,9 +75,9 @@ class RunFileBatchTests(unittest.TestCase):
     def test_each_outcome_lands_in_the_right_bucket(self):
         written = Path("/out/a.tif")
         outcomes = {
-            "a.tif": ItemOutcome.ok(written),
-            "b.tif": ItemOutcome.skip("blank"),
-            "c.tif": ItemOutcome.fail("unreadable"),
+            "a.tif": Outcome.ok(written),
+            "b.tif": Outcome.skip("blank"),
+            "c.tif": Outcome.fail("unreadable"),
         }
         reporter = FakeReporter()
         result = run_file_batch(
@@ -97,7 +96,7 @@ class RunFileBatchTests(unittest.TestCase):
         reporter = FakeReporter()
         run_file_batch(
             paths("a.tif", "b.tif"), result=JobResult(),
-            process=lambda p: ItemOutcome.ok(), reporter=reporter, gerund="Cropping",
+            process=lambda p: Outcome.ok(), reporter=reporter, gerund="Cropping",
         )
         self.assertEqual(reporter.progress, [(1, 2, "a.tif"), (2, 2, "b.tif")])
 
@@ -105,7 +104,7 @@ class RunFileBatchTests(unittest.TestCase):
         reporter = FakeReporter()
         run_file_batch(
             paths("a.tif", "b.tif"), result=JobResult(),
-            process=lambda p: ItemOutcome.skip("blank"),
+            process=lambda p: Outcome.skip("blank"),
             reporter=reporter, gerund="Cropping",
         )
         self.assertEqual(reporter.errors, [])
@@ -116,7 +115,7 @@ class RunFileBatchTests(unittest.TestCase):
         reporter = FakeReporter(cancel_after=1)
         result = run_file_batch(
             paths("a.tif", "b.tif", "c.tif"), result=JobResult(verb="Cropped"),
-            process=lambda p: ItemOutcome.ok(), reporter=reporter, gerund="Cropping",
+            process=lambda p: Outcome.ok(), reporter=reporter, gerund="Cropping",
         )
         self.assertTrue(result.cancelled)
         self.assertEqual(result.success, 1)
@@ -129,7 +128,7 @@ class RunFileBatchTests(unittest.TestCase):
 
         def process(path):
             seen.append(path.name)
-            return ItemOutcome.abort() if path.name == "b.tif" else ItemOutcome.ok()
+            return Outcome.abort() if path.name == "b.tif" else Outcome.ok()
 
         result = run_file_batch(
             paths("a.tif", "b.tif", "c.tif"), result=JobResult(verb="Split"),
@@ -146,7 +145,7 @@ class RunFileBatchTests(unittest.TestCase):
         def process(path):
             if path.name == "b.tif":
                 raise ValueError("decoder exploded")
-            return ItemOutcome.ok()
+            return Outcome.ok()
 
         reporter = FakeReporter()
         result = run_file_batch(
@@ -161,7 +160,7 @@ class RunFileBatchTests(unittest.TestCase):
         reporter = FakeReporter()
         result = run_file_batch(
             paths("a.tif"), result=JobResult(verb="Bordered"),
-            process=lambda p: ItemOutcome.ok(), reporter=reporter, gerund="Adding border",
+            process=lambda p: Outcome.ok(), reporter=reporter, gerund="Adding border",
         )
         self.assertEqual(reporter.statuses[-1], result.summary())
 
@@ -177,7 +176,7 @@ class RunGroupBatchTests(unittest.TestCase):
     def test_empty_input_reports_and_stops(self):
         reporter = FakeReporter()
         result = run_group_batch(
-            [], result=JobResult(verb="Merged"), process=lambda n: GroupOutcome.ok(),
+            [], result=JobResult(verb="Merged"), process=lambda n: Outcome.ok(),
             reporter=reporter, empty_message="No groups to merge",
         )
         self.assertEqual(result.total, 0)
@@ -190,7 +189,7 @@ class RunGroupBatchTests(unittest.TestCase):
 
         def process(name):
             seen.append(name)
-            return GroupOutcome.ok()
+            return Outcome.ok()
 
         result = run_group_batch(
             names, result=JobResult(verb="Merged"), process=process,
@@ -207,8 +206,8 @@ class RunGroupBatchTests(unittest.TestCase):
 
         def process(name):
             if name == "bad":
-                return GroupOutcome.fail([("a.tif", "unreadable"), ("b.tif", "truncated")])
-            return GroupOutcome.ok()
+                return Outcome.fail_each([("a.tif", "unreadable"), ("b.tif", "truncated")])
+            return Outcome.ok()
 
         result = run_group_batch(
             ["good", "bad"], result=JobResult(verb="Merged"), process=process,
@@ -224,7 +223,7 @@ class RunGroupBatchTests(unittest.TestCase):
         reporter = FakeReporter()
         result = run_group_batch(
             ["a", "b", "c"], result=JobResult(verb="Merged"),
-            process=lambda n: GroupOutcome.abort(),
+            process=lambda n: Outcome.abort(),
             reporter=reporter, max_workers=1,
         )
         self.assertTrue(result.cancelled)
@@ -240,7 +239,7 @@ class RunGroupBatchTests(unittest.TestCase):
             if len(started) == 2:
                 reporter.cancelled = True       # cancel once two are underway
             finished.append(name)
-            return GroupOutcome.ok()
+            return Outcome.ok()
 
         names = [f"grp{i}" for i in range(10)]
         result = run_group_batch(
@@ -260,7 +259,7 @@ class RunGroupBatchTests(unittest.TestCase):
         def process(name):
             if name == "boom":
                 raise RuntimeError("decoder exploded")
-            return GroupOutcome.ok()
+            return Outcome.ok()
 
         result = run_group_batch(
             ["a", "boom", "c"], result=JobResult(verb="Merged"), process=process,
@@ -288,7 +287,7 @@ class RunGroupBatchTests(unittest.TestCase):
                 pass
             with lock:
                 live[0] -= 1
-            return GroupOutcome.ok()
+            return Outcome.ok()
 
         run_group_batch(
             [f"g{i}" for i in range(8)], result=JobResult(verb="Merged"),
@@ -299,7 +298,7 @@ class RunGroupBatchTests(unittest.TestCase):
     def test_the_batch_ends_with_the_summary(self):
         reporter = FakeReporter()
         result = run_group_batch(
-            ["a"], result=JobResult(verb="Merged"), process=lambda n: GroupOutcome.ok(),
+            ["a"], result=JobResult(verb="Merged"), process=lambda n: Outcome.ok(),
             reporter=reporter, max_workers=1,
         )
         self.assertEqual(reporter.statuses[-1], result.summary())

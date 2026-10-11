@@ -66,10 +66,22 @@ class ToolRegistryTests(unittest.TestCase):
                 self.assertTrue(message, tool_id)
 
     def test_missing_dependency_produces_a_message_for_the_user(self):
-        with patch("utils.tool_dependencies._module_available", return_value=False):
+        with patch("utils.tool_dependencies.module_available", return_value=False):
             ok, message = get_spec("merge_tiffs").check({})
         self.assertFalse(ok)
         self.assertIn("Merge TIFF Files cannot start", message)
+
+    def test_ocr_is_refused_when_tesseract_is_missing(self):
+        """The gate is the route's, not the worker's.
+
+        OcrPdfWorker used to re-check dependencies on its own thread, after
+        POST /api/ocr_pdf/start had already refused on the same grounds. The
+        refusal belongs here, before a worker is built.
+        """
+        with patch("modules.ocr_pdf.core.detect_tesseract_path", return_value=None):
+            ok, message = get_spec("ocr_pdf").check({})
+        self.assertFalse(ok)
+        self.assertIn("Tesseract OCR was not found", message)
 
 
 class ToolPrepareTests(unittest.TestCase):
@@ -168,6 +180,62 @@ class ToolStartTests(unittest.TestCase):
         with self.assertRaises(ToolError) as caught:
             get_spec("pdf_conversion").start({}, {})
         self.assertEqual(str(caught.exception), "No path prepared")
+
+
+class StartReadsTheRequestTests(unittest.TestCase):
+    """Start functions parse the request body, and only a route exercises that.
+
+    A merge start referenced `body` while its parameter was named `_body`,
+    which every worker-level test missed because they construct workers
+    directly. These call the registry the way the route does.
+    """
+
+    def test_merge_reads_the_compression_choice(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "doc_0001.tif").write_bytes(b"")
+            started = get_spec("merge_tiffs").start(
+                {"compression": "lzw"},
+                {"folder": str(root), "groups": {"doc": [str(root / "doc_0001.tif")]}},
+            )
+            self.assertEqual(started.worker.compression, "lzw")
+
+    def test_merge_falls_back_when_nothing_is_asked_for(self):
+        from modules.tiff_combine.compression import DEFAULT_COMPRESSION
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "doc_0001.tif").write_bytes(b"")
+            started = get_spec("merge_tiffs").start(
+                {}, {"folder": str(root), "groups": {"doc": [str(root / "doc_0001.tif")]}}
+            )
+            self.assertEqual(started.worker.compression, DEFAULT_COMPRESSION)
+
+    def test_auto_crop_reads_the_threshold(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            started = get_spec("auto_crop").start(
+                {"white_threshold": 215}, {"folder": str(root)}
+            )
+            self.assertEqual(started.worker.white_threshold, 215)
+
+    def test_every_start_accepts_an_empty_body(self):
+        """A start must not depend on a key the browser might not send."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "doc_0001.tif").write_bytes(b"")
+            data = {
+                "auto_crop": {"folder": str(root)},
+                "straighten_images": {"folder": str(root)},
+                "add_border": {"folder": str(root)},
+                "ocr_pdf": {"folder": str(root)},
+                "merge_tiffs": {"folder": str(root),
+                                "groups": {"doc": [str(root / "doc_0001.tif")]}},
+            }
+            for tool_id, prepared in data.items():
+                with self.subTest(tool=tool_id):
+                    started = get_spec(tool_id).start({}, prepared)
+                    self.assertIsNotNone(started.worker)
 
 
 if __name__ == "__main__":

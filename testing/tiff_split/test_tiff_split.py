@@ -15,6 +15,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.tiff_split.core import get_tiff_page_count, split_tiff_file
+from utils.outcome import SKIPPED
 from testing.tiff_split.generate_fixtures import generate_tiff_split_fixtures
 
 
@@ -39,9 +40,10 @@ class TiffSplitSmokeTests(unittest.TestCase):
                 first.save(root / name, save_all=True, append_images=[second])
             all_paths = []
             for name in names:
-                success, paths, error, _ = split_tiff_file(root / name, output)
-                self.assertTrue(success)
-                self.assertIsNone(error)
+                result = split_tiff_file(root / name, output)
+                paths = result.output
+                self.assertTrue(result.succeeded)
+                self.assertIsNone(result.error)
                 self.assertEqual(len(paths), 2)
                 all_paths.extend(paths)
             self.assertEqual(len(set(all_paths)), 6)
@@ -55,9 +57,10 @@ class TiffSplitSmokeTests(unittest.TestCase):
             first = Image.new("RGB", (20, 20), "red")
             second = Image.new("RGB", (20, 20), "blue")
             first.save(root / "scan.tif", save_all=True, append_images=[second])
-            success, paths, error, _ = split_tiff_file(root / "scan.tif")
-            self.assertTrue(success)
-            self.assertIsNone(error)
+            result = split_tiff_file(root / "scan.tif")
+            paths = result.output
+            self.assertTrue(result.succeeded)
+            self.assertIsNone(result.error)
             self.assertEqual(Path(paths[0]).parent.name, "scan.tif_pages")
 
     def test_page_counts_match_generated_inputs(self):
@@ -66,23 +69,21 @@ class TiffSplitSmokeTests(unittest.TestCase):
         self.assertEqual(get_tiff_page_count(self.fixture_dir / "single_sheet.tif"), 1)
 
     def test_split_outputs_expected_pages_and_skips_single_page(self):
-        success, outputs, error, stats = split_tiff_file(
+        outcome = split_tiff_file(
             self.fixture_dir / "ledger_volumeA.tif",
             self.output_dir / "ledger_volumeA",
         )
-        self.assertTrue(success)
-        self.assertIsNone(error)
-        self.assertEqual(stats["pages"], 3)
-        self.assertEqual(len(outputs), 3)
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(outcome.details["pages"], 3)
+        self.assertEqual(len(outcome.output), 3)
 
-        success, outputs, error, stats = split_tiff_file(
+        outcome = split_tiff_file(
             self.fixture_dir / "single_sheet.tif",
             self.output_dir / "single_sheet",
         )
-        self.assertTrue(success)
-        self.assertIsNone(error)
-        self.assertTrue(stats["skipped"])
-        self.assertEqual(outputs, [])
+        self.assertEqual(outcome.status, SKIPPED)
+        self.assertEqual(outcome.reason, "single-page TIFF")
+        self.assertIsNone(outcome.output)
 
 
 if __name__ == "__main__":

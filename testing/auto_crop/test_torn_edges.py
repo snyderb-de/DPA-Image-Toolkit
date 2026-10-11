@@ -23,11 +23,10 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from modules.auto_cropping.core import (
-    CROP_SKIPPED,
-    CROP_SUCCESS,
     DEFAULT_DOMINANT_CONTOUR_RATIO,
     crop_image,
 )
+from utils.outcome import SKIPPED, SUCCESS
 
 CANVAS_W, CANVAS_H = 1400, 1800
 MARGIN = 260
@@ -68,12 +67,13 @@ def save(image, folder: Path, name: str) -> Path:
 
 
 def crop(path: Path):
-    """Crop and return (status, size-or-None, error)."""
-    output, error, status = crop_image(path, path.parent / "cropped")
-    if output is None:
-        return status, None, error
-    with Image.open(output) as cropped:
-        return status, cropped.size, error
+    """Crop and return (status, size-or-None, message)."""
+    outcome = crop_image(path, path.parent / "cropped")
+    message = outcome.error or outcome.reason
+    if outcome.output is None:
+        return outcome.status, None, message
+    with Image.open(outcome.output) as cropped:
+        return outcome.status, cropped.size, message
 
 
 class TornEdgeTests(unittest.TestCase):
@@ -93,7 +93,7 @@ class TornEdgeTests(unittest.TestCase):
                     _draw_text_block(draw, PAGE_LEFT, PAGE_TOP, PAGE_RIGHT - depth, PAGE_BOTTOM)
                     status, size, error = crop(save(image, root, f"ragged_{depth}"))
 
-                    self.assertEqual(status, CROP_SUCCESS, error)
+                    self.assertEqual(status, SUCCESS, error)
                     self.assertGreaterEqual(size[0], PAGE_W, "torn edge truncated the page")
                     self.assertGreaterEqual(size[1], PAGE_H)
 
@@ -111,7 +111,7 @@ class TornEdgeTests(unittest.TestCase):
             )
             status, size, error = crop(save(image, root, "torn_corner"))
 
-            self.assertEqual(status, CROP_SUCCESS, error)
+            self.assertEqual(status, SUCCESS, error)
             self.assertGreaterEqual(size[0], PAGE_W)
             self.assertGreaterEqual(size[1], PAGE_H)
 
@@ -125,7 +125,7 @@ class TornEdgeTests(unittest.TestCase):
             _draw_text_block(draw, PAGE_LEFT + 140, PAGE_TOP, PAGE_RIGHT - 140, PAGE_BOTTOM)
             status, size, error = crop(save(image, root, "both_edges"))
 
-            self.assertEqual(status, CROP_SUCCESS, error)
+            self.assertEqual(status, SUCCESS, error)
             self.assertGreater(size[0], PAGE_W // 2)
 
     def test_a_heavily_torn_remnant_is_still_cropped(self):
@@ -140,7 +140,7 @@ class TornEdgeTests(unittest.TestCase):
             )
             status, size, error = crop(save(image, root, "remnant"))
 
-            self.assertEqual(status, CROP_SUCCESS, error)
+            self.assertEqual(status, SUCCESS, error)
             self.assertLess(size[0], PAGE_W, "remnant should crop much smaller than a full page")
             self.assertGreater(size[0], 100)
 
@@ -149,7 +149,7 @@ class TornEdgeTests(unittest.TestCase):
             root = Path(temp_dir)
             image, _ = new_page()          # blank: the page is entirely gone
             status, _size, _error = crop(save(image, root, "destroyed"))
-            self.assertEqual(status, CROP_SKIPPED)
+            self.assertEqual(status, SKIPPED)
 
 
 class DetachedFragmentTests(unittest.TestCase):
@@ -187,7 +187,7 @@ class DetachedFragmentTests(unittest.TestCase):
                 with self.subTest(fragment=f"{side}x{side}"):
                     self.assertLess(self.fragment_ratio(side), DEFAULT_DOMINANT_CONTOUR_RATIO)
                     status, size, error = self._page_with_fragment(root, side)
-                    self.assertEqual(status, CROP_SUCCESS, error)
+                    self.assertEqual(status, SUCCESS, error)
                     self.assertLess(
                         size[0], self.NARROW_PAGE_W + self.GAP,
                         "fragment was unexpectedly included",
@@ -200,7 +200,7 @@ class DetachedFragmentTests(unittest.TestCase):
                 with self.subTest(fragment=f"{side}x{side}"):
                     self.assertGreater(self.fragment_ratio(side), DEFAULT_DOMINANT_CONTOUR_RATIO)
                     status, size, error = self._page_with_fragment(root, side)
-                    self.assertEqual(status, CROP_SUCCESS, error)
+                    self.assertEqual(status, SUCCESS, error)
                     self.assertGreater(
                         size[0], self.NARROW_PAGE_W + self.GAP,
                         "fragment should have widened the crop",
@@ -221,9 +221,10 @@ class TornAndSkewedTests(unittest.TestCase):
             path = save(image.rotate(-3.5, expand=False, fillcolor=(255, 255, 255)),
                         root, "torn_and_skewed")
 
-            output, error, status = crop_image(path, root / "cropped", straighten=True)
+            outcome = crop_image(path, root / "cropped", straighten=True)
+            output, error, status = outcome.output, outcome.error, outcome.status
 
-            self.assertEqual(status, CROP_SUCCESS, error)
+            self.assertEqual(status, SUCCESS, error)
             self.assertTrue(Path(output).exists())
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -15,8 +16,36 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from utils.tool_registry import get_spec
+from utils.job_result import JobResult
 from utils.update_checker import StagedUpdate
 from web.app import _lock, _request_token, app, runner
+
+
+class _NoopWorker(threading.Thread):
+    """Runs and finishes, so a job exists for a route to read."""
+
+    def __init__(self, outputs=()):
+        super().__init__(daemon=True)
+        self.cancelled = False
+        self.outputs = [str(path) for path in outputs]
+        self.results = JobResult()
+        for path in self.outputs:
+            self.results.record_success(path)
+
+    def set_progress_callback(self, callback):
+        pass
+
+    def set_status_callback(self, callback):
+        pass
+
+    def set_error_callback(self, callback):
+        pass
+
+    def cancel(self, force: bool = False):
+        self.cancelled = True
+
+    def get_results(self):
+        return self.results.to_dict()
 
 
 class WebReleaseTests(unittest.TestCase):
@@ -118,7 +147,9 @@ class WebReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             error_folder = Path(temp_dir) / "errored-files"
             error_folder.mkdir()
-            runner.replace_data("auto_crop", {"error_folder": str(error_folder)})
+            # The route reads the job the start recorded, so record one.
+            runner.start("auto_crop", _NoopWorker(), error_folder=error_folder)
+            runner.wait("auto_crop", timeout=5)
 
             with patch("web.app._open_folder", return_value=(True, None)) as opener:
                 response = self.client.post("/api/auto_crop/open-errors", json={})
@@ -126,6 +157,76 @@ class WebReleaseTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.get_json()["ok"])
             opener.assert_called_once_with(error_folder)
+
+    def test_undo_removes_what_the_job_wrote_and_leaves_the_source(self):
+        """The undo boundary comes from the job, not from a dict of strings."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "page.tif"
+            source.write_bytes(b"source")
+            output_folder = root / "cropped"
+            output_folder.mkdir()
+            written = output_folder / "page.tif"
+            written.write_bytes(b"output")
+
+            runner.reset("auto_crop")
+            runner.start(
+                "auto_crop", _NoopWorker(outputs=[written]),
+                input_folder=root, output_folder=output_folder,
+            )
+            runner.wait("auto_crop", timeout=5)
+
+            response = self.client.post("/api/auto_crop/undo", json={})
+
+            payload = response.get_json()
+            self.assertTrue(payload["ok"], payload)
+            self.assertEqual(payload["removed_count"], 1)
+            self.assertFalse(written.exists())
+            self.assertTrue(source.exists(), "the source is never touched")
+        runner.reset("auto_crop")
+
+    def test_undo_refuses_a_job_that_named_no_output_folder(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stray = Path(temp_dir) / "stray.tif"
+            stray.write_bytes(b"output")
+
+            runner.reset("auto_crop")
+            runner.start("auto_crop", _NoopWorker(outputs=[stray]))
+            runner.wait("auto_crop", timeout=5)
+
+            response = self.client.post("/api/auto_crop/undo", json={})
+
+            payload = response.get_json()
+            self.assertFalse(payload["ok"])
+            self.assertIn("cannot be undone", payload["error"])
+            self.assertTrue(stray.exists())
+        runner.reset("auto_crop")
+
+    def test_undo_refuses_modified_outputs_and_consumes_deleted_records(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output = root / "cropped"
+            output.mkdir()
+            written = output / "page.tif"
+            written.write_bytes(b"job output")
+            runner.reset("auto_crop")
+            runner.start("auto_crop", _NoopWorker([written]), input_folder=root, output_folder=output)
+            self.assertTrue(runner.wait("auto_crop", timeout=5))
+            written.write_bytes(b"corrected output")
+            payload = self.client.post("/api/auto_crop/undo", json={}).get_json()
+            self.assertFalse(payload["ok"])
+            self.assertEqual(written.read_bytes(), b"corrected output")
+
+            runner.reset("auto_crop")
+            runner.start("auto_crop", _NoopWorker([written]), input_folder=root, output_folder=output)
+            self.assertTrue(runner.wait("auto_crop", timeout=5))
+            self.assertTrue(self.client.post("/api/auto_crop/undo", json={}).get_json()["ok"])
+            output.mkdir(exist_ok=True)
+            written.write_bytes(b"new file after undo")
+            payload = self.client.post("/api/auto_crop/undo", json={}).get_json()
+            self.assertFalse(payload["ok"])
+            self.assertEqual(written.read_bytes(), b"new file after undo")
+        runner.reset("auto_crop")
 
     def test_settings_api_writes_to_user_appdata(self):
         with tempfile.TemporaryDirectory() as temp_dir:

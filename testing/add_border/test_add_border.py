@@ -28,12 +28,12 @@ class AddBorderSmokeTests(unittest.TestCase):
 
     def test_add_border_creates_larger_outputs(self):
         for image_path in sorted(self.fixture_dir.iterdir()):
-            output_path, error, stats = add_border_to_image(image_path, self.output_dir)
-            self.assertIsNone(error, image_path.name)
-            self.assertTrue(Path(output_path).exists())
-            self.assertGreater(stats["output_size"][0], 0)
-            self.assertGreater(stats["padding_x"], 0)
-            self.assertGreater(stats["padding_y"], 0)
+            outcome = add_border_to_image(image_path, self.output_dir)
+            self.assertTrue(outcome.succeeded, f"{image_path.name}: {outcome.error}")
+            self.assertTrue(Path(outcome.output).exists())
+            self.assertGreater(outcome.details["output_size"][0], 0)
+            self.assertGreater(outcome.details["padding_x"], 0)
+            self.assertGreater(outcome.details["padding_y"], 0)
 
 
 if __name__ == "__main__":

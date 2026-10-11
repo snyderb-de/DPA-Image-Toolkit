@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from PIL import Image
 
 from modules.tiff_combine.core import preserve_dpi
+from utils.outcome import Outcome
 
 
 def get_tiff_page_count(file_path: Path) -> int:
@@ -24,12 +25,12 @@ def split_tiff_file(
     output_folder: Optional[Path] = None,
     skip_single_page: bool = True,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> Tuple[bool, List[str], Optional[str], Dict]:
+) -> Outcome:
     """
     Split a TIFF file into single-page TIFF files.
 
-    Returns:
-        tuple: (success, output_paths, error_message, stats)
+    A single-page TIFF is a skip rather than a failure when `skip_single_page`
+    is set: there is nothing to split, and the source is left alone.
     """
     file_path = Path(file_path)
 
@@ -38,11 +39,7 @@ def split_tiff_file(
             page_count = getattr(img, "n_frames", 1)
 
             if page_count <= 1 and skip_single_page:
-                return True, [], None, {
-                    "pages": page_count,
-                    "skipped": True,
-                    "reason": "single-page TIFF",
-                }
+                return Outcome.skip("single-page TIFF", pages=page_count)
 
             # Include the source extension so every accepted source has its
             # own destination, even if the input folder changes during a batch.
@@ -56,12 +53,9 @@ def split_tiff_file(
             output_paths = []
             for page_index in range(page_count):
                 if should_cancel and should_cancel():
-                    return False, output_paths, "Operation cancelled by user.", {
-                        "pages": page_count,
-                        "skipped": False,
-                        "cancelled": True,
-                        "processed_pages": len(output_paths),
-                    }
+                    return Outcome.abort(
+                        pages=page_count, processed_pages=len(output_paths)
+                    )
 
                 img.seek(page_index)
                 frame = img.copy()
@@ -77,11 +71,7 @@ def split_tiff_file(
                 frame.save(output_path, **save_kwargs)
                 output_paths.append(str(output_path))
 
-            return True, output_paths, None, {
-                "pages": page_count,
-                "skipped": False,
-                "cancelled": False,
-            }
+            return Outcome.ok(output_paths, pages=page_count)
 
     except Exception as e:
-        return False, [], str(e), {"pages": 0, "skipped": False, "cancelled": False}
+        return Outcome.fail(str(e), pages=0)

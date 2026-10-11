@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+from utils.undo import capture_output_identity, OutputIdentity
 
 
 @dataclass(frozen=True)
@@ -60,14 +61,28 @@ class JobResult:
     skip_reasons: list[SkipReason] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
+    output_identities: dict[str, Optional[OutputIdentity]] = field(default_factory=dict, repr=False)
     extra: dict = field(default_factory=dict)
 
     # ── Recording ─────────────────────────────────────────────────────────
 
-    def record_success(self, output: Optional[Path | str] = None) -> None:
+    def record_success(self, output=None) -> None:
+        """Count one success, and remember what it wrote.
+
+        `output` may be a single path or several — TIFF split produces a page
+        file per frame, all from one input. The success count still moves by
+        one; only the output list grows.
+        """
         self.success += 1
-        if output is not None:
-            self.outputs.append(str(output))
+        if output is None:
+            return
+        if isinstance(output, (str, Path)):
+            paths = [str(output)]
+        else:
+            paths = [str(item) for item in output]
+        self.outputs.extend(paths)
+        for path in paths:
+            self.output_identities[path] = capture_output_identity(path)
 
     def record_failure(self, file: str, error: str) -> None:
         self.failed += 1

@@ -15,7 +15,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
@@ -39,9 +38,9 @@ def make_page(path: Path, text: str = "The quick brown fox") -> Path:
     return path
 
 
-def run_worker(folder: Path, output: Path, errors: Path, **kwargs):
+def run_worker(folder: Path, output: Path, **kwargs):
     worker = OcrPdfWorker(
-        input_folder=folder, output_folder=output, error_folder=errors,
+        input_folder=folder, output_folder=output,
         language="eng", save_pdfa=False, skip_messy=False,
         reduce_size_enabled=False, **kwargs,
     )
@@ -57,24 +56,10 @@ def run_worker(folder: Path, output: Path, errors: Path, **kwargs):
 class OcrWorkerGateTests(unittest.TestCase):
     """These need no OCR engine, so they run on every machine."""
 
-    def test_missing_dependencies_are_reported_and_nothing_runs(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            make_page(root / "doc_0001.tif")
-            output = root / "PDFs"
-
-            with patch("modules.ocr_pdf.core.check_ocr_dependencies",
-                       return_value=(False, "Tesseract OCR was not found.", {})):
-                results, _ = run_worker(root, output, root / "errored-files")
-
-            self.assertEqual(results["success"], 0)
-            self.assertEqual([e["file"] for e in results["errors"]], ["dependency"])
-            self.assertFalse(any(output.glob("*.pdf")))
-
     def test_an_empty_folder_produces_no_documents(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            results, _ = run_worker(root, root / "PDFs", root / "errored-files")
+            results, _ = run_worker(root, root / "PDFs")
 
             self.assertEqual(results["total"], 0)
             self.assertEqual(results["success"], 0)
@@ -86,21 +71,15 @@ class OcrWorkerGateTests(unittest.TestCase):
                 make_page(root / f"doc_{i:04d}.tif")
 
             worker = OcrPdfWorker(
-                input_folder=root, output_folder=root / "PDFs",
-                error_folder=root / "errored-files", language="eng",
+                input_folder=root, output_folder=root / "PDFs", language="eng",
                 save_pdfa=False, skip_messy=False, reduce_size_enabled=False,
             )
             worker.set_progress_callback(lambda p: None)
             worker.set_status_callback(lambda m: None)
             worker.set_error_callback(lambda f, e: None)
             worker.cancel()          # cancelled before it ever starts
-            # The dependency gate runs first and would return before the
-            # cancellation check on a machine without Tesseract. Satisfy it so
-            # this test is about cancellation and nothing else.
-            with patch("modules.ocr_pdf.core.check_ocr_dependencies",
-                       return_value=(True, None, {})):
-                worker.start()
-                worker.join(timeout=120)
+            worker.start()
+            worker.join(timeout=120)
 
             results = worker.get_results()
             self.assertTrue(results["cancelled"])
@@ -119,7 +98,7 @@ class OcrWorkerBatchTests(unittest.TestCase):
             make_page(root / "memo_0001.tif")
             output = root / "PDFs"
 
-            results, events = run_worker(root, output, root / "errored-files")
+            results, events = run_worker(root, output)
 
             self.assertEqual(results["total"], 2, "two groups expected")
             self.assertEqual(results["success"], 2)
@@ -137,7 +116,7 @@ class OcrWorkerBatchTests(unittest.TestCase):
             make_page(root / "report_0001.tif")
             make_page(root / "report_0002.tif")
 
-            results, _ = run_worker(root, root / "PDFs", root / "errored-files")
+            results, _ = run_worker(root, root / "PDFs")
 
             self.assertEqual(results["success"], 1)
             self.assertIn("OCR'd: 1", results["summary"])
@@ -148,15 +127,51 @@ class OcrWorkerBatchTests(unittest.TestCase):
             make_page(root / "doc_0001.tif")
             output = root / "PDFs"
 
-            first, _ = run_worker(root, output, root / "errored-files",
+            first, _ = run_worker(root, output,
                                   skip_existing=True)
             self.assertEqual(first["success"], 1)
 
-            second, _ = run_worker(root, output, root / "errored-files",
+            second, _ = run_worker(root, output,
                                    skip_existing=True)
             self.assertEqual(second["success"], 0)
             self.assertEqual(second["skipped"], 1)
             self.assertTrue(second["skip_reasons"])
+
+    def test_progress_carries_what_the_two_bars_need(self):
+        """The payload is the worker's interface to the OCR progress bars.
+
+        The panel draws a Current PDF bar from `percentage` and an Overall Job
+        bar from `job_percent`. It reads nothing else but the label fields, so
+        anything else in the payload is dead weight.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for index in range(1, 4):
+                make_page(root / f"letter_{index:04d}.tif")
+            make_page(root / "memo_0001.tif")
+
+            _results, events = run_worker(root, root / "PDFs")
+
+            self.assertTrue(events, "no progress was emitted")
+            expected = {
+                "percentage", "job_percent", "current_pdf",
+                "total_pdfs", "filename", "message",
+            }
+            for event in events:
+                self.assertEqual(set(event), expected)
+                self.assertGreaterEqual(event["percentage"], 0.0)
+                self.assertLessEqual(event["percentage"], 100.0)
+                self.assertLessEqual(event["job_percent"], 100.0)
+                self.assertEqual(event["total_pdfs"], 2)
+
+            # The two bars must not be the same number. The job bar is page
+            # weighted across both documents, so when the three-page letter is
+            # part way through, its own bar is ahead of the job's.
+            self.assertTrue(
+                any(e["percentage"] > e["job_percent"] for e in events),
+                "the Current PDF bar never ran ahead of the Overall Job bar",
+            )
+            self.assertAlmostEqual(events[-1]["job_percent"], 100.0, places=5)
 
     def test_results_survive_the_wire(self):
         """The worker's results are serialised straight into JSON by the UI."""
@@ -165,7 +180,7 @@ class OcrWorkerBatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_page(root / "doc_0001.tif")
-            results, _ = run_worker(root, root / "PDFs", root / "errored-files")
+            results, _ = run_worker(root, root / "PDFs")
             json.dumps(results)
 
 

@@ -9,6 +9,8 @@ from typing import Optional, Tuple
 
 from PIL import Image
 
+from utils.outcome import Outcome
+
 from modules.auto_cropping.core import (
     DEFAULT_PADDING_MAX,
     DEFAULT_PADDING_MIN,
@@ -35,12 +37,13 @@ def add_border_to_image(
     image_path,
     output_folder,
     preserve_dpi: bool = True,
-) -> Tuple[Optional[str], Optional[str], dict]:
+) -> Outcome:
     """
     Add a white border around an image using auto-crop padding settings.
 
     Returns:
-        tuple: (output_path, error_message, stats)
+        Outcome: a success carrying the bordered path, with the padding applied
+            and the new size in `details`.
     """
     image_path = Path(image_path)
     output_folder = Path(output_folder)
@@ -76,11 +79,12 @@ def add_border_to_image(
 
             bordered.save(output_path, **save_kwargs)
 
-            return str(output_path), None, {
-                "padding_x": padding_x,
-                "padding_y": padding_y,
-                "output_size": bordered.size,
-            }
+            return Outcome.ok(
+                str(output_path),
+                padding_x=padding_x,
+                padding_y=padding_y,
+                output_size=bordered.size,
+            )
 
     except Exception as e:
-        return None, f"{image_path.name}: {e}", {}
+        return Outcome.fail(f"{image_path.name}: {e}")

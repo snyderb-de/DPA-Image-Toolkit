@@ -88,6 +88,8 @@
         </div>
       </div>
 
+      <div class="status-banner" id="banner-auto_crop">Select a folder containing images to begin.</div>
+
       <div class="card">
         <div class="card-label">Input Folder</div>
         <div class="picker-row">
@@ -95,6 +97,13 @@
           <div class="path-display" id="path-auto_crop">No folder selected</div>
           <span class="count-badge" id="count-auto_crop" style="display:none"></span>
         </div>
+        <div class="path-entry">
+          <input type="text" class="path-input" id="path-input-auto_crop"
+                 placeholder="…or paste a folder path"
+                 onkeydown="if(event.key==='Enter')usePastedPath('auto_crop')">
+          <button class="btn btn-ghost btn-sm" onclick="usePastedPath('auto_crop')">Use</button>
+        </div>
+        <div class="recent-row" id="recent-auto_crop" hidden></div>
       </div>
 
       <div class="card">
@@ -104,9 +113,20 @@
             <input type="checkbox" id="opt-auto-straighten"> Straighten before crop
           </label>
         </div>
+        <div class="slider-row">
+          <label class="slider-label" for="opt-white-threshold">Background sensitivity</label>
+          <input type="range" id="opt-white-threshold" class="slider"
+                 min="200" max="253" value="253" step="1"
+                 oninput="describeThreshold(this.value)">
+          <span class="slider-value" id="white-threshold-value">253</span>
+        </div>
+        <div class="slider-help">
+          Highest brightness still treated as content. Lower it to ignore faint paper and
+          crop tighter. Auto Crop may pick a lower value for a page on its own — this is
+          the ceiling, never a floor.
+        </div>
       </div>
 
-      <div class="status-banner" id="banner-auto_crop">Select a folder containing images to begin.</div>
 
       <div class="card progress-section hidden" id="prog-auto_crop">
         <div class="progress-row">
@@ -133,6 +153,7 @@
       <div class="action-bar">
         <button class="btn btn-err" id="btn-err-auto_crop" disabled onclick="openErrorFolder('auto_crop')">📋 View Errors</button>
         <div class="action-spacer"></div>
+        <button class="btn btn-warn" id="btn-undo-auto_crop" hidden onclick="undoJob('auto_crop')">⌫ Undo Outputs</button>
         <button class="btn btn-ghost" id="btn-reset-auto_crop" onclick="resetTool('auto_crop')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-auto_crop" disabled onclick="cancelTool('auto_crop')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-auto_crop" disabled onclick="startTool('auto_crop')">▶ Start</button>
@@ -149,6 +170,8 @@
         </div>
       </div>
 
+      <div class="status-banner" id="banner-straighten_images">Select a folder containing images to begin.</div>
+
       <div class="card">
         <div class="card-label">Input Folder</div>
         <div class="picker-row">
@@ -156,9 +179,15 @@
           <div class="path-display" id="path-straighten_images">No folder selected</div>
           <span class="count-badge" id="count-straighten_images" style="display:none"></span>
         </div>
+        <div class="path-entry">
+          <input type="text" class="path-input" id="path-input-straighten_images"
+                 placeholder="…or paste a folder path"
+                 onkeydown="if(event.key==='Enter')usePastedPath('straighten_images')">
+          <button class="btn btn-ghost btn-sm" onclick="usePastedPath('straighten_images')">Use</button>
+        </div>
+        <div class="recent-row" id="recent-straighten_images" hidden></div>
       </div>
 
-      <div class="status-banner" id="banner-straighten_images">Select a folder containing images to begin.</div>
 
       <div class="card progress-section hidden" id="prog-straighten_images">
         <div class="progress-row">
@@ -185,6 +214,7 @@
       <div class="action-bar">
         <button class="btn btn-err" id="btn-err-straighten_images" disabled onclick="openErrorFolder('straighten_images')">📋 View Errors</button>
         <div class="action-spacer"></div>
+        <button class="btn btn-warn" id="btn-undo-straighten_images" hidden onclick="undoJob('straighten_images')">⌫ Undo Outputs</button>
         <button class="btn btn-ghost" id="btn-reset-straighten_images" onclick="resetTool('straighten_images')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-straighten_images" disabled onclick="cancelTool('straighten_images')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-straighten_images" disabled onclick="startTool('straighten_images')">▶ Start</button>
@@ -201,6 +231,8 @@
         </div>
       </div>
 
+      <div class="status-banner" id="banner-merge_tiffs">Select a folder of named TIFF files to begin.</div>
+
       <div class="card">
         <div class="card-label">TIFF Folder</div>
         <div class="picker-row">
@@ -208,9 +240,28 @@
           <div class="path-display" id="path-merge_tiffs">No folder selected</div>
           <span class="count-badge" id="count-merge_tiffs" style="display:none"></span>
         </div>
+        <div class="path-entry">
+          <input type="text" class="path-input" id="path-input-merge_tiffs"
+                 placeholder="…or paste a folder path"
+                 onkeydown="if(event.key==='Enter')usePastedPath('merge_tiffs')">
+          <button class="btn btn-ghost btn-sm" onclick="usePastedPath('merge_tiffs')">Use</button>
+        </div>
+        <div class="recent-row" id="recent-merge_tiffs" hidden></div>
       </div>
 
-      <div class="status-banner" id="banner-merge_tiffs">Select a folder of named TIFF files to begin.</div>
+      <div class="card">
+        <div class="card-label">Options</div>
+        <div class="select-row">
+          <label class="slider-label" for="sel-merge-compression">Compression</label>
+          <select id="sel-merge-compression" class="select"></select>
+        </div>
+        <div class="slider-help">
+          Deflate is the smallest lossless option and the default. LZW and PackBits are
+          lossless but produce larger files; choose them only for readers that cannot open
+          deflate TIFFs. JPEG is far smaller but alters the image, so it is not suitable
+          for archival masters.
+        </div>
+      </div>
 
       <div class="card progress-section hidden" id="prog-merge_tiffs">
         <div class="progress-row">
@@ -237,6 +288,7 @@
       <div class="action-bar">
         <button class="btn btn-err" id="btn-err-merge_tiffs" disabled onclick="openErrorFolder('merge_tiffs')">📋 View Errors</button>
         <div class="action-spacer"></div>
+        <button class="btn btn-warn" id="btn-undo-merge_tiffs" hidden onclick="undoJob('merge_tiffs')">⌫ Undo Outputs</button>
         <button class="btn btn-ghost" id="btn-reset-merge_tiffs" onclick="resetTool('merge_tiffs')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-merge_tiffs" disabled onclick="cancelTool('merge_tiffs')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-merge_tiffs" disabled onclick="startTool('merge_tiffs')">▶ Start</button>
@@ -253,6 +305,8 @@
         </div>
       </div>
 
+      <div class="status-banner" id="banner-split_tiffs">Select a folder or files to begin.</div>
+
       <div class="card">
         <div class="card-label">Input Mode</div>
         <div class="mode-toggle" style="margin-bottom:12px">
@@ -266,7 +320,24 @@
         </div>
       </div>
 
-      <div class="status-banner" id="banner-split_tiffs">Select a folder or files to begin.</div>
+      <div class="card">
+        <div class="card-label">What to do</div>
+        <div class="mode-toggle" style="margin-bottom:12px">
+          <button class="mode-btn active" id="split-op-split" onclick="setSplitOperation('split')">Split into single pages</button>
+          <button class="mode-btn" id="split-op-select" onclick="setSplitOperation('select')">Extract / reorder pages</button>
+        </div>
+        <div id="split-select-options" hidden>
+          <div class="path-entry">
+            <input type="text" class="path-input" id="split-page-spec"
+                   placeholder="Pages to keep, in order — e.g. 1-3 or 3,1,2">
+          </div>
+          <div class="slider-help">
+            Pages are written in the order you type them, so <code>3,1,2</code> reorders and
+            <code>2-4</code> extracts a range. <code>4-2</code> counts down. Each selected TIFF
+            produces one <code>&lt;name&gt;_selected.tif</code>; the source is never changed.
+          </div>
+        </div>
+      </div>
 
       <div class="card progress-section hidden" id="prog-split_tiffs">
         <div class="progress-row">
@@ -309,6 +380,8 @@
         </div>
       </div>
 
+      <div class="status-banner" id="banner-add_border">Select a folder containing images to begin.</div>
+
       <div class="card">
         <div class="card-label">Input Folder</div>
         <div class="picker-row">
@@ -316,9 +389,15 @@
           <div class="path-display" id="path-add_border">No folder selected</div>
           <span class="count-badge" id="count-add_border" style="display:none"></span>
         </div>
+        <div class="path-entry">
+          <input type="text" class="path-input" id="path-input-add_border"
+                 placeholder="…or paste a folder path"
+                 onkeydown="if(event.key==='Enter')usePastedPath('add_border')">
+          <button class="btn btn-ghost btn-sm" onclick="usePastedPath('add_border')">Use</button>
+        </div>
+        <div class="recent-row" id="recent-add_border" hidden></div>
       </div>
 
-      <div class="status-banner" id="banner-add_border">Select a folder containing images to begin.</div>
 
       <div class="card progress-section hidden" id="prog-add_border">
         <div class="progress-row">
@@ -345,6 +424,7 @@
       <div class="action-bar">
         <button class="btn btn-err" id="btn-err-add_border" disabled onclick="openErrorFolder('add_border')">📋 View Errors</button>
         <div class="action-spacer"></div>
+        <button class="btn btn-warn" id="btn-undo-add_border" hidden onclick="undoJob('add_border')">⌫ Undo Outputs</button>
         <button class="btn btn-ghost" id="btn-reset-add_border" onclick="resetTool('add_border')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-add_border" disabled onclick="cancelTool('add_border')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-add_border" disabled onclick="startTool('add_border')">▶ Start</button>
@@ -361,6 +441,8 @@
         </div>
       </div>
 
+      <div class="status-banner" id="banner-ocr_pdf">Select a folder of scan images to begin.</div>
+
       <div class="card">
         <div class="card-label">Input Folder</div>
         <div class="picker-row">
@@ -368,6 +450,13 @@
           <div class="path-display" id="path-ocr_pdf">No folder selected</div>
           <span class="count-badge" id="count-ocr_pdf" style="display:none"></span>
         </div>
+        <div class="path-entry">
+          <input type="text" class="path-input" id="path-input-ocr_pdf"
+                 placeholder="…or paste a folder path"
+                 onkeydown="if(event.key==='Enter')usePastedPath('ocr_pdf')">
+          <button class="btn btn-ghost btn-sm" onclick="usePastedPath('ocr_pdf')">Use</button>
+        </div>
+        <div class="recent-row" id="recent-ocr_pdf" hidden></div>
       </div>
 
       <div class="card">
@@ -389,7 +478,6 @@
         </div>
       </div>
 
-      <div class="status-banner" id="banner-ocr_pdf">Select a folder of scan images to begin.</div>
 
       <div class="card progress-section hidden" id="prog-ocr_pdf">
         <!-- Per-PDF progress -->
@@ -430,7 +518,9 @@
 
       <div class="action-bar">
         <button class="btn btn-err" id="btn-err-ocr_pdf" disabled onclick="openErrorFolder('ocr_pdf')">📋 View Errors</button>
+        <button class="btn btn-warn" id="btn-retry-flagged-ocr_pdf" hidden onclick="retryFlagged()">↻ OCR Flagged Pages</button>
         <div class="action-spacer"></div>
+        <button class="btn btn-warn" id="btn-undo-ocr_pdf" hidden onclick="undoJob('ocr_pdf')">⌫ Undo Outputs</button>
         <button class="btn btn-ghost" id="btn-reset-ocr_pdf" onclick="resetTool('ocr_pdf')">↺ New Job</button>
         <button class="btn btn-warn" id="btn-cancel-ocr_pdf" disabled onclick="cancelTool('ocr_pdf')">■ Cancel</button>
         <button class="btn btn-primary" id="btn-start-ocr_pdf" disabled onclick="startTool('ocr_pdf')">▶ Start</button>
@@ -446,6 +536,8 @@
           <div class="panel-sub">Reduce size, split pages, export images, or extract page ranges</div>
         </div>
       </div>
+
+      <div class="status-banner" id="banner-pdf_conversion">Select a PDF file or folder to begin.</div>
 
       <div class="card">
         <div class="card-label">Operation</div>
@@ -525,7 +617,6 @@
         </div>
       </div>
 
-      <div class="status-banner" id="banner-pdf_conversion">Select a PDF file or folder to begin.</div>
 
       <div class="card progress-section hidden" id="prog-pdf_conversion">
         <div class="progress-row">

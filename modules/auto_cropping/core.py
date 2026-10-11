@@ -15,6 +15,8 @@ Algorithm:
 """
 
 from PIL import Image
+
+from utils.outcome import Outcome
 import cv2
 import numpy as np
 from pathlib import Path
@@ -27,11 +29,6 @@ DEFAULT_MIN_SIZE = (50, 50)
 DEFAULT_MAX_CONTOURS = 100
 DEFAULT_WHITE_THRESHOLD = 253  # Near-white threshold (254+ is white)
 
-# Outcomes crop_image can report. A caller must not have to read the error
-# message to tell a deliberate skip from a real failure.
-CROP_SUCCESS = "success"
-CROP_SKIPPED = "skipped"
-CROP_FAILED = "failed"
 DEFAULT_PADDING_PERCENT = 0.025
 DEFAULT_PADDING_MIN = 15
 DEFAULT_PADDING_MAX = 100
@@ -165,7 +162,8 @@ def straighten_image(
     Straighten one image without cropping it.
 
     Returns:
-        tuple: (output_path, error_message, stats)
+        Outcome: a success carrying the straightened path, with the angle and
+            whether it was enough to count as straightened in `details`.
     """
     image_path = Path(image_path)
     output_folder = Path(output_folder)
@@ -173,7 +171,7 @@ def straighten_image(
     try:
         image, dpi_metadata = _decode_checked_image(image_path)
         if image is None:
-            return None, f"Failed to read image: {image_path.name}", {}
+            return Outcome.fail(f"Failed to read image: {image_path.name}")
 
         corrected_image, angle = _deskew_image(image)
 
@@ -186,14 +184,15 @@ def straighten_image(
         else:
             corrected_pil.save(str(output_path))
 
-        return str(output_path), None, {
-            "angle": angle,
-            "straightened": abs(angle) >= 0.3,
-            "output_size": corrected_pil.size,
-        }
+        return Outcome.ok(
+            str(output_path),
+            angle=angle,
+            straightened=abs(angle) >= 0.3,
+            output_size=corrected_pil.size,
+        )
 
     except Exception as e:
-        return None, f"{image_path.name}: {e}", {}
+        return Outcome.fail(f"{image_path.name}: {e}")
 
 
 def crop_image(
@@ -218,12 +217,9 @@ def crop_image(
         straighten (bool): Straighten the image before crop analysis
 
     Returns:
-        tuple: (output_path, error_message, status)
-            - output_path (str|None): Path to cropped image, or None
-            - error_message (str|None): Description, or None on success
-            - status (str): CROP_SUCCESS, CROP_SKIPPED or CROP_FAILED.
-              A skip is deliberate — the page is blank, or its content is too
-              small to be worth cropping — and leaves the source untouched.
+        Outcome: a success carrying the cropped path, a skip, or a failure.
+            A skip is deliberate — the page is blank, or its content is too
+            small to be worth cropping — and leaves the source untouched.
     """
     image_path = Path(image_path)
     output_folder = Path(output_folder)
@@ -232,7 +228,7 @@ def crop_image(
         # Validate and decode the same bytes so a changed source cannot bypass the limit.
         image, dpi_metadata = _decode_checked_image(image_path)
         if image is None:
-            return None, f"Failed to read image: {image_path.name}", CROP_FAILED
+            return Outcome.fail(f"Failed to read image: {image_path.name}")
 
         if straighten:
             image, _skew_angle = _deskew_image(image)
@@ -264,7 +260,7 @@ def crop_image(
         )
 
         if not contours:
-            return None, "Image appears blank or fully white — nothing to crop", CROP_SKIPPED
+            return Outcome.skip("Image appears blank or fully white — nothing to crop")
 
         # Filter contours by minimum size
         large_contours = _get_crop_contours(
@@ -274,10 +270,10 @@ def crop_image(
         )
 
         if not large_contours:
-            return None, (
+            return Outcome.skip(
                 f"Content found but too small to crop "
                 f"(minimum {min_size[0]}×{min_size[1]}px)"
-            ), CROP_SKIPPED
+            )
 
         # Build one crop box that retains all meaningful content on the page.
         x, y, w, h = _get_combined_bounding_box(large_contours)
@@ -313,10 +309,10 @@ def crop_image(
         else:
             cropped_pil.save(str(output_path))
 
-        return str(output_path), None, CROP_SUCCESS
+        return Outcome.ok(str(output_path))
 
     except Exception as e:
-        return None, f"{image_path.name}: {str(e)}", CROP_FAILED
+        return Outcome.fail(f"{image_path.name}: {str(e)}")
 
 
 def get_crop_stats(image_path):
