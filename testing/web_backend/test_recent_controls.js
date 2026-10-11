@@ -48,6 +48,8 @@ function harness() {
   };
   const requests = [];
   const context = vm.createContext({
+    URLSearchParams,
+    window: { location: { hash: '' } },
     document: {
       addEventListener() {},
       getElementById: id => elements[id] || null,

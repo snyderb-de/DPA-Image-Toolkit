@@ -1,5 +1,6 @@
 import importlib.util
 import hashlib
+from types import SimpleNamespace
 import sys
 import tempfile
 import unittest
@@ -53,6 +54,8 @@ class UpdateCheckerTests(unittest.TestCase):
                 current_version="v1.1.6",
                 metadata_reader=lambda path: _metadata(ProductVersion="v1.1.7"),
                 staging_dir=temp_path / "stage",
+                trusted_executable=temp_path / "installed.exe",
+                signature_verifier=lambda staged, installed: None,
             )
 
         self.assertTrue(result["ok"])
@@ -108,6 +111,8 @@ class UpdateCheckerTests(unittest.TestCase):
                 current_version="v1.1.6",
                 metadata_reader=lambda path: _metadata(ProductVersion="v1.1.7"),
                 staging_dir=temp_path / "stage",
+                trusted_executable=temp_path / "installed.exe",
+                signature_verifier=lambda staged, installed: None,
             )
 
             staged_path = Path(result["staged_path"])
@@ -117,6 +122,57 @@ class UpdateCheckerTests(unittest.TestCase):
             self.assertEqual(result["sha256"], hashlib.sha256(payload).hexdigest())
             self.assertEqual(staged_path.name, "image-toolkit.exe")
             self.assertEqual(staged_path.read_bytes(), payload)
+
+    def test_spoofed_metadata_is_not_enough_to_stage_an_update(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            candidate = root / "image-toolkit.exe"
+            candidate.write_bytes(b"attacker-controlled EXE")
+            result = update_checker.check_for_update(
+                str(candidate),
+                current_version="v1.1.6",
+                metadata_reader=lambda path: _metadata(ProductVersion="v9.0.0"),
+                staging_dir=root / "stage",
+                trusted_executable=root / "installed.exe",
+                signature_verifier=lambda staged, installed: (_ for _ in ()).throw(
+                    ValueError("untrusted signer")
+                ),
+            )
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["state"], "untrusted")
+            self.assertFalse((root / "stage" / "image-toolkit.exe").exists())
+
+    def test_update_without_installed_trust_anchor_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "image-toolkit.exe"
+            candidate.write_bytes(b"attacker-controlled EXE")
+            result = update_checker.check_for_update(
+                str(candidate),
+                current_version="v1.1.6",
+                metadata_reader=lambda path: _metadata(ProductVersion="v9.0.0"),
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["state"], "untrusted")
+
+    def test_staged_version_change_is_rejected_even_with_valid_signer(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            candidate = root / "image-toolkit.exe"
+            candidate.write_bytes(b"signed candidate")
+            def metadata(path):
+                version = "v1.1.8" if Path(path).parent.name == "stage" else "v1.1.7"
+                return _metadata(ProductVersion=version)
+            result = update_checker.check_for_update(
+                str(candidate),
+                current_version="v1.1.6",
+                metadata_reader=metadata,
+                staging_dir=root / "stage",
+                trusted_executable=root / "installed.exe",
+                signature_verifier=lambda staged, installed: None,
+            )
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["state"], "untrusted")
+            self.assertFalse((root / "stage" / "image-toolkit.exe").exists())
 
     def test_rejects_exe_without_dpa_product_identity(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -147,6 +203,40 @@ class UpdateCheckerTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["state"], "invalid")
         self.assertIn("version", result["message"].lower())
+
+
+class ApplyUpdateTrustTests(unittest.TestCase):
+    def test_replacement_script_rechecks_hash_and_signer(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            staged = root / "image-toolkit.exe"
+            target = root / "installed.exe"
+            staged.write_bytes(b"signed release bytes")
+            digest = hashlib.sha256(staged.read_bytes()).hexdigest()
+            fake_os = SimpleNamespace(name="nt", getpid=lambda: 1234)
+            with patch.object(update_checker, "os", fake_os):
+                with patch.object(update_checker, "verify_update_signature") as verifier:
+                    with patch.object(update_checker.subprocess, "Popen") as launcher:
+                        update_checker.apply_staged_update(
+                            staged, target, digest, process_id=5678
+                        )
+            verifier.assert_called_once_with(staged, target)
+            launcher.assert_called_once()
+            script = (root / "apply-dpa-image-toolkit-update-1234.ps1").read_text()
+            self.assertLess(script.index("Get-FileHash"), script.index("Copy-Item"))
+            self.assertLess(
+                script.index("Get-AuthenticodeSignature"), script.index("Copy-Item")
+            )
+            self.assertIn("SignerCertificate.Thumbprint", script)
+
+    def test_non_digest_input_cannot_enter_powershell_script(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            staged = Path(temp_dir) / "image-toolkit.exe"
+            staged.write_bytes(b"bytes")
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                update_checker.apply_staged_update(
+                    staged, Path(temp_dir) / "installed.exe", "0'; exit 0; #"
+                )
 
 
 class VersionInfoGenerationTests(unittest.TestCase):

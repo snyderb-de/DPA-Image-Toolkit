@@ -47,6 +47,7 @@ jobs:
       - name: Stamp EXE metadata
         run: pyi-set_version build/version-info.txt dist/image-toolkit.exe
 
+      # This is the unsigned build for workplace signing before deployment.
       - name: Prepare release asset
         run: Copy-Item dist/image-toolkit.exe "image-toolkit.exe"
 
@@ -63,5 +64,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           name: DPA Image Toolkit
+          body: Build artifact only. Sign this EXE at work before deployment; the in-app updater rejects unsigned EXEs.
           files: image-toolkit.exe
           fail_on_unmatched_files: true

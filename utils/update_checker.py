@@ -55,11 +55,53 @@ def _modified_iso(path: Path) -> str | None:
         return None
 
 
+def _signature_check_script(candidate: Path, installed: Path) -> str:
+    """PowerShell guard shared by the check and replacement stages."""
+    return f"""$Candidate = {_powershell_string(candidate)}
+$Installed = {_powershell_string(installed)}
+try {{
+    $CandidateSignature = Get-AuthenticodeSignature -LiteralPath $Candidate
+    $InstalledSignature = Get-AuthenticodeSignature -LiteralPath $Installed
+    if ($CandidateSignature.Status -ne 'Valid' -or $InstalledSignature.Status -ne 'Valid') {{ exit 3 }}
+    if ($null -eq $CandidateSignature.SignerCertificate -or $null -eq $InstalledSignature.SignerCertificate) {{ exit 3 }}
+    if (-not [string]::Equals(
+        $CandidateSignature.SignerCertificate.Thumbprint,
+        $InstalledSignature.SignerCertificate.Thumbprint,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {{ exit 3 }}
+}} catch {{ exit 3 }}
+"""
+
+
+def verify_update_signature(candidate: Path, installed: Path) -> None:
+    """Require a valid signature by the installed executable's signer."""
+    if os.name != "nt":
+        raise RuntimeError("EXE signature verification requires Windows")
+    result = subprocess.run(
+        [
+            "powershell.exe", "-NoProfile", "-NonInteractive",
+            "-ExecutionPolicy", "Bypass", "-Command",
+            _signature_check_script(Path(candidate), Path(installed)),
+        ],
+        capture_output=True,
+        check=False,
+        timeout=30,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0:
+        raise ValueError(
+            "Update EXE must have a valid Authenticode signature from "
+            "the same certificate as the installed EXE"
+        )
+
+
 def check_for_update(
     raw_path: str | None,
     current_version: str | None = None,
     metadata_reader=app_version.read_windows_version_info,
     staging_dir: str | Path | None = None,
+    trusted_executable: str | Path | None = None,
+    signature_verifier=verify_update_signature,
 ) -> dict:
     candidate = resolve_update_candidate(raw_path)
     if candidate is None:
@@ -140,14 +182,32 @@ def check_for_update(
     if not is_newer:
         return result
 
-    try:
-        staged_path, staged_hash = stage_update_executable(candidate, staging_dir=staging_dir)
-    except Exception as exc:
+    if trusted_executable is None:
         return {
             **result,
             "ok": False,
-            "state": "error",
-            "message": f"Could not stage update EXE: {exc}",
+            "state": "untrusted",
+            "message": "No installed EXE is available to verify the update signer.",
+        }
+
+    staged_path = None
+    try:
+        staged_path, staged_hash = stage_update_executable(candidate, staging_dir=staging_dir)
+        signature_verifier(staged_path, Path(trusted_executable))
+        staged_metadata = metadata_reader(staged_path)
+        staged_version = str(
+            staged_metadata.get("ProductVersion") or staged_metadata.get("FileVersion") or ""
+        ).strip()
+        if not _identity_is_dpa(staged_metadata) or staged_version != candidate_version:
+            raise ValueError("Staged EXE identity or version changed during copying")
+    except Exception as exc:
+        if staged_path is not None:
+            staged_path.unlink(missing_ok=True)
+        return {
+            **result,
+            "ok": False,
+            "state": "untrusted",
+            "message": f"Update EXE was not trusted: {exc}",
         }
 
     return {
@@ -219,13 +279,14 @@ def apply_staged_update(staged_path: str | Path, target_path: str | Path, expect
     staged = Path(staged_path)
     target = Path(target_path)
     expected = str(expected_sha256 or "").strip().lower()
-    if not expected:
-        raise ValueError("missing expected update hash")
+    if len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
+        raise ValueError("expected update hash must be a SHA-256 digest")
     actual = sha256_file(staged).lower()
     if actual != expected:
         raise ValueError("staged update hash does not match expected SHA-256")
     if os.name != "nt":
         raise RuntimeError("EXE updates can only be applied on Windows")
+    verify_update_signature(staged, target)
 
     pid = process_id if process_id is not None else os.getpid()
     script_path = staged.parent / f"apply-dpa-image-toolkit-update-{os.getpid()}.ps1"
@@ -240,6 +301,7 @@ try {{
 Start-Sleep -Milliseconds 500
 $ActualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Staged).Hash.ToLowerInvariant()
 if ($ActualHash -ne $ExpectedHash) {{ exit 2 }}
+{_signature_check_script(staged, target)}
 Copy-Item -LiteralPath $Staged -Destination $Target -Force
 Start-Process -FilePath $Target
 Remove-Item -LiteralPath $Staged -Force -ErrorAction SilentlyContinue

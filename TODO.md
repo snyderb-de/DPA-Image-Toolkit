@@ -55,6 +55,7 @@ Nothing open.
 ## P2 — Planned improvement
 
 - [ ] `P2-W3-E1-003` **W3 · E1** — **OCR: tune the messy-scan heuristic** against real production samples. Every false skip is a page someone chases by hand.
+- [ ] `P2-W2-E0-038` **W2 · E0** — **Verify workplace-signed update rollout** — install the first signed EXE manually, then verify that a later EXE signed with the same certificate passes the Windows update check.
 - [ ] `P2-W3-E2-007` **W3 · E2** — **Auto Crop: batch preview mode** before committing crops. Catching a bad crop up front avoids re-running the whole folder.
 - [ ] `P2-W1-E1-012` **W1 · E1** — **Test at high DPI scaling** — verify the web-window layout at 125%, 150% and 200% display scaling on Windows.
 - [ ] `P2-W1-E2-015` **W1 · E2** — **Multi-language OCR option** — back into the UI once the workflow and the support/install story are settled. Not asked for yet.

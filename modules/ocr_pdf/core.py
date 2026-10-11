@@ -27,6 +27,9 @@ from PIL import Image
 
 from utils.dependencies import Dependency, DependencySet, module_available
 from utils.outcome import Outcome
+from utils.image_limits import (
+    MAX_DOCUMENT_PAGES, MAX_DOCUMENT_PIXELS, check_image_page,
+)
 
 from modules.pdf_tools.compression_profiles import DEFAULT_PROFILE_KEY
 from modules.pdf_tools.core import optimize_pdf_writer
@@ -63,28 +66,42 @@ def _build_input_page_manifest(input_files: list[Path]) -> list[dict]:
     Multi-page TIFF files are expanded into one manifest entry per interior page.
     """
     pages = []
+    total_pixels = 0
     for source_path in input_files:
         source_path = Path(source_path)
-        frame_count = _get_image_frame_count(source_path)
-        for frame_index in range(frame_count):
-            display_name = (
-                f"{source_path.name} [page {frame_index + 1}/{frame_count}]"
-                if frame_count > 1
-                else source_path.name
-            )
-            pages.append(
-                {
-                    "source_path": source_path,
-                    "source_name": source_path.name,
-                    "frame_index": frame_index,
-                    "source_page_count": frame_count,
-                    "display_name": display_name,
-                }
-            )
+        with Image.open(source_path) as image:
+            frame_count = max(1, int(getattr(image, "n_frames", 1) or 1))
+            if len(pages) + frame_count > MAX_DOCUMENT_PAGES:
+                raise ValueError(
+                    f"Document exceeds the {MAX_DOCUMENT_PAGES}-page processing limit"
+                )
+            for frame_index in range(frame_count):
+                image.seek(frame_index)
+                total_pixels += check_image_page(image, source_path)
+                if total_pixels > MAX_DOCUMENT_PIXELS:
+                    raise ValueError(
+                        f"Document exceeds the {MAX_DOCUMENT_PIXELS:,}-pixel processing limit"
+                    )
+                display_name = (
+                    f"{source_path.name} [page {frame_index + 1}/{frame_count}]"
+                    if frame_count > 1
+                    else source_path.name
+                )
+                pages.append(
+                    {
+                        "source_path": source_path,
+                        "source_name": source_path.name,
+                        "frame_index": frame_index,
+                        "source_page_count": frame_count,
+                        "display_name": display_name,
+                    }
+                )
     return pages
 
 
-def _load_manifest_page_rgb(page: dict) -> Image.Image:
+def _load_manifest_page_rgb(
+    page: dict, remaining_pixels: int = MAX_DOCUMENT_PIXELS
+) -> Image.Image:
     """
     Load one manifest page as an RGB PIL image.
     """
@@ -94,6 +111,11 @@ def _load_manifest_page_rgb(page: dict) -> Image.Image:
         with Image.open(source_path) as image:
             if frame_index:
                 image.seek(frame_index)
+            pixels = check_image_page(image, source_path)
+            if pixels > remaining_pixels:
+                raise ValueError(
+                    f"Document exceeds the {MAX_DOCUMENT_PIXELS:,}-pixel processing limit"
+                )
             converted = image.convert("RGB")
             dpi = image.info.get("dpi")
             output = converted.copy()
@@ -115,6 +137,7 @@ def _load_manifest_page_grayscale(page: dict) -> Optional[np.ndarray]:
         with Image.open(source_path) as image:
             if frame_index:
                 image.seek(frame_index)
+            check_image_page(image, source_path)
             grayscale = image.convert("L")
             return np.array(grayscale)
     except Exception:
@@ -448,6 +471,17 @@ def group_ocr_input_files(
     documents.extend(single_documents)
     documents.sort(key=lambda item: _natural_sort_key(item["name"]))
 
+    destinations = {}
+    for document in documents:
+        name = document["name"]
+        key = name.casefold()
+        if key in destinations:
+            raise ValueError(
+                f"Different inputs would write the same PDF '{name}.pdf': "
+                f"{destinations[key]} and {document['first_file']}"
+            )
+        destinations[key] = document["first_file"]
+
     return documents
 
 
@@ -665,14 +699,20 @@ def build_input_pdf_from_images(
     output_pdf_path = Path(output_pdf_path)
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
-    input_pages = _build_input_page_manifest(input_files)
+    try:
+        input_pages = _build_input_page_manifest(input_files)
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        return False, f"Invalid input document: {exc}"
     if not input_pages:
         return False, "No input pages found."
 
     pages = []
     try:
+        remaining_pixels = MAX_DOCUMENT_PIXELS
         for page in input_pages:
-            pages.append(_load_manifest_page_rgb(page))
+            loaded = _load_manifest_page_rgb(page, remaining_pixels)
+            remaining_pixels -= loaded.width * loaded.height
+            pages.append(loaded)
 
         first_page, *remaining_pages = pages
         resolution = get_image_dpi(input_pages[0]["source_path"])
@@ -1180,7 +1220,10 @@ def ocr_document_to_pdf(
     if not input_files:
         return Outcome.fail("No input files provided.")
 
-    input_pages = _build_input_page_manifest(input_files)
+    try:
+        input_pages = _build_input_page_manifest(input_files)
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        return Outcome.fail(f"Invalid input document: {exc}")
     if not input_pages:
         return Outcome.fail("No input pages found.")
 
